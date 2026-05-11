@@ -6,33 +6,59 @@ on:
       - 'runtime/triggers/**.md'
 
 jobs:
-  run-ava:
+  detect-triggers:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed trigger files
+        id: detect
+        run: |
+          FILES=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/triggers/.*_trigger\.md' || true)
+          echo "Changed trigger files:"
+          echo "$FILES"
+          # Build JSON matrix
+          JSON="["
+          FIRST=true
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            # Extract task ID from filename e.g. 3-1_trigger.md -> 3.1
+            TID=$(basename "$f" | sed 's/_trigger\.md//' | tr '-' '.')
+            [ -z "$TID" ] && continue
+            $FIRST || JSON="$JSON,"
+            JSON="$JSON{\"task_id\":\"$TID\",\"trigger_file\":\"$f\"}"
+            FIRST=false
+          done <<< "$FILES"
+          JSON="$JSON]"
+          echo "matrix={\"include\":$JSON}" >> $GITHUB_OUTPUT
+          echo "Matrix: {\"include\":$JSON}"
+
+  run-ava:
+    needs: detect-triggers
+    if: ${{ needs.detect-triggers.outputs.matrix != '{"include":[]}' && needs.detect-triggers.outputs.matrix != '{"include":[{"task_id":"","trigger_file":""}]}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-triggers.outputs.matrix) }}
+      fail-fast: false
     permissions:
       contents: write
       issues: write
-      pull-requests: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract task ID from trigger file
-        id: extract
+      - name: Show task being processed
         run: |
-          TRIGGER=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/triggers/' | head -1)
-          echo "Trigger file: $TRIGGER"
-          TASK_ID=$(grep -oP 'TASK_ID:\s*\K[0-9]+\.[0-9]+' "$TRIGGER" 2>/dev/null || echo "")
-          if [ -z "$TASK_ID" ]; then
-            TASK_ID=$(basename "$TRIGGER" | grep -oP '[0-9]+-[0-9]+' | head -1 | tr '-' '.')
-          fi
-          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
-          echo "Task ID: $TASK_ID"
+          echo "Processing Task ID: ${{ matrix.task_id }}"
+          echo "Trigger file: ${{ matrix.trigger_file }}"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -42,30 +68,32 @@ jobs:
       - name: Run AvA orchestrator
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          TASK_ID: ${{ steps.extract.outputs.task_id }}
+          TASK_ID: ${{ matrix.task_id }}
         run: python .github/scripts/ava.py
 
       - name: Commit runtime artifacts
         run: |
           git config user.name "VASH-3.0-AvA"
           git config user.email "vash3@framework.ai"
+          git pull --rebase origin main || true
           git add runtime/ knowledge/activity_list.md
-          git diff --staged --quiet || git commit -m "AvA: Task ${{ steps.extract.outputs.task_id }} | $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git diff --staged --quiet || git commit -m "AvA: Task ${{ matrix.task_id }} | $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push
 
       - name: Create notification issue
+        if: always()
         uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
-            const taskId = '${{ steps.extract.outputs.task_id }}'.replace('.', '-');
+            const taskId = '${{ matrix.task_id }}'.replace('.', '-');
             const summaryPath = `runtime/validation/${taskId}_summary.md`;
             let summary = 'Validation complete. Check runtime/validation/ for results.';
             try { summary = fs.readFileSync(summaryPath, 'utf8'); } catch(e) {}
-            github.rest.issues.create({
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `VASH Review Required: Activity ${{ steps.extract.outputs.task_id }}`,
+              title: `VASH Review: Activity ${{ matrix.task_id }}`,
               body: summary,
               labels: ['vash-review']
             });
