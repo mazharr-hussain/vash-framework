@@ -1,4 +1,4 @@
-﻿# VASH 3.0 — GitHub Automation Rules
+# VASH 3.0 — GitHub Automation Rules
 
 ## Trigger Rules
 Issue with label vash-activity → triggers ava.yml

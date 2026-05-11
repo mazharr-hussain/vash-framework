@@ -1,4 +1,4 @@
-﻿# .claude/skills/
+# .claude/skills/
 
 This folder contains Claude Code skill definitions for the VASH 3.0 framework.
 
@@ -8,6 +8,6 @@ Skills are reusable, named capabilities that Claude executes on demand. Each ski
 - prompt-engineer — generates optimal prompts for VASH activities
 - code-reviewer — validates artifact quality against checklists
 - senior-architect — reviews architecture decisions
-- ash-creator — generates VASH artifacts (Junior role)
-- ash-validator — scores and reviews artifacts (Senior role)
-- ash-orchestrator — manages the full AvA loop
+- vash-creator — generates VASH artifacts (Junior role)
+- vash-validator — scores and reviews artifacts (Senior role)
+- vash-orchestrator — manages the full AvA loop
