@@ -1,6 +1,7 @@
 # VASH 3.0 — Activity List
 
 ## Format
+<!-- FORMAT BLOCK START
 Each activity follows this structure:
 ID: [phase.number]
 NAME: [activity name]
@@ -15,6 +16,8 @@ THRESHOLD: [minimum AvA score]
 STATUS: PENDING
 
 ---
+
+FORMAT BLOCK END -->
 
 ## Phase 0: Repository Setup
 

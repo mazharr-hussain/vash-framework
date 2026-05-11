@@ -1,7 +1,3 @@
-Write permissions are not pre-authorized for either output path. Per the prompt instruction "Output the artifact content only," here is the complete revised artifact addressing all six corrections:
-
----
-
 # VASH 3.0 — Complete Vision Document
 **Activity:** 1.1 — Define VASH 3.0 Complete Vision
 **Phase:** Phase 1 — VASH Engine Vision
@@ -242,5 +238,3 @@ VASH 3.0 is complete when a solo founder submits a one-page product brief and re
 The measure of success is not agent capability. It is artifact quality: every document produced by VASH must be detailed enough that a competent engineering team can build from it without asking clarifying questions.
 
 ---
-
-**Note:** Write permissions for `runtime/artifacts/1-1_artifact.md` and `vash_framework/vision/1-1_vision.md` are not pre-authorized in this session. This is the root cause of the three-round failure. Per LAW 2, these paths must be added to the allowed-writes list before the next AvA cycle begins so the agent does not stall at the production step. The artifact content above is complete and ready to save.
