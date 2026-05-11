@@ -43,7 +43,7 @@ DESCRIPTION: Fix null byte corruptions in README files, remove PowerShell artifa
 OUTPUT_PATH: Multiple files
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: IN_PROGRESS
+STATUS: PASS
 ---
 
 ---
