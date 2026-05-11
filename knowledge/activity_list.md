@@ -183,7 +183,7 @@ DESCRIPTION: Generate Claude Code OAuth token via claude auth token command. Add
 OUTPUT_PATH: N/A
 CHECKLIST: checklists/manual_step.md
 THRESHOLD: 85
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---
