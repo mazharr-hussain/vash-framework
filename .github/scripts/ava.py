@@ -48,7 +48,7 @@ def file_exists(path):
 
 def run_claude(prompt):
     """Run Claude Code CLI with a prompt."""
-    cmd = ["claude", "--print", "--no-markdown", prompt]
+    cmd = ["claude", "-p", prompt, "--output-format", "text"]
     try:
         result = subprocess.run(
             cmd,

@@ -19,15 +19,13 @@ jobs:
         id: detect
         run: |
           FILES=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/triggers/.*_trigger\.md' || true)
-          echo "Changed trigger files:"
-          echo "$FILES"
-          # Build JSON matrix
+          echo "Changed trigger files: $FILES"
           JSON="["
           FIRST=true
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            # Extract task ID from filename e.g. 3-1_trigger.md -> 3.1
-            TID=$(basename "$f" | sed 's/_trigger\.md//' | tr '-' '.')
+            # Extract task ID: strip path, strip _trigger.md, strip test_ prefix, convert - to .
+            TID=$(basename "$f" | sed 's/_trigger\.md//' | sed 's/^test_//' | tr '-' '.')
             [ -z "$TID" ] && continue
             $FIRST || JSON="$JSON,"
             JSON="$JSON{\"task_id\":\"$TID\",\"trigger_file\":\"$f\"}"
@@ -39,7 +37,7 @@ jobs:
 
   run-ava:
     needs: detect-triggers
-    if: ${{ needs.detect-triggers.outputs.matrix != '{"include":[]}' && needs.detect-triggers.outputs.matrix != '{"include":[{"task_id":"","trigger_file":""}]}' }}
+    if: ${{ needs.detect-triggers.outputs.matrix != '{"include":[]}' }}
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.detect-triggers.outputs.matrix) }}
@@ -54,9 +52,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Show task being processed
-        run: |
-          echo "Processing Task ID: ${{ matrix.task_id }}"
-          echo "Trigger file: ${{ matrix.trigger_file }}"
+        run: echo "Processing Task ID: ${{ matrix.task_id }}"
 
       - uses: actions/setup-python@v5
         with:
@@ -65,10 +61,21 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Verify Claude Code CLI installed
+        run: claude --version || echo "Claude Code CLI not found"
+
+      - name: Login Claude Code via OAuth
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "CLAUDE_CODE_OAUTH_TOKEN is set: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo YES || echo NO)"
+          claude --version
+
       - name: Run AvA orchestrator
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TASK_ID: ${{ matrix.task_id }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         run: python .github/scripts/ava.py
 
       - name: Commit runtime artifacts
