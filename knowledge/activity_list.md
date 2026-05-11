@@ -113,7 +113,7 @@ DESCRIPTION: Create GitHub Actions workflow that triggers on issue with label va
 OUTPUT_PATH: .github/workflows/ava.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---
@@ -127,7 +127,7 @@ DESCRIPTION: Create GitHub Actions workflow for running parallel PARALLEL_SAFE a
 OUTPUT_PATH: .github/workflows/parallel.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---
@@ -141,7 +141,7 @@ DESCRIPTION: Create GitHub Actions workflow that triggers on PR merge to main. S
 OUTPUT_PATH: .github/workflows/notify.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---

@@ -1,0 +1,43 @@
+name: VASH 3.0 Human Notification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'runtime/validation/**_summary.md'
+
+jobs:
+  notify-human:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find new summary files
+        id: find
+        run: |
+          NEW=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/validation/.*_summary.md' | head -1)
+          echo "summary_file=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Read summary and create notification issue
+        if: steps.find.outputs.summary_file != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summaryFile = '${{ steps.find.outputs.summary_file }}';
+            const taskId = summaryFile.match(/([0-9]+-[0-9]+)_summary/)?.[1]?.replace('-', '.') || 'unknown';
+            let summary = '';
+            try { summary = fs.readFileSync(summaryFile, 'utf8'); } catch(e) { summary = 'Summary not found'; }
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `VASH Review Required: Activity ${taskId}`,
+              body: `## Activity ${taskId} Validation Complete\n\n${summary}\n\n---\n*Reply with APPROVED, REJECTED, or MODIFY in Project 1 chat*`,
+              labels: ['vash-review']
+            });

@@ -1,0 +1,55 @@
+name: VASH 3.0 Parallel Activities
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  identify-parallel:
+    if: contains(github.event.label.name, 'vash-parallel')
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find parallel-safe pending activities
+        id: find
+        run: |
+          python3 .github/scripts/parallel.py --find-only > matrix.json
+          echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
+
+  run-parallel:
+    needs: identify-parallel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.identify-parallel.outputs.matrix) }}
+      fail-fast: false
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run AvA for activity
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          TASK_ID: ${{ matrix.task_id }}
+        run: python .github/scripts/ava.py
+
+      - name: Commit results
+        run: |
+          git config user.name "VASH-3.0-Parallel"
+          git config user.email "vash3@framework.ai"
+          git add runtime/ knowledge/activity_list.md
+          git diff --staged --quiet || git commit -m "Parallel AvA: Task ${{ matrix.task_id }}"
+          git push
