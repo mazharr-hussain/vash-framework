@@ -1,12 +1,12 @@
 name: VASH 3.0 Parallel Activities
 
 on:
-  issues:
-    types: [labeled]
+  push:
+    paths:
+      - 'runtime/triggers/parallel_**.md'
 
 jobs:
   identify-parallel:
-    if: contains(github.event.label.name, 'vash-parallel')
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
@@ -28,7 +28,6 @@ jobs:
       fail-fast: false
     permissions:
       contents: write
-      issues: write
 
     steps:
       - uses: actions/checkout@v5
