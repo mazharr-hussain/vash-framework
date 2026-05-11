@@ -289,7 +289,7 @@ DESCRIPTION: Two AvA layers, scoring thresholds per artifact type, max 3 rounds,
 OUTPUT_PATH: vash_framework/agents/2-2_ava_protocol.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---
