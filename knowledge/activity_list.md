@@ -77,15 +77,15 @@ STATUS: PASS
 ---
 ID: 0.5
 NAME: Search and install marketplace skills
-TYPE: MANUAL
+TYPE: ARTIFACT
 PHASE: Phase 0 — Repository Setup
 PARALLEL_SAFE: NO
 DEPENDS_ON: 0.2
 DESCRIPTION: Search Claude Code marketplace for prompt-engineer, code-reviewer, senior-architect, multi-agent-patterns skills. Install confirmed matches. Document search results.
 OUTPUT_PATH: .claude/skills/
-CHECKLIST: checklists/manual_step.md
-THRESHOLD: 85
-STATUS: PENDING
+CHECKLIST: checklists/artifact.md
+THRESHOLD: 88
+STATUS: PASS
 ---
 
 ---
