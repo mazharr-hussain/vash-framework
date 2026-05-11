@@ -12,7 +12,7 @@ DESCRIPTION: [what to produce]
 OUTPUT_PATH: [where to save]
 CHECKLIST: [which checklist to use]
 THRESHOLD: [minimum AvA score]
-STATUS: [PENDING / IN_PROGRESS / PASS / FAIL / MODIFY]
+STATUS: PENDING
 
 ---
 
@@ -29,7 +29,7 @@ DESCRIPTION: Create complete vash3-framework folder structure with README.md in 
 OUTPUT_PATH: README.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -43,7 +43,7 @@ DESCRIPTION: Fix null byte corruptions in README files, remove PowerShell artifa
 OUTPUT_PATH: Multiple files
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -57,7 +57,7 @@ DESCRIPTION: Create subagent definition files for junior-creator, senior-validat
 OUTPUT_PATH: .claude/agents/
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -71,7 +71,7 @@ DESCRIPTION: Create hook scripts for post-write logging, pre-delete protection o
 OUTPUT_PATH: .claude/hooks/
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -85,7 +85,7 @@ DESCRIPTION: Search Claude Code marketplace for prompt-engineer, code-reviewer, 
 OUTPUT_PATH: .claude/skills/
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -99,7 +99,7 @@ DESCRIPTION: Create vash-creator, vash-validator, and vash-orchestrator SKILL.md
 OUTPUT_PATH: .claude/skills/
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -113,7 +113,7 @@ DESCRIPTION: Create GitHub Actions workflow that triggers on issue with label va
 OUTPUT_PATH: .github/workflows/ava.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -127,7 +127,7 @@ DESCRIPTION: Create GitHub Actions workflow for running parallel PARALLEL_SAFE a
 OUTPUT_PATH: .github/workflows/parallel.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -141,7 +141,7 @@ DESCRIPTION: Create GitHub Actions workflow that triggers on PR merge to main. S
 OUTPUT_PATH: .github/workflows/notify.yml
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -155,7 +155,7 @@ DESCRIPTION: Create Python script that orchestrates AvA loop. Calls Claude Code 
 OUTPUT_PATH: .github/scripts/ava.py
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -169,7 +169,7 @@ DESCRIPTION: Create Python script that manages parallel activity execution. Iden
 OUTPUT_PATH: .github/scripts/parallel.py
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -197,7 +197,7 @@ DESCRIPTION: Create test issue with label vash-activity. Verify full pipeline: i
 OUTPUT_PATH: runtime/validation/0-13_summary.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -215,7 +215,7 @@ DESCRIPTION: Document what VASH is, what problem it solves, who it serves, what 
 OUTPUT_PATH: vash_framework/vision/1-1_vision.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -229,7 +229,7 @@ DESCRIPTION: Specific measurable objectives, success criteria per objective, how
 OUTPUT_PATH: vash_framework/vision/1-2_objectives.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -257,7 +257,7 @@ DESCRIPTION: Who interacts with VASH, their roles, their needs, and their intera
 OUTPUT_PATH: vash_framework/vision/1-4_stakeholders.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 85
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -275,7 +275,7 @@ DESCRIPTION: For each of the 10 roles: identity, persona, Jr/Sr definition, skil
 OUTPUT_PATH: vash_framework/agents/2-1_agent_registry.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -289,7 +289,7 @@ DESCRIPTION: Two AvA layers, scoring thresholds per artifact type, max 3 rounds,
 OUTPUT_PATH: vash_framework/agents/2-2_ava_protocol.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
@@ -317,7 +317,7 @@ DESCRIPTION: For each role-to-role handoff: data schema, required fields, valida
 OUTPUT_PATH: vash_framework/agents/2-4_handshakes.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PASS
+STATUS: PENDING
 ---
 
 ---
