@@ -52,7 +52,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Show task being processed
-        run: echo 'Processing Task ID: ${{ matrix.task_id }}'
+        run: echo "Processing Task ID ${{ matrix.task_id }}"
 
       - uses: actions/setup-python@v5
         with:
