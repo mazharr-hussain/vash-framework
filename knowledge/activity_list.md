@@ -197,7 +197,7 @@ DESCRIPTION: Create test issue with label vash-activity. Verify full pipeline: i
 OUTPUT_PATH: runtime/validation/0-13_summary.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: PASS
 ---
 
 ---
