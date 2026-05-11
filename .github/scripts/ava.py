@@ -288,4 +288,14 @@ def run_ava_loop(task_id):
 
 if __name__ == "__main__":
     result = run_ava_loop(TASK_ID)
-    sys.exit(0 if result == "APPROVED" else 1)
+    # Always exit 0 so commit step runs and results are saved
+    # Pipeline result is communicated via runtime/validation/ summary file
+    if result == "APPROVED":
+        log("Result: APPROVED - artifact passed")
+    elif result == "MODIFY":
+        log("Result: MODIFY - artifact needs improvement, human review required")
+    elif result == "ESCALATE":
+        log("Result: ESCALATE - human intervention required")
+    else:
+        log(f"Result: {result}")
+    sys.exit(0)
