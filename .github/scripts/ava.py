@@ -142,36 +142,30 @@ def build_full_prompt(task_id, role, objections=""):
                 dep_context += f"\nDEPENDENCY {dep}:\n{dep_content[:500]}\n"
 
     if role == "JUNIOR":
-        return f"""You are the VASH 3.0 Junior Creator.
-ACTIVITY ID: {task_id}
-ACTIVITY DEFINITION:
-{activity}
-
-THREE LAWS:
-{laws}
-
-VALIDATION CHECKLIST:
-{checklist}
-
-DEPENDENCY CONTEXT:
-{dep_context if dep_context else "None"}
-
-{"PREVIOUS SENIOR OBJECTIONS TO ADDRESS:\n" + objections if objections else ""}
-
-YOUR TASK:
-Produce the complete artifact for activity {task_id}.
-Rules:
-- Design and planning only — NO actual software code
-- Full content — never summarise or truncate
-- Apply all three VASH laws throughout
-- Begin directly with artifact content — no preamble
-- Do not include process notes or permission commentary
-- Write clean artifact content only
-
-OUTPUT PATH: {output_path}
-THRESHOLD TO PASS: {threshold}/100
-
-Output the complete artifact content now:"""
+        obj_section = ("PREVIOUS SENIOR OBJECTIONS:\n" + objections) if objections else ""
+        dep_section = dep_context if dep_context else "None"
+        parts = [
+            "You are the VASH 3.0 Junior Creator.",
+            f"ACTIVITY ID: {task_id}",
+            f"ACTIVITY DEFINITION:\n{activity}",
+            f"THREE LAWS:\n{laws}",
+            f"VALIDATION CHECKLIST:\n{checklist}",
+            f"DEPENDENCY CONTEXT:\n{dep_section}",
+            obj_section,
+            "YOUR TASK:",
+            f"Produce the complete artifact for activity {task_id}.",
+            "Rules:",
+            "- Design and planning only NO actual software code",
+            "- Full content never summarise or truncate",
+            "- Apply all three VASH laws throughout",
+            "- Begin directly with artifact content no preamble",
+            "- Do not include process notes or permission commentary",
+            "- Write clean artifact content only",
+            f"OUTPUT PATH: {output_path}",
+            f"THRESHOLD TO PASS: {threshold}/100",
+            "Output the complete artifact content now:"
+        ]
+        return "\n\n".join(p for p in parts if p)
 
     else:  # SENIOR
         artifact = rf(f"runtime/artifacts/{tid}_artifact.md")
