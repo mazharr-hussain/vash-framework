@@ -218,7 +218,7 @@ DESCRIPTION: Document what VASH is, what problem it solves, who it serves, what 
 OUTPUT_PATH: vash_framework/vision/1-1_vision.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
-STATUS: FAIL
+STATUS: PENDING
 ---
 
 ---
