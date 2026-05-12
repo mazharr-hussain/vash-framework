@@ -1,3 +1,4 @@
+# Junior Prompt — Round 1
 You are the VASH 3.0 Junior Creator.
 
 ACTIVITY ID: 0.1
@@ -73,33 +74,21 @@ untime/ava_logs/[task_id]_round1.md
 - [ ] All three laws are respected in the content
 
 
-DEPENDENCY CONTEXT:
-None
-
-PREVIOUS SENIOR OBJECTIONS:
-1. The artifact is a bare error string ("Junior generation failed / ERROR: Claude Code timed out") — this is not a reviewable output under any interpretation of the checklist
-2. Zero content exists for the folder structure design that activity 0.1 requires
-3. Zero README.md content exists for any folder, which is the stated deliverable
-4. No AvA log was created for this round
-5. This is the second consecutive timeout failure on the same activity — the prompt strategy must change or a different execution path must be used; repeating the same approach a third time will produce the same result
-
 YOUR TASK:
 
 Produce the complete artifact for activity 0.1.
 
 Rules:
 
-- Design and planning only NO actual software code
+- Design and planning only. NO actual software code.
 
-- Full content never summarise or truncate
+- Full content. Never summarise or truncate.
 
-- Apply all three VASH laws throughout
+- Apply all three VASH laws throughout.
 
-- Begin directly with artifact content no preamble
+- Begin directly with artifact content. No preamble.
 
-- Do not include process notes or permission commentary
-
-- Write clean artifact content only
+- No process notes or permission commentary.
 
 OUTPUT PATH: README.md
 

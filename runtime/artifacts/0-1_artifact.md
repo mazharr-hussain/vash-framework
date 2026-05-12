@@ -1,2 +1,1 @@
-# Junior generation failed
-ERROR: Claude Code timed out
+You've hit your limit · resets 10:10am (UTC)
