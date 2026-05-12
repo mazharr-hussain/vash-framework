@@ -1,24 +1,29 @@
 # YOUR REVIEW — Activity 0.1
 
-**Score:** 77/100 (threshold: 88)
+**Score:** 72/100 (threshold: 88)
 **Verdict:** FAIL
 **Artifact:** runtime/artifacts/0-1_artifact.md
 
 **Sections Needing Improvement:**
-- ## Repository Structure: activity requires README.md in each folder; 16 of 33 folders are missing README.md with no justification
+- ## Workflow Overview: Section is absent from the artifact body. Referenced by name only. No content present.
+- ## Activity Phases: Section is absent from the artifact body. Referenced by name only. No content present.
+- ## File Naming Conventions: Section is absent from the artifact body. Referenced by name only. No content present.
+- ## Branch and Commit Conventions: Section is absent from the artifact body. Referenced by name only. No content present.
+- ## Law Compliance Summary: Section is absent from the artifact body. Referenced by name only. No content present.
+- ## Fix Applied (meta-block): This block is not a README.md section. It is Junior's process note to Senior embedded inside the artifact output. Artifacts must not contain review-process commentary.
 
 **Specific Issues:**
-- OBJ-001: [## Repository Structure] Activity description is "Create complete vash3-framework folder structure with README.md in each folder." The tree shows 16 folders without a README.md — roughly half the total folder count. This is not a marginal omission; it is a direct failure against the primary deliverable. No rationale is given anywhere in the artifact for why `agent.md` or `SKILL.md` substitute for README.md in those subfolders, or why five parent directories (`.claude/`, `.github/`, `knowledge/`, `runtime/`, `vash_framework/`) are skipped entirely.
-- OBJ-002: [## Repository Structure] The root-level parent directories `.claude/`, `.github/`, `knowledge/`, `runtime/`, and `vash_framework/` have no README.md in the tree. All their immediate children do. This inversion — children documented, parents not — creates a structural inconsistency that has no design rationale in the artifact.
-- OBJ-003: [## Repository Structure] The use of `SKILL.md` in all seven `.claude/skills/[skill]/` subfolders and `agent.md` in all three `.claude/agents/[agent]/` subfolders deviates from the "README.md in each folder" requirement. Claude Code conventions do use these file names for functional reasons, but the artifact does not document this decision, does not reference a rationale, and does not satisfy LAW 3 (no search-before-build documentation for the choice to use alternative file names).
+- OBJ-001: [## Workflow Overview / ## Activity Phases / ## File Naming Conventions / ## Branch and Commit Conventions / ## Law Compliance Summary] Five locked sections are not present in the artifact. The artifact contains only the statement "All locked sections... are copied exactly from the original artifact" in their place. This violates the Output Rule: "Never summarise. Full content always." A README.md delivered without these sections is an incomplete document regardless of their locked status.
+- OBJ-002: [## Folder Reference] The section body contains only a placeholder line `*(all locked sections follow — identical to source)*` with no actual content following it. The section is a stub, not a section.
+- OBJ-003: [Artifact footer — "Fix applied" block] The bullet list explaining which 16 folders were fixed is meta-commentary directed at the reviewer. It is not README.md content. Its presence means the actual file output, if written as-is, would contain process notes visible to any reader of the repository.
 - ---
 
 **Required Corrections:**
-- OBJ-001: Add README.md to the five parent directories missing it. In the tree, add `README.md` as the first entry under `.claude/`, `.github/`, `knowledge/`, `runtime/`, and `vash_framework/`. In the Folder Reference, add a brief entry for each new README.md describing its content (one-paragraph purpose statement for that folder level).
-- OBJ-002: Resolved by OBJ-001 correction above — parent directories must show README.md before their CLAUDE.md or other files.
-- OBJ-003: For the 10 `.claude/skills/[skill]/` and `.claude/agents/[agent]/` subfolders: either (a) add `README.md` alongside `SKILL.md` and `agent.md` in the tree for each, or (b) add an explicit design note in the Folder Reference under `.claude/skills/` and `.claude/agents/` stating that SKILL.md and agent.md serve as the folder-level README for Claude Code integration purposes, and document this as a deliberate LAW 3–compliant decision. Option (b) is preferred to avoid file redundancy, but the rationale must appear in the artifact.
+- OBJ-001: Include the full verbatim text of all five missing sections (## Workflow Overview, ## Activity Phases, ## File Naming Conventions, ## Branch and Commit Conventions, ## Law Compliance Summary) in the artifact body. Copy them character-for-character from the round 1 artifact. Do not substitute a reference, a note, or a summary.
+- OBJ-002: Remove the placeholder line from ## Folder Reference and replace it with the full verbatim content of that section from round 1.
+- OBJ-003: Remove the entire "Fix applied" block from the artifact. It must not appear anywhere in the README.md output. The fix is visible in the tree itself; no annotation is needed or appropriate.
 
 **Your Decision:**
 - REJECTED 0.1 [reason]
 
-*Validated: 2026-05-12T11:34:25.173159+00:00*
+*Validated: 2026-05-12T12:16:58.994965+00:00*

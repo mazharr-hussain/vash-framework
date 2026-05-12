@@ -1,22 +1,7 @@
-# Senior Prompt — Round 1
-You are the VASH 3.0 Senior Validator.
+# Junior Prompt — Round 2
+You are the VASH 3.0 Junior Creator — targeted fix mode.
 
 ACTIVITY ID: 0.1
-
-THRESHOLD: 88/100
-
-ACTIVITY DEFINITION:
-ID: 0.1
-NAME: Create repository structure
-TYPE: ARTIFACT
-PHASE: Phase 0 — Repository Setup
-PARALLEL_SAFE: NO
-DEPENDS_ON: NONE
-DESCRIPTION: Create complete vash3-framework folder structure with README.md in each folder
-OUTPUT_PATH: README.md
-CHECKLIST: checklists/artifact.md
-THRESHOLD: 88
-STATUS: FAIL
 
 THREE LAWS:
 ﻿# VASH 3.0 — Three Laws
@@ -46,41 +31,7 @@ Activities with dependencies must run sequentially.
 Python orchestrator manages parallel execution.
 
 
-VALIDATION CHECKLIST:
-﻿# Checklist: Artifact Activity
-
-Use this checklist for every activity with TYPE: ARTIFACT before submitting to AvA review.
-
-## Pre-generation
-- [ ] knowledge/laws.md has been read
-- [ ] Activity ID, name, and description are understood
-- [ ] Output path is confirmed
-- [ ] Prompt has been saved to 
-untime/prompts/[task_id]_prompt.md
-
-## Content quality
-- [ ] Artifact addresses the full activity description
-- [ ] No actual software code (design and planning only)
-- [ ] Language is clear, structured, and complete
-- [ ] No summaries — full content only
-
-## Output compliance
-- [ ] Saved to 
-untime/artifacts/[task_id]_artifact.md
-- [ ] AvA log round started at 
-untime/ava_logs/[task_id]_round1.md
-- [ ] Threshold score defined in activity list is known
-
-## AvA readiness
-- [ ] Artifact is ready for Senior review
-- [ ] All three laws are respected in the content
-
-
-PREVIOUSLY LOCKED SECTIONS (carry forward as PASS):
-
-None — this is round 1
-
-ARTIFACT TO REVIEW:
+CURRENT ARTIFACT:
 
 # VASH 3.0 — Virtual AI Software House
 
@@ -557,50 +508,33 @@ IDs use hyphens in filenames: `0-1` = activity 0.1
 | LAW 3 SKILLS OVER REINVENTION | All skills documented with search log in `.claude/skills/search_log.md`. Marketplace skills reused where found. |
 
 
+LOCKED SECTIONS — DO NOT MODIFY THESE:
+
+- ## What is VASH 3.0?
+- ## Three Laws
+- ## Folder Reference
+- ## Workflow Overview
+- ## Activity Phases
+- ## File Naming Conventions
+- ## Branch and Commit Conventions
+- ## Law Compliance Summary
+
+FAILED SECTIONS — FIX ONLY THESE:
+
+- ## Repository Structure: activity requires README.md in each folder; 16 of 33 folders are missing README.md with no justification
+
+REQUIRED CORRECTIONS:
+
+- ## Repository Structure: activity requires README.md in each folder; 16 of 33 folders are missing README.md with no justification
+
 YOUR TASK:
 
-Review the full artifact adversarially.
+Rewrite the full artifact.
 
-For locked sections: mark PASS automatically, do not re-evaluate.
+Copy locked sections exactly — no changes.
 
-For all other sections: evaluate independently.
+Fix only the failed sections using the corrections above.
 
-Score 0-100 combining all sections.
+Maintain consistency and coherence across all sections.
 
-Use EXACTLY this output format:
-
-SCORE: [0-100]
-
-VERDICT: APPROVED / MODIFY / FAIL
-
-
-
-SECTION REVIEW:
-
-## Section Title: PASS
-
-## Section Title: FAIL — [specific reason]
-
-
-
-OBJECTIONS:
-
-OBJ-001: [## Section Title] [specific issue]
-
-OBJ-002: [## Section Title] [specific issue]
-
-(or NONE)
-
-
-
-CORRECTIONS:
-
-OBJ-001: [exact fix required]
-
-OBJ-002: [exact fix required]
-
-(or NONE)
-
-
-
-Begin review now:
+Output the complete rewritten artifact now:
