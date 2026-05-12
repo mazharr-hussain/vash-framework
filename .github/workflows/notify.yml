@@ -60,7 +60,7 @@ jobs:
           TASK_ID: ${{ steps.find.outputs.task_id }}
           SUMMARY_PATH: ${{ steps.find.outputs.summary_file }}
         run: |
-          curl -s -X POST "https://api.anthropic.com/v1/claude_code/routines/${ROUTINE_ID}/fire" \
+          curl -s -X POST "https://api.anthropic.com/v1/claude_code/routines/trig_015p3ToHsccPETnkHVWQiAf3/fire" \
             -H "Authorization: Bearer ${ROUTINE_TOKEN}" \
             -H "anthropic-version: 2023-06-01" \
             -H "Content-Type: application/json" \
