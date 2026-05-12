@@ -32,7 +32,7 @@ DESCRIPTION: Create complete vash3-framework folder structure with README.md in 
 OUTPUT_PATH: README.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: FAIL
 ---
 
 ---
@@ -158,7 +158,7 @@ DESCRIPTION: Create Python script that orchestrates AvA loop. Calls Claude Code 
 OUTPUT_PATH: .github/scripts/ava.py
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: FAIL
 ---
 
 ---
@@ -172,7 +172,7 @@ DESCRIPTION: Create Python script that manages parallel activity execution. Iden
 OUTPUT_PATH: .github/scripts/parallel.py
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: FAIL
 ---
 
 ---
@@ -186,7 +186,7 @@ DESCRIPTION: Generate Claude Code OAuth token via claude auth token command. Add
 OUTPUT_PATH: N/A
 CHECKLIST: checklists/manual_step.md
 THRESHOLD: 85
-STATUS: PASS
+STATUS: FAIL
 ---
 
 ---
@@ -200,7 +200,7 @@ DESCRIPTION: Create test issue with label vash-activity. Verify full pipeline: i
 OUTPUT_PATH: runtime/validation/0-13_summary.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
-STATUS: PENDING
+STATUS: FAIL
 ---
 
 ---
