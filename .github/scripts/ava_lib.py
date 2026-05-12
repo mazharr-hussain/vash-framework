@@ -289,21 +289,37 @@ class Parser:
 class Runner:
 
     def run_claude(self, prompt: str) -> str:
-        """Call Claude Code CLI with prompt. Returns output or error string."""
-        cmd = ["claude", "-p", prompt, "--dangerously-skip-permissions"]
+        """Call Claude Code CLI with prompt via stdin. Returns output or error string."""
+        import tempfile
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,
-                env={
-                    **os.environ,
-                    "CLAUDE_CODE_OAUTH_TOKEN": os.environ.get(
-                        "CLAUDE_CODE_OAUTH_TOKEN", ""
-                    )
-                }
-            )
+            # Write prompt to temp file — avoids arg length limits and pipe issues
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt',
+                                             delete=False, encoding='utf-8') as f:
+                f.write(prompt)
+                prompt_file = f.name
+
+            # Pass prompt via stdin — more reliable than arg on Linux headless VM
+            with open(prompt_file, 'r') as stdin_f:
+                result = subprocess.run(
+                    ["claude", "-p", "-"],
+                    stdin=stdin_f,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    env={
+                        **os.environ,
+                        "CLAUDE_CODE_OAUTH_TOKEN": os.environ.get(
+                            "CLAUDE_CODE_OAUTH_TOKEN", ""
+                        )
+                    }
+                )
+
+            # Cleanup temp file
+            try:
+                os.unlink(prompt_file)
+            except Exception:
+                pass
+
             output = result.stdout.strip()
             if not output and result.stderr:
                 return f"ERROR: {result.stderr[:300]}"
