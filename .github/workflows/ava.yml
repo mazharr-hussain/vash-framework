@@ -44,43 +44,57 @@ jobs:
     permissions:
       contents: write
       issues: write
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
-      - name: Read activity and build prompts
-        id: prompts
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Setup Claude Code credentials
         env:
-          TASK_ID: ${{ matrix.task_id }}
-        run: python .github/scripts/build_prompts.py
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p ~/.claude
+          cat > ~/.claude/.credentials.json << CREDS
+          {
+            "claudeAiOauth": {
+              "accessToken": "${CLAUDE_CODE_OAUTH_TOKEN}",
+              "refreshToken": "",
+              "expiresAt": 9999999999999,
+              "scopes": ["user:inference","user:profile"]
+            }
+          }
+          CREDS
+          chmod 600 ~/.claude/.credentials.json
+          cat > ~/.claude.json << JSON
+          {
+            "oauthAccount": {
+              "emailAddress": "vash@framework.ai",
+              "organizationId": "",
+              "organizationName": ""
+            },
+            "hasCompletedOnboarding": true,
+            "lastOnboardingVersion": 99999
+          }
+          JSON
+          echo "Claude Code credentials configured"
 
-      - name: Run Junior — Generate artifact
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: ${{ steps.prompts.outputs.junior_prompt }}
-          allowed_tools: "Read,Write,Bash"
+      - name: Verify Claude Code auth
+        run: claude --version
 
-      - name: Run Senior — Validate artifact
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: ${{ steps.prompts.outputs.senior_prompt }}
-          allowed_tools: "Read,Write"
-
-      - name: Parse result and write summary
-        id: result
+      - name: Run AvA orchestrator
         env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TASK_ID: ${{ matrix.task_id }}
-        run: python .github/scripts/parse_result.py
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: python .github/scripts/ava.py
 
       - name: Commit results
         run: |
@@ -92,6 +106,7 @@ jobs:
           git push
 
       - name: Create notification issue
+        if: always()
         uses: actions/github-script@v8
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -100,7 +115,7 @@ jobs:
             const fs = require('fs');
             const taskId = '${{ matrix.task_id }}'.replace('.', '-');
             const summaryPath = `runtime/validation/${taskId}_summary.md`;
-            let summary = 'Validation complete.';
+            let summary = 'Validation complete. Check runtime/validation/ for results.';
             try { summary = fs.readFileSync(summaryPath, 'utf8'); } catch(e) {}
             await github.rest.issues.create({
               owner: context.repo.owner,
