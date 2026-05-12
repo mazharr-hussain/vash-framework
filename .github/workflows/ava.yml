@@ -94,7 +94,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TASK_ID: ${{ matrix.task_id }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: python .github/scripts/ava.py
+        run: python .github/scripts/ava_main.py
 
       - name: Commit results
         run: |
