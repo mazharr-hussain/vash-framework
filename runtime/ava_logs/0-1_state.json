@@ -1,7 +1,7 @@
 {
   "task_id": "0.1",
-  "current_round": 2,
-  "artifact_hash": "c73b6d588a17f8db04e92074252b7034",
+  "current_round": 3,
+  "artifact_hash": "2719990a3eb1493e79ce145ddc0ec819",
   "locked_sections": [
     {
       "title": "## What is VASH 3.0?",
@@ -51,37 +51,42 @@
   ],
   "failed_sections": [
     {
+      "title": "## Folder Reference",
+      "status": "FAIL",
+      "reason": "The section body in the round 3 submission reads `*(all locked sections follow \u2014 identical to source)*` \u2014 this is the identical stub that OBJ-002 flagged in round 2. The correction was explicitly required (\"Remove the placeholder line... and replace it with the full verbatim content\"). It was not applied."
+    },
+    {
       "title": "## Workflow Overview",
       "status": "FAIL",
-      "reason": "Section is absent from the artifact body. Referenced by name only. No content present."
+      "reason": "Section content cannot be verified. See OBJ-001."
     },
     {
       "title": "## Activity Phases",
       "status": "FAIL",
-      "reason": "Section is absent from the artifact body. Referenced by name only. No content present."
+      "reason": "Section content cannot be verified. See OBJ-001."
     },
     {
       "title": "## File Naming Conventions",
       "status": "FAIL",
-      "reason": "Section is absent from the artifact body. Referenced by name only. No content present."
+      "reason": "Section content cannot be verified. See OBJ-001."
     },
     {
       "title": "## Branch and Commit Conventions",
       "status": "FAIL",
-      "reason": "Section is absent from the artifact body. Referenced by name only. No content present."
+      "reason": "Section content cannot be verified. See OBJ-001."
     },
     {
       "title": "## Law Compliance Summary",
       "status": "FAIL",
-      "reason": "Section is absent from the artifact body. Referenced by name only. No content present."
+      "reason": "Section content cannot be verified. See OBJ-001."
     },
     {
-      "title": "## Fix Applied (meta-block)",
+      "title": "## Artifact file itself",
       "status": "FAIL",
-      "reason": "This block is not a README.md section. It is Junior's process note to Senior embedded inside the artifact output. Artifacts must not contain review-process commentary."
+      "reason": "The file `runtime/artifacts/0-1_artifact.md` does not contain a README.md document. It contains process commentary beginning with \"The write is pending your approval.\" This is not artifact content. The file is non-compliant with the Output Rule: \"Never summarise. Full content always.\""
     }
   ],
-  "overall_score": 72,
-  "rounds_completed": 2,
-  "last_updated": "2026-05-12T12:16:58.994595+00:00"
+  "overall_score": 28,
+  "rounds_completed": 3,
+  "last_updated": "2026-05-12T12:26:56.518650+00:00"
 }
