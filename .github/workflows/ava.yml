@@ -19,12 +19,11 @@ jobs:
         id: detect
         run: |
           FILES=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/triggers/.*_trigger\.md' || true)
-          echo "Changed trigger files: $FILES"
+          echo "Changed files: $FILES"
           JSON="["
           FIRST=true
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            # Extract task ID: strip path, strip _trigger.md, strip test_ prefix, convert - to .
             TID=$(basename "$f" | sed 's/_trigger\.md//' | sed 's/^test_//' | tr '-' '.')
             [ -z "$TID" ] && continue
             $FIRST || JSON="$JSON,"
@@ -45,40 +44,45 @@ jobs:
     permissions:
       contents: write
       issues: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Show task being processed
-        run: echo "Processing Task ID ${{ matrix.task_id }}"
-
-      - uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: Verify Claude Code CLI installed
-        run: claude --version || echo "Claude Code CLI not found"
-
-      - name: Login Claude Code via OAuth
+      - name: Read activity and build prompts
+        id: prompts
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "CLAUDE_CODE_OAUTH_TOKEN is set: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo YES || echo NO)"
-          claude --version
-
-      - name: Run AvA orchestrator
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           TASK_ID: ${{ matrix.task_id }}
-          GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: python .github/scripts/ava.py
+        run: python .github/scripts/build_prompts.py
 
-      - name: Commit runtime artifacts
+      - name: Run Junior — Generate artifact
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompts.outputs.junior_prompt }}
+          allowed_tools: "Read,Write,Bash"
+
+      - name: Run Senior — Validate artifact
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompts.outputs.senior_prompt }}
+          allowed_tools: "Read,Write"
+
+      - name: Parse result and write summary
+        id: result
+        env:
+          TASK_ID: ${{ matrix.task_id }}
+        run: python .github/scripts/parse_result.py
+
+      - name: Commit results
         run: |
           git config user.name "VASH-3.0-AvA"
           git config user.email "vash3@framework.ai"
@@ -88,14 +92,15 @@ jobs:
           git push
 
       - name: Create notification issue
-        if: always()
         uses: actions/github-script@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           script: |
             const fs = require('fs');
             const taskId = '${{ matrix.task_id }}'.replace('.', '-');
             const summaryPath = `runtime/validation/${taskId}_summary.md`;
-            let summary = 'Validation complete. Check runtime/validation/ for results.';
+            let summary = 'Validation complete.';
             try { summary = fs.readFileSync(summaryPath, 'utf8'); } catch(e) {}
             await github.rest.issues.create({
               owner: context.repo.owner,
