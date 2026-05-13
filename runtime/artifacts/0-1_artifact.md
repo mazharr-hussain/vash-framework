@@ -1,7 +1,3 @@
-I now have everything I need. The previous round failed — the updated prompt now requires no file path mentions in the artifact content. I'll produce the complete root README.md artifact for the vash3-framework repository.
-
----
-
 # VASH 3.0 — Repository Structure
 
 **VASH** — Virtual AI Software House — is an agent-driven framework that designs, plans, and orchestrates the building of software products entirely through AI agents, with humans approving milestones but never building manually.
@@ -46,6 +42,8 @@ vash3-framework/
 Claude Code configuration directory. Contains all agent definitions, hook scripts, and skill definitions that power the VASH 3.0 automation layer.
 
 **Purpose**: Configure how Claude Code behaves when operating within this repository. Everything in this folder governs automated agent behaviour, not human behaviour.
+
+**README purpose**: Explain how Claude Code is configured for this repository, which agents, hooks, and skills are defined, and how they collectively power the VASH 3.0 automation layer.
 
 ---
 
@@ -180,6 +178,8 @@ Architecture Decision Records (ADRs). Every major architecture, platform, and ag
 The permanent reference layer for the VASH 3.0 framework. Everything an agent needs to understand the rules, the plan, the checklists, and the technology landscape is stored here.
 
 **Purpose**: Single source of truth for laws, activities, quality standards, and technology options. Knowledge files are read by agents at the start of every session. They are updated only by approved activities — never edited ad hoc.
+
+**README purpose**: Explain what reference material lives here, how agents use it at session start, and the rule that knowledge files are updated only through approved activities.
 
 ---
 
@@ -346,6 +346,8 @@ The primary design output directory. All artifacts produced by VASH agents durin
 **Purpose**: Build up the complete VASH 3.0 framework design, phase by phase, as the activity list progresses. When all phases are complete, this folder contains the full specification for building the actual VASH engine.
 
 The subfolders in `vash_framework/` correspond directly to the phases in the activity list. Phase outputs are cumulative — later phases build on earlier ones.
+
+**README purpose**: Explain how design outputs are organised by phase, how subfolders map to the activity list, and that this folder represents the cumulative specification for the VASH engine.
 
 ---
 
