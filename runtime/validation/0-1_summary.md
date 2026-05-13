@@ -1,45 +1,25 @@
 # YOUR REVIEW — Activity 0.1
 
-**Score:** 12/100 (threshold: 88)
-**Verdict:** FAIL
+**Score:** 79/100 (threshold: 88)
+**Verdict:** MODIFY
 **Artifact:** runtime/artifacts/0-1_artifact.md
 
 **Sections Needing Improvement:**
-- ## Content quality: artifact contains no artifact content
-- ## No summaries — full content only: the file IS a summary
-- ## Output compliance: artifact file is empty of artifact content
-- ## Laws compliance: cannot be assessed
-- ## AvA readiness: no artifact exists to review
+- ## Agent Preamble: artifact opens with process commentary ("I now have everything I need. The previous round failed…") that is not artifact content and must not appear in the submitted artifact
+- ## README Purpose Consistency: top-level folders `.claude/`, `knowledge/`, and `vash_framework/` each have a `Purpose:` block but no explicit `README purpose:` statement, inconsistent with every subdirectory which correctly carries that tag
 
 **Specific Issues:**
-- OBJ-001: [## Content quality] Junior produced a status message and a bulleted preview list
-- instead of the artifact. The prompt explicitly stated "Output ONLY artifact content.
-- No preamble, no wrappers, no approval requests. Start with the artifact title line."
-- Junior's output violates every one of these rules.
-- OBJ-002: [## Output compliance] The artifact file does not contain the README.md
-- document required by activity 0.1. The OUTPUT_PATH README.md content — folder
-- structure, three laws, AvA process, naming conventions, laws compliance record,
-- getting started guide — is entirely absent.
-- OBJ-003: [## Laws compliance] LAW 3 requires documenting what was searched and
-- what was found before building. No such record exists in the artifact. LAW 1 and
-- LAW 2 compliance cannot be verified because no design content was produced.
+- OBJ-001: [## Agent Preamble] The artifact begins with three sentences of agent reasoning ("I now have everything I need. The previous round failed — the updated prompt now requires no file path mentions in the artifact content. I'll produce the complete root README.md artifact for the vash3-framework repository.") followed by a horizontal rule. This is process metadata, not artifact content. It reveals internal state and round history inside a deliverable that is committed to the repository. Costs approximately 8 points alone.
+- OBJ-002: [## README Purpose Consistency] The `.claude/` root section, the `knowledge/` root section, and the `vash_framework/` root section each describe a purpose but omit the `README purpose:` tag used uniformly by every subdirectory section. This means three folder-level READMEs have no specified content mandate, leaving the folder structure incomplete at those levels.
+- OBJ-003: [## README Purpose Consistency] The root `.claude/` section has a purpose statement but no table of agents/hooks/skills at its own level — the tables appear only under the subdirectory sections. The `.claude/` README therefore has no summary of what a reader opening that folder will immediately see.
 
 **Required Corrections:**
-- OBJ-001: Junior must re-run with the existing prompt unchanged. The output must
-- begin with "# VASH 3.0 — Repository Guide" (or equivalent title) and contain only
-- the artifact body. No meta-text, no permission requests, no preview bullets.
-- OBJ-002: The artifact file must contain the complete README.md document covering
-- all items described in the activity: what VASH is, the three laws stated in full,
-- the complete annotated repository structure (ASCII tree), folder/file purpose index,
-- the AvA process steps, skills/subagents/hooks/workflows documentation, naming
-- conventions, laws compliance record, and getting-started steps.
-- OBJ-003: A LAW 3 compliance section must be included in the artifact documenting:
-- what marketplace/GitHub sources were searched for existing README templates or
-- repository structure guides, what was found, what was reused, and what was written
-- new and why.
-- ```
+- OBJ-001: Delete the entire preamble block — the three sentences of agent reasoning and the horizontal rule separator that follows them. The artifact must begin directly with `# VASH 3.0 — Repository Structure`.
+- OBJ-002: Add a `**README purpose:**` line to the `.claude/`, `knowledge/`, and `vash_framework/` root sections. Each should state in one sentence what the README in that folder communicates to a reader who opens the directory: for `.claude/` — configuration entry point for Claude Code automation; for `knowledge/` — single source of truth index for laws, activities, checklists, and technology references; for `vash_framework/` — phase-by-phase design output index with status and cross-references.
+- OBJ-003: Add a one-paragraph summary to the `.claude/` root section listing the three subdirectories (agents, hooks, skills) and their counts, so the folder-level README gives a reader immediate orientation before they descend into subdirectories.
 
 **Your Decision:**
-- REJECTED 0.1 [reason]
+- MODIFY 0.1 [corrections already identified above]
+- REJECTED 0.1 [reason — if full rebuild needed]
 
-*Validated: 2026-05-13T08:38:56.905575+00:00*
+*Validated: 2026-05-13T10:03:55.424296+00:00*
