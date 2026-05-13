@@ -391,11 +391,19 @@ class Prompts:
                 "- No process notes or permission commentary.",
                 f"OUTPUT PATH: {ctx['output_path']}",
                 f"THRESHOLD TO PASS: {ctx['threshold']}/100",
+                "IMPORTANT: Output ONLY the artifact content to stdout.",
+                "Do NOT request write permissions. Do NOT ask for approval.",
+                "Do NOT include process notes or wrappers.",
+                "Start directly with the artifact first line (e.g. # Title).",
                 "Output the complete artifact content now:"
             ])
 
         elif scenario == "B":
-            # Targeted fix — only work on failed sections
+            # Targeted fix — include full existing artifact so Junior
+            # can copy locked sections verbatim without placeholders
+            existing = self.files.read(
+                f"runtime/artifacts/{tid}_artifact.md"
+            )
             locked_titles = "\n".join(
                 f"- {s['title']}" for s in (locked_sections or [])
             )
@@ -407,27 +415,27 @@ class Prompts:
                 f"- {s['title']}: {s.get('correction', s.get('reason',''))}"
                 for s in (failed_sections or [])
             )
-            existing = self.files.read(
-                f"runtime/artifacts/{tid}_artifact.md"
-            )
             return "\n\n".join([
                 "You are the VASH 3.0 Junior Creator — targeted fix mode.",
                 f"ACTIVITY ID: {task_id}",
                 f"THREE LAWS:\n{ctx['laws']}",
-                "CURRENT ARTIFACT:",
+                "CURRENT ARTIFACT (your base — use full content below):",
                 existing,
-                "LOCKED SECTIONS — DO NOT MODIFY THESE:",
+                "LOCKED SECTIONS — COPY THESE CHARACTER-FOR-CHARACTER FROM ABOVE:",
                 locked_titles if locked_titles else "None",
                 "FAILED SECTIONS — FIX ONLY THESE:",
                 failed_list if failed_list else "None",
                 "REQUIRED CORRECTIONS:",
                 corrections if corrections else "None",
                 "YOUR TASK:",
-                "Rewrite the full artifact.",
-                "Copy locked sections exactly — no changes.",
-                "Fix only the failed sections using the corrections above.",
-                "Maintain consistency and coherence across all sections.",
-                "Output the complete rewritten artifact now:"
+                "Output the complete rewritten artifact.",
+                "CRITICAL RULES:",
+                "- Output ONLY artifact content — no approval requests, no process notes, no wrappers",
+                "- Start with the first line of the artifact (e.g. # Title)",
+                "- Locked sections: copy the exact text from CURRENT ARTIFACT above — never use placeholders",
+                "- Failed sections: apply the corrections listed",
+                "- Never write 'locked sections follow' or similar placeholders — write the actual content",
+                "Output the complete artifact now:"
             ])
 
         return ""
