@@ -1,29 +1,25 @@
 # YOUR REVIEW — Activity 0.1
 
-**Score:** 72/100 (threshold: 88)
-**Verdict:** FAIL
+**Score:** 79/100 (threshold: 88)
+**Verdict:** MODIFY
 **Artifact:** runtime/artifacts/0-1_artifact.md
 
 **Sections Needing Improvement:**
-- ## Workflow Overview: Section is absent from the artifact body. Referenced by name only. No content present.
-- ## Activity Phases: Section is absent from the artifact body. Referenced by name only. No content present.
-- ## File Naming Conventions: Section is absent from the artifact body. Referenced by name only. No content present.
-- ## Branch and Commit Conventions: Section is absent from the artifact body. Referenced by name only. No content present.
-- ## Law Compliance Summary: Section is absent from the artifact body. Referenced by name only. No content present.
-- ## Fix Applied (meta-block): This block is not a README.md section. It is Junior's process note to Senior embedded inside the artifact output. Artifacts must not contain review-process commentary.
+- ## Agent Preamble: artifact opens with process commentary ("I now have everything I need. The previous round failed…") that is not artifact content and must not appear in the submitted artifact
+- ## README Purpose Consistency: top-level folders `.claude/`, `knowledge/`, and `vash_framework/` each have a `Purpose:` block but no explicit `README purpose:` statement, inconsistent with every subdirectory which correctly carries that tag
 
 **Specific Issues:**
-- OBJ-001: [## Workflow Overview / ## Activity Phases / ## File Naming Conventions / ## Branch and Commit Conventions / ## Law Compliance Summary] Five locked sections are not present in the artifact. The artifact contains only the statement "All locked sections... are copied exactly from the original artifact" in their place. This violates the Output Rule: "Never summarise. Full content always." A README.md delivered without these sections is an incomplete document regardless of their locked status.
-- OBJ-002: [## Folder Reference] The section body contains only a placeholder line `*(all locked sections follow — identical to source)*` with no actual content following it. The section is a stub, not a section.
-- OBJ-003: [Artifact footer — "Fix applied" block] The bullet list explaining which 16 folders were fixed is meta-commentary directed at the reviewer. It is not README.md content. Its presence means the actual file output, if written as-is, would contain process notes visible to any reader of the repository.
-- ---
+- OBJ-001: [## Agent Preamble] The artifact begins with three sentences of agent reasoning ("I now have everything I need. The previous round failed — the updated prompt now requires no file path mentions in the artifact content. I'll produce the complete root README.md artifact for the vash3-framework repository.") followed by a horizontal rule. This is process metadata, not artifact content. It reveals internal state and round history inside a deliverable that is committed to the repository. Costs approximately 8 points alone.
+- OBJ-002: [## README Purpose Consistency] The `.claude/` root section, the `knowledge/` root section, and the `vash_framework/` root section each describe a purpose but omit the `README purpose:` tag used uniformly by every subdirectory section. This means three folder-level READMEs have no specified content mandate, leaving the folder structure incomplete at those levels.
+- OBJ-003: [## README Purpose Consistency] The root `.claude/` section has a purpose statement but no table of agents/hooks/skills at its own level — the tables appear only under the subdirectory sections. The `.claude/` README therefore has no summary of what a reader opening that folder will immediately see.
 
 **Required Corrections:**
-- OBJ-001: Include the full verbatim text of all five missing sections (## Workflow Overview, ## Activity Phases, ## File Naming Conventions, ## Branch and Commit Conventions, ## Law Compliance Summary) in the artifact body. Copy them character-for-character from the round 1 artifact. Do not substitute a reference, a note, or a summary.
-- OBJ-002: Remove the placeholder line from ## Folder Reference and replace it with the full verbatim content of that section from round 1.
-- OBJ-003: Remove the entire "Fix applied" block from the artifact. It must not appear anywhere in the README.md output. The fix is visible in the tree itself; no annotation is needed or appropriate.
+- OBJ-001: Delete the entire preamble block — the three sentences of agent reasoning and the horizontal rule separator that follows them. The artifact must begin directly with `# VASH 3.0 — Repository Structure`.
+- OBJ-002: Add a `**README purpose:**` line to the `.claude/`, `knowledge/`, and `vash_framework/` root sections. Each should state in one sentence what the README in that folder communicates to a reader who opens the directory: for `.claude/` — configuration entry point for Claude Code automation; for `knowledge/` — single source of truth index for laws, activities, checklists, and technology references; for `vash_framework/` — phase-by-phase design output index with status and cross-references.
+- OBJ-003: Add a one-paragraph summary to the `.claude/` root section listing the three subdirectories (agents, hooks, skills) and their counts, so the folder-level README gives a reader immediate orientation before they descend into subdirectories.
 
 **Your Decision:**
-- REJECTED 0.1 [reason]
+- MODIFY 0.1 [corrections already identified above]
+- REJECTED 0.1 [reason — if full rebuild needed]
 
-*Validated: 2026-05-12T12:16:58.994965+00:00*
+*Validated: 2026-05-13T10:03:55.424296+00:00*
