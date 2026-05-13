@@ -374,36 +374,27 @@ class Prompts:
         tid = ctx["tid"]
 
         if scenario in ("C", "D"):
-            # Full generation from scratch
-            return "\n\n".join([
+            # Minimal prompt — Claude reads files by path itself
+            return "\n".join([
                 "You are the VASH 3.0 Junior Creator.",
-                f"ACTIVITY ID: {task_id}",
-                f"ACTIVITY DEFINITION:\n{ctx['activity']}",
-                f"THREE LAWS:\n{ctx['laws']}",
-                f"VALIDATION CHECKLIST:\n{ctx['checklist']}",
-                "YOUR TASK:",
-                f"Produce the complete artifact for activity {task_id}.",
-                "Rules:",
-                "- Design and planning only. NO actual software code.",
-                "- Full content. Never summarise or truncate.",
-                "- Apply all three VASH laws throughout.",
-                "- Begin directly with artifact content. No preamble.",
-                "- No process notes or permission commentary.",
+                f"TASK: Produce the complete artifact for activity {task_id}.",
+                f"Read these files for context:",
+                f"- knowledge/activity_list.md (find activity {task_id})",
+                f"- knowledge/laws.md",
+                f"- knowledge/checklists/artifact.md",
                 f"OUTPUT PATH: {ctx['output_path']}",
-                f"THRESHOLD TO PASS: {ctx['threshold']}/100",
-                "IMPORTANT: Output ONLY the artifact content to stdout.",
-                "Do NOT request write permissions. Do NOT ask for approval.",
-                "Do NOT include process notes or wrappers.",
-                "Start directly with the artifact first line (e.g. # Title).",
-                "Output the complete artifact content now:"
+                f"THRESHOLD: {ctx['threshold']}/100",
+                "RULES:",
+                "- Design and planning only. NO code.",
+                "- Full content. Never summarise.",
+                "- Apply all three laws.",
+                "- Output ONLY artifact content. No preamble, no wrappers, no approval requests.",
+                "- Start with the artifact title line (e.g. # Title).",
+                "Output the complete artifact now:"
             ])
 
         elif scenario == "B":
-            # Targeted fix — include full existing artifact so Junior
-            # can copy locked sections verbatim without placeholders
-            existing = self.files.read(
-                f"runtime/artifacts/{tid}_artifact.md"
-            )
+            # Minimal prompt — reference files by path, pass only corrections
             locked_titles = "\n".join(
                 f"- {s['title']}" for s in (locked_sections or [])
             )
@@ -415,27 +406,24 @@ class Prompts:
                 f"- {s['title']}: {s.get('correction', s.get('reason',''))}"
                 for s in (failed_sections or [])
             )
-            return "\n\n".join([
-                "You are the VASH 3.0 Junior Creator — targeted fix mode.",
-                f"ACTIVITY ID: {task_id}",
-                f"THREE LAWS:\n{ctx['laws']}",
-                "CURRENT ARTIFACT (your base — use full content below):",
-                existing,
-                "LOCKED SECTIONS — COPY THESE CHARACTER-FOR-CHARACTER FROM ABOVE:",
+            return "\n".join([
+                "You are the VASH 3.0 Junior Creator — fix mode.",
+                f"TASK: Fix failed sections in artifact for activity {task_id}.",
+                f"Read current artifact from: runtime/artifacts/{tid}_artifact.md",
+                f"Read laws from: knowledge/laws.md",
+                "LOCKED SECTIONS (copy verbatim from artifact — do NOT change):",
                 locked_titles if locked_titles else "None",
-                "FAILED SECTIONS — FIX ONLY THESE:",
+                "FAILED SECTIONS (fix only these):",
                 failed_list if failed_list else "None",
-                "REQUIRED CORRECTIONS:",
+                "CORRECTIONS REQUIRED:",
                 corrections if corrections else "None",
-                "YOUR TASK:",
-                "Output the complete rewritten artifact.",
-                "CRITICAL RULES:",
-                "- Output ONLY artifact content — no approval requests, no process notes, no wrappers",
-                "- Start with the first line of the artifact (e.g. # Title)",
-                "- Locked sections: copy the exact text from CURRENT ARTIFACT above — never use placeholders",
-                "- Failed sections: apply the corrections listed",
-                "- Never write 'locked sections follow' or similar placeholders — write the actual content",
-                "Output the complete artifact now:"
+                "RULES:",
+                "- Output ONLY the complete rewritten artifact content.",
+                "- No approval requests, no process notes, no wrappers.",
+                "- Start with artifact title line (e.g. # Title).",
+                "- Locked sections: copy character-for-character from the artifact file.",
+                "- Failed sections: apply the corrections above.",
+                "Output the complete rewritten artifact now:"
             ])
 
         return ""
@@ -444,46 +432,32 @@ class Prompts:
                      locked_sections: list = None) -> str:
         ctx = self._base_context(task_id)
         tid = ctx["tid"]
-        artifact = self.files.read(f"runtime/artifacts/{tid}_artifact.md")
         locked_titles = "\n".join(
-            f"- {s['title']} (PASS from round {s.get('locked_round', '?')})"
+            f"- {s['title']} (PASS round {s.get('locked_round', '?')})"
             for s in (locked_sections or [])
         )
 
-        return "\n\n".join([
+        # Minimal prompt — Claude reads files by path
+        return "\n".join([
             "You are the VASH 3.0 Senior Validator.",
-            f"ACTIVITY ID: {task_id}",
+            f"TASK: Review artifact for activity {task_id}.",
+            f"Read artifact from: runtime/artifacts/{tid}_artifact.md",
+            f"Read activity from: knowledge/activity_list.md (find {task_id})",
+            f"Read laws from: knowledge/laws.md",
+            f"Read checklist from: knowledge/checklists/artifact.md",
             f"THRESHOLD: {ctx['threshold']}/100",
-            f"ACTIVITY DEFINITION:\n{ctx['activity']}",
-            f"THREE LAWS:\n{ctx['laws']}",
-            f"VALIDATION CHECKLIST:\n{ctx['checklist']}",
-            "PREVIOUSLY LOCKED SECTIONS (carry forward as PASS):",
-            locked_titles if locked_titles else "None — this is round 1",
-            "ARTIFACT TO REVIEW:",
-            artifact,
-            "YOUR TASK:",
-            "Review the full artifact adversarially.",
-            "For locked sections: mark PASS automatically, do not re-evaluate.",
-            "For all other sections: evaluate independently.",
-            "Score 0-100 combining all sections.",
-            "Use EXACTLY this output format:",
+            "LOCKED SECTIONS (mark PASS automatically — do not re-evaluate):",
+            locked_titles if locked_titles else "None — round 1",
+            "OUTPUT FORMAT (use exactly):",
             "SCORE: [0-100]",
             "VERDICT: APPROVED / MODIFY / FAIL",
-            "",
             "SECTION REVIEW:",
             "## Section Title: PASS",
-            "## Section Title: FAIL — [specific reason]",
-            "",
+            "## Section Title: FAIL — [reason]",
             "OBJECTIONS:",
-            "OBJ-001: [## Section Title] [specific issue]",
-            "OBJ-002: [## Section Title] [specific issue]",
-            "(or NONE)",
-            "",
+            "OBJ-001: [## Section] [issue] (or NONE)",
             "CORRECTIONS:",
-            "OBJ-001: [exact fix required]",
-            "OBJ-002: [exact fix required]",
-            "(or NONE)",
-            "",
+            "OBJ-001: [exact fix] (or NONE)",
             "Begin review now:"
         ])
 
