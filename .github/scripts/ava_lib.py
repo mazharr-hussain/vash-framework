@@ -374,27 +374,41 @@ class Prompts:
         tid = ctx["tid"]
 
         if scenario in ("C", "D"):
-            # Minimal prompt — Claude reads files by path itself
+            # Minimal prompt — no file paths, no write instructions
+            # ava_lib handles all file operations
+            activity = ctx['activity']
+            laws = ctx['laws']
+            checklist = ctx['checklist']
             return "\n".join([
                 "You are the VASH 3.0 Junior Creator.",
                 f"TASK: Produce the complete artifact for activity {task_id}.",
-                f"Read these files for context:",
-                f"- knowledge/activity_list.md (find activity {task_id})",
-                f"- knowledge/laws.md",
-                f"- knowledge/checklists/artifact.md",
-                f"OUTPUT PATH: {ctx['output_path']}",
-                f"THRESHOLD: {ctx['threshold']}/100",
+                "",
+                "ACTIVITY DEFINITION:",
+                activity,
+                "",
+                "THREE LAWS:",
+                laws,
+                "",
+                "CHECKLIST:",
+                checklist,
+                "",
                 "RULES:",
                 "- Design and planning only. NO code.",
                 "- Full content. Never summarise.",
                 "- Apply all three laws.",
-                "- Output ONLY artifact content. No preamble, no wrappers, no approval requests.",
-                "- Start with the artifact title line (e.g. # Title).",
-                "Output the complete artifact now:"
+                "- Output ONLY the artifact text content.",
+                "- No preamble, no wrappers, no file write requests.",
+                "- Start directly with the artifact title (e.g. # Title).",
+                "- Do NOT mention file paths. Do NOT ask to write files.",
+                "",
+                "Output the complete artifact text now:"
             ])
 
         elif scenario == "B":
-            # Minimal prompt — reference files by path, pass only corrections
+            # Pass existing artifact content directly — no file paths
+            # ava_lib handles all file operations
+            existing = self.files.read(f"runtime/artifacts/{tid}_artifact.md")
+            laws = ctx['laws']
             locked_titles = "\n".join(
                 f"- {s['title']}" for s in (locked_sections or [])
             )
@@ -409,20 +423,30 @@ class Prompts:
             return "\n".join([
                 "You are the VASH 3.0 Junior Creator — fix mode.",
                 f"TASK: Fix failed sections in artifact for activity {task_id}.",
-                f"Read current artifact from: runtime/artifacts/{tid}_artifact.md",
-                f"Read laws from: knowledge/laws.md",
-                "LOCKED SECTIONS (copy verbatim from artifact — do NOT change):",
+                "",
+                "THREE LAWS:",
+                laws,
+                "",
+                "CURRENT ARTIFACT:",
+                existing,
+                "",
+                "LOCKED SECTIONS (copy verbatim from above — do NOT change):",
                 locked_titles if locked_titles else "None",
+                "",
                 "FAILED SECTIONS (fix only these):",
                 failed_list if failed_list else "None",
+                "",
                 "CORRECTIONS REQUIRED:",
                 corrections if corrections else "None",
+                "",
                 "RULES:",
-                "- Output ONLY the complete rewritten artifact content.",
+                "- Output ONLY the complete rewritten artifact text.",
                 "- No approval requests, no process notes, no wrappers.",
                 "- Start with artifact title line (e.g. # Title).",
-                "- Locked sections: copy character-for-character from the artifact file.",
-                "- Failed sections: apply the corrections above.",
+                "- Locked sections: copy character-for-character from CURRENT ARTIFACT above.",
+                "- Failed sections: apply corrections above.",
+                "- Do NOT mention file paths. Do NOT ask to write files.",
+                "",
                 "Output the complete rewritten artifact now:"
             ])
 
@@ -437,17 +461,31 @@ class Prompts:
             for s in (locked_sections or [])
         )
 
-        # Minimal prompt — Claude reads files by path
+        # Pass content directly — no file paths
+        artifact = self.files.read(f"runtime/artifacts/{tid}_artifact.md")
+        activity = ctx['activity']
+        laws = ctx['laws']
+        checklist = ctx['checklist']
         return "\n".join([
             "You are the VASH 3.0 Senior Validator.",
             f"TASK: Review artifact for activity {task_id}.",
-            f"Read artifact from: runtime/artifacts/{tid}_artifact.md",
-            f"Read activity from: knowledge/activity_list.md (find {task_id})",
-            f"Read laws from: knowledge/laws.md",
-            f"Read checklist from: knowledge/checklists/artifact.md",
             f"THRESHOLD: {ctx['threshold']}/100",
-            "LOCKED SECTIONS (mark PASS automatically — do not re-evaluate):",
+            "",
+            "ACTIVITY DEFINITION:",
+            activity,
+            "",
+            "THREE LAWS:",
+            laws,
+            "",
+            "CHECKLIST:",
+            checklist,
+            "",
+            "ARTIFACT TO REVIEW:",
+            artifact,
+            "",
+            "LOCKED SECTIONS (mark PASS — do not re-evaluate):",
             locked_titles if locked_titles else "None — round 1",
+            "",
             "OUTPUT FORMAT (use exactly):",
             "SCORE: [0-100]",
             "VERDICT: APPROVED / MODIFY / FAIL",
@@ -458,6 +496,7 @@ class Prompts:
             "OBJ-001: [## Section] [issue] (or NONE)",
             "CORRECTIONS:",
             "OBJ-001: [exact fix] (or NONE)",
+            "",
             "Begin review now:"
         ])
 
