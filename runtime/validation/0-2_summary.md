@@ -1,24 +1,21 @@
 # YOUR REVIEW — Activity 0.2
 
-**Score:** 84/100 (threshold: 88)
+**Score:** 82/100 (threshold: 88)
 **Verdict:** FAIL
 **Artifact:** runtime/artifacts/0-2_artifact.md
 
 **Specific Issues:**
-- - LAW 3 violation — no search documentation present. The law compliance table in Section 7 asserts LAW 3 is satisfied by stating "Existing file structure reused throughout. No new folder patterns introduced." This mischaracterises the law. LAW 3 requires documentation of what was searched, what was found, what was reused, and what was built new and why. No search log exists anywhere in the artifact. The compliance claim is unsupported and the law is breached.
-- - Preamble text contaminates the artifact. Line 1 of runtime/artifacts/0-2_artifact.md reads: "I have all the information needed. Now producing the complete artifact." This is Junior's internal monologue, not artifact content. A formal VASH artifact must open directly with the task header. This line must not appear in any AvA-submitted document.
-- - Four audit entries in Section 1 use unverifiable "prior session" claims in place of current-state evidence. Rows 3, 8, 11, and 13 state findings such as "Previously had null bytes — resolved in prior session" and "Previously had PowerShell artifacts — resolved in prior session." The adversarial check explicitly flags this pattern for penalisation when it substitutes for an actual audit. Junior should have read those 4 files in the current session and reported what the current content contains, not what a prior session allegedly fixed. There is no verifiable evidence these files are currently clean beyond Junior's assertion.
-- - README.md audit scope is unverified. The artifact audits exactly 19 README.md files but does not confirm whether a root-level README.md or knowledge/README.md exists. If either exists and was missed, the audit is incomplete. The artifact does not state that a repo-wide scan was performed to enumerate all README.md files before auditing — it lists 19 and claims completeness without showing the enumeration step.
+- - BOM file misidentification (Section 1, Section 2.15, Section 8 item 15): Junior attributes the non-README BOM finding to .claude/CLAUDE.md and provides replacement content for that file. Evidence in this session shows .claude/CLAUDE.md renders without a BOM prefix, while knowledge/CLAUDE.md renders with a visible ﻿ (U+FEFF) prefix. Junior's own citation ("confirmed via system-rendered content showing ﻿ prefix") describes knowledge/CLAUDE.md, not .claude/CLAUDE.md. Section 2.15 replaces the wrong file; Section 8 item 15 will execute the BOM strip on the wrong file, leaving knowledge/CLAUDE.md unfixed.
+- - LAW 3 documentation absent (Section 7): LAW 3 requires "document every search: what was searched, what was found, what was reused, what was built new and why." Section 7 states "no search was required" without any documented search record. The law does not permit skipping documentation — a null result still requires recording what was searched and why no skill was found.
+- - Checklist verification incomplete (Checklist Verification table): The table does not include the "AvA log round started" checklist item. This leaves unconfirmed whether runtime/ava_logs/0-2_round1.md was created before Senior review, as the checklist requires.
 
 **Required Corrections:**
-- - Add a LAW 3 Search Log section (or sub-section within Section 7) documenting: (a) what was searched before producing content for each deliverable, (b) what was found in existing repo files vs. what was produced new, and (c) explicit statement of what was reused vs. built from scratch. Minimum entries: scan of existing README.md format and content before writing replacement; review of .github/CLAUDE.md before quoting content; review of tech_providers files before quoting content.
-- - Remove the preamble line "I have all the information needed. Now producing the complete artifact." from the top of the artifact file. The artifact must begin with the task header "# Activity 0.2 — Fix Corrupted Files and Create Missing Files".
-- - For audit rows 3, 8, 11, and 13: replace "prior session" language with current-state findings derived from actually reading those files in this session. Each entry should state what the file currently contains and why it is assessed as clean, not what a prior session allegedly did to it.
-- - Add one line to the artifact confirming the AvA log has been initialised: state the path runtime/ava_logs/0-2_round1.md and confirm it was opened for this round.
-- - Confirm in the audit introduction that the 19-file count was derived from a repo-wide README.md enumeration (e.g., listing all matching files), not from a manually composed list, so the scope of the audit is defensible.
+- - For the BOM misidentification: In Section 1, change the "additional finding" from .claude/CLAUDE.md to knowledge/CLAUDE.md. Remove Section 2.15 entirely and replace it with replacement content for knowledge/CLAUDE.md (the Domain Knowledge Rules file, without BOM). In Section 8, change item 15 from ".claude/CLAUDE.md" to "knowledge/CLAUDE.md."
+- - For LAW 3 documentation: In Section 7 LAW 3 block, add a search log entry recording: what was searched (Python standard library for BOM-safe file write; GitHub marketplace for BOM stripping utilities), what was found (Python built-in open() with encoding='utf-8' is sufficient), what was reused (standard library — no third-party skill needed), and why no custom skill was built.
+- - For checklist gap: Add a row to the Checklist Verification table: "AvA log round started at runtime/ava_logs/0-2_round1.md → CONFIRMED (or PENDING if not yet created)."
 - ```
 
 **Your Decision:**
 - REJECTED 0.2 [reason]
 
-*Validated: 2026-05-17T09:44:01.800401+00:00*
+*Validated: 2026-05-17T11:36:09.112069+00:00*
