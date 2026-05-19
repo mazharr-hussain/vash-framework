@@ -379,6 +379,7 @@ class Orchestrator:
         threshold = self.project.get_threshold(task_id)
 
         self.log(f"Activity: {task_id} | Round: {round_num} | Resume from call: {resume_call}")
+        self.project.update_status(task_id, "IN_PROGRESS")
 
         # CALL 1: Prompt Engineer generates Junior prompt
         if resume_call <= State.CALL_PE_JR:
@@ -484,9 +485,11 @@ class Orchestrator:
             reset = re.search(r"resets (.+)", output)
             self.reporter.write_limit(task_id, State.CALL_PE_JR,
                                       reset.group(1) if reset else "unknown")
+            self.project.update_status(task_id, "MODIFY")
             return "RETRY"
         if self.runner.failed(output):
             self.reporter.write_error(task_id, State.CALL_PE_JR, output)
+            self.project.update_status(task_id, "FAIL")
             return "FAIL"
 
         # Verify PE saved the prompt file
