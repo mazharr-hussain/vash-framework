@@ -78,7 +78,11 @@ class Files:
         tid = task_id.replace(".", "-")
         self.write(f"runtime/artifacts/{tid}_artifact.md", content)
         output_path = self.get_output_path(task_id)
-        if output_path and output_path not in ("N/A", "Multiple files"):
+        # Skip if output_path is a directory, invalid, or not a file target
+        if (output_path and
+                output_path not in ("N/A", "Multiple files") and
+                not output_path.endswith("/") and
+                not (self.root / output_path).is_dir()):
             self.write(output_path, content)
 
     def save_ava_log(self, task_id: str, round_num: int, content: str) -> None:
