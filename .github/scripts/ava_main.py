@@ -20,6 +20,17 @@ def main():
 
     orchestrator = Orchestrator(repo_root)
 
+    # Auto-detect next activity from Project if no TASK_ID provided
+    if not task_id:
+        print("[VASH AvA] No TASK_ID — auto-detecting next activity from Project...")
+        activity = orchestrator.project.get_next_activity()
+        if activity:
+            task_id = activity["task_id"]
+            print(f"[VASH AvA] Next activity: {task_id} — {activity['name']}")
+        else:
+            print("[VASH AvA] No pending activities found in Project")
+            sys.exit(0)
+
     try:
         result = orchestrator.run(task_id)
         print(f"[VASH AvA] Final result: {result}")

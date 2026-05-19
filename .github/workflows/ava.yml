@@ -60,6 +60,7 @@ jobs:
       - name: Setup Claude Code credentials
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: |
           mkdir -p ~/.claude
           cat > ~/.claude/.credentials.json << CREDS

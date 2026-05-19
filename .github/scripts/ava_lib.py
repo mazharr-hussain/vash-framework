@@ -14,8 +14,13 @@ import os
 import re
 import json
 import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
+
+# Add scripts dir to path for project_lib import
+sys.path.insert(0, str(Path(__file__).parent))
+from project_lib import ProjectClient
 
 
 # ─────────────────────────────────────────────
@@ -51,34 +56,13 @@ class Files:
         except Exception:
             pass
 
-    def get_activity(self, task_id: str) -> str:
-        content = self.read("knowledge/activity_list.md")
-        pattern = rf"ID: {re.escape(task_id)}\n(.*?)(?=\n---|\Z)"
-        m = re.search(pattern, content, re.DOTALL)
-        return m.group(0) if m else ""
+    # Activity data methods moved to ProjectClient
+    # Files class handles only runtime file operations
 
-    def get_threshold(self, task_id: str) -> int:
-        m = re.search(r"THRESHOLD:\s*(\d+)", self.get_activity(task_id))
-        return int(m.group(1)) if m else 88
-
-    def get_output_path(self, task_id: str) -> str:
-        m = re.search(r"OUTPUT_PATH:\s*(.+)", self.get_activity(task_id))
-        return m.group(1).strip() if m else ""
-
-    def update_activity_status(self, task_id: str, status: str) -> None:
-        content = self.read("knowledge/activity_list.md")
-        tid = re.escape(task_id)
-        updated = re.sub(
-            rf"(ID: {tid}.*?STATUS:)\s*\w+",
-            rf"\1 {status}", content, flags=re.DOTALL
-        )
-        self.write("knowledge/activity_list.md", updated)
-
-    def save_artifact(self, task_id: str, content: str) -> None:
+    def save_artifact(self, task_id: str, content: str, output_path: str = "") -> None:
         tid = task_id.replace(".", "-")
         self.write(f"runtime/artifacts/{tid}_artifact.md", content)
-        output_path = self.get_output_path(task_id)
-        # Skip if output_path is a directory, invalid, or not a file target
+        # Also write to canonical output path if provided and valid
         if (output_path and
                 output_path not in ("N/A", "Multiple files") and
                 not output_path.endswith("/") and
@@ -306,7 +290,7 @@ class Reporter:
     def write_summary(self, task_id: str, score: int, verdict: str,
                       failed: list, objections: list, corrections: list) -> None:
         tid = task_id.replace(".", "-")
-        threshold = self.files.get_threshold(task_id)
+        threshold = self.project.get_threshold(task_id)
         ts = datetime.now(timezone.utc).isoformat()
         lines = [
             f"# YOUR REVIEW — Activity {task_id}",
@@ -375,6 +359,7 @@ class Reporter:
 class Orchestrator:
     def __init__(self, repo_root: Path):
         self.files = Files(repo_root)
+        self.project = ProjectClient()
         self.state = State(self.files)
         self.parser = Parser()
         self.runner = Runner()
@@ -391,7 +376,7 @@ class Orchestrator:
         resume_call = self.state.get_resume_call(task_id)
         round_num = self.state.get_current_round(task_id)
         tid = task_id.replace(".", "-")
-        threshold = self.files.get_threshold(task_id)
+        threshold = self.project.get_threshold(task_id)
 
         self.log(f"Activity: {task_id} | Round: {round_num} | Resume from call: {resume_call}")
 
@@ -446,7 +431,7 @@ class Orchestrator:
             parsed["objections"], parsed["corrections"]
         )
         if verdict == "APPROVED":
-            self.files.update_activity_status(task_id, "PASS")
+            self.project.update_status(task_id, "PASS")
 
         self.log(f"Round {round_num} complete: {verdict} ({score}/100)")
         return verdict
@@ -458,6 +443,7 @@ class Orchestrator:
         tid = task_id.replace(".", "-")
         locked = self.state.get_locked_sections(task_id)
         failed = self.state.get_failed_sections(task_id)
+        activity_details = self.project.format_for_prompt(task_id)
 
         locked_note = ""
         if locked:
@@ -473,14 +459,16 @@ class Orchestrator:
             "You are VASH 3.0 Prompt Engineer.",
             f"Generate an optimal Junior Creator prompt for activity {task_id} round {round_num}.",
             "",
-            "Read these files to understand the task:",
-            "- knowledge/activity_list.md",
+            "ACTIVITY DETAILS:",
+            activity_details,
+            "",
+            "Read these files for context:",
             "- knowledge/laws.md",
             "- knowledge/checklists/artifact.md",
             "",
             "The prompt you generate must:",
             "- Tell Junior exactly what artifact to produce",
-            "- Tell Junior which files to read (not their content)",
+            "- Tell Junior to read knowledge/laws.md and knowledge/checklists/artifact.md",
             "- Say: output artifact text to stdout only, no file writes",
             "- Be clear and specific, under 1000 chars",
             locked_note,

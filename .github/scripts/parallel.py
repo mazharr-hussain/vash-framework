@@ -30,34 +30,14 @@ def read_file(path):
 
 
 def get_parallel_activities():
-    """Find all PENDING PARALLEL_SAFE activities whose dependencies are PASS."""
-    content = read_file("knowledge/activity_list.md")
-    activities = []
-
-    pattern = r"ID:\s*(\S+)\n.*?PARALLEL_SAFE:\s*(YES|NO)\n.*?DEPENDS_ON:\s*([^\n]+)\n.*?STATUS:\s*(\w+)"
-    for match in re.finditer(pattern, content, re.DOTALL):
-        task_id = match.group(1)
-        parallel_safe = match.group(2)
-        depends_on = match.group(3).strip()
-        status = match.group(4)
-
-        if parallel_safe != "YES" or status != "PENDING":
-            continue
-
-        # Check all dependencies are PASS
-        if depends_on != "NONE":
-            deps = [d.strip() for d in depends_on.split(",")]
-            deps_met = all(
-                f"ID: {dep}\n" in content and
-                re.search(rf"ID: {re.escape(dep)}.*?STATUS:\s*PASS", content, re.DOTALL)
-                for dep in deps
-            )
-            if not deps_met:
-                continue
-
-        activities.append(task_id)
-
-    return activities
+    """Find all PENDING PARALLEL_SAFE activities from GitHub Project."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
+    from project_lib import ProjectClient
+    client = ProjectClient()
+    items = client.get_parallel_activities()
+    return [item["task_id"] for item in items]
 
 
 def run_ava_for_activity(task_id):
