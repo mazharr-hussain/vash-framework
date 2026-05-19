@@ -1,185 +1,146 @@
 #!/usr/bin/env python3
-"""
-VASH 3.0 — GitHub Project Setup
-Creates GitHub Issues for all activities with correct labels.
-Runs once via GitHub Actions — no effect on pipeline logic.
-"""
+"""VASH 3.0 GitHub Project Setup — Creates ProjectV2 with all activities"""
+import re, json, os, time, urllib.request, urllib.error
 
-import re, json, os, time
-import urllib.request, urllib.error
-
-TOKEN = os.environ.get("GITHUB_TOKEN", "")
+TOKEN = os.environ.get("GITHUB_TOKEN","")
 OWNER = "mazharr-hussain"
-REPO = "vash3-framework"
+REPO  = "vash3-framework"
 
-
-def gh(method, endpoint, data=None):
-    url = f"https://api.github.com{endpoint}"
-    headers = {
-        "Authorization": f"token {TOKEN}",
-        "Accept": "application/vnd.github.v3+json",
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28"
-    }
-    body = json.dumps(data).encode() if data else None
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+def gql(query, variables=None):
+    url = "https://api.github.com/graphql"
+    headers = {"Authorization":f"Bearer {TOKEN}","Content-Type":"application/json"}
+    body = json.dumps({"query":query,"variables":variables or {}}).encode()
+    req = urllib.request.Request(url,data=body,headers=headers,method="POST")
     try:
         with urllib.request.urlopen(req) as r:
-            return json.loads(r.read()), None
+            d = json.loads(r.read())
+            return d.get("data"), d.get("errors")
     except urllib.error.HTTPError as e:
         return None, e.read().decode()
 
-
-def setup_labels():
-    labels = [
-        ("parallel-safe", "0075ca", "Can run in parallel with other activities"),
-        ("sequential",    "e4e669", "Must run sequentially — has dependencies"),
-        ("vash-pass",     "0e8a16", "Activity completed and approved"),
-        ("vash-fail",     "d73a4a", "Activity failed validation"),
-        ("vash-pending",  "cccccc", "Activity not yet started"),
-        ("vash-modify",   "fbca04", "Activity needs corrections"),
-        ("phase-0",       "f9d0c4", "Phase 0: GitHub Setup"),
-        ("phase-1",       "fef2c0", "Phase 1: VASH Vision"),
-        ("phase-2",       "c2e0c6", "Phase 2: Agent Architecture"),
-        ("phase-3",       "bfdadc", "Phase 3: Technology Decisions"),
-        ("phase-4",       "d4c5f9", "Phase 4: Skills Architecture"),
-        ("phase-5",       "e99695", "Phase 5: Platform Design"),
-        ("phase-6",       "f9d0c4", "Phase 6: VASH Blueprint"),
-        ("manual",        "0052cc", "Manual step — human action required"),
-        ("artifact",      "5319e7", "Produces an artifact via pipeline"),
-    ]
-    print("Setting up labels...")
-    for name, color, desc in labels:
-        r, err = gh("POST", f"/repos/{OWNER}/{REPO}/labels",
-                    {"name": name, "color": color, "description": desc})
-        if err and "already_exists" not in err:
-            # Try to update existing
-            gh("PATCH", f"/repos/{OWNER}/{REPO}/labels/{name}",
-               {"color": color, "description": desc})
-        print(f"  {'✅' if not err else '↺'} {name}")
-
-
 def parse_activities():
-    with open("knowledge/activity_list.md") as f:
-        content = f.read()
+    content = open("knowledge/activity_list.md").read()
     activities = []
-    blocks = re.split(r'\n---\n', content)
-    for block in blocks:
-        if 'ID:' not in block:
-            continue
+    for block in re.split(r'\n---\n', content):
+        if 'ID:' not in block: continue
         a = {}
-        for field in ['ID', 'NAME', 'TYPE', 'PHASE', 'PARALLEL_SAFE',
-                      'DEPENDS_ON', 'THRESHOLD', 'STATUS', 'DESCRIPTION']:
-            m = re.search(rf'{field}:\s*(.+)', block)
-            if m:
-                a[field] = m.group(1).strip()
-        if 'ID' in a and re.match(r'\d+\.\d+', a.get('ID', '')):
+        for f in ['ID','NAME','TYPE','PHASE','PARALLEL_SAFE','DEPENDS_ON','THRESHOLD','STATUS','DESCRIPTION']:
+            m = re.search(rf'{f}:\s*(.+)', block)
+            if m: a[f] = m.group(1).strip()
+        if 'ID' in a and re.match(r'\d+\.\d+', a.get('ID','')):
             activities.append(a)
     return activities
 
+def main():
+    if not TOKEN: print("ERROR: No GITHUB_TOKEN"); return
+    print("=== VASH 3.0 GitHub Project Setup ===")
 
-def create_issues(activities):
-    phase_labels = {
-        "0": "phase-0", "1": "phase-1", "2": "phase-2",
-        "3": "phase-3", "4": "phase-4", "5": "phase-5", "6": "phase-6"
-    }
+    # Get owner ID
+    d, e = gql('query($l:String!){user(login:$l){id}}', {"l":OWNER})
+    if not d: print(f"Error: {e}"); return
+    owner_id = d["user"]["id"]
+    print(f"Owner: {owner_id}")
 
-    # Get existing issues to avoid duplicates
-    existing, _ = gh("GET", f"/repos/{OWNER}/{REPO}/issues?state=all&per_page=100")
-    existing_titles = {i["title"] for i in (existing or [])}
+    # Create ProjectV2
+    d, e = gql('''mutation($o:ID!,$t:String!){
+      createProjectV2(input:{ownerId:$o,title:$t}){
+        projectV2{id number url}}}''',
+      {"o":owner_id,"t":"VASH 3.0 — Activity Board"})
+    if not d: print(f"Error creating project: {e}"); return
+    proj = d["createProjectV2"]["projectV2"]
+    pid = proj["id"]
+    print(f"✅ Project: {proj['url']}")
 
-    print(f"\nCreating issues for {len(activities)} activities...")
-    created = 0
-    skipped = 0
+    # Add custom fields
+    def add_select(name, opts):
+        d, e = gql('''mutation($p:ID!,$n:String!,$o:[ProjectV2SingleSelectFieldOptionInput!]!){
+          addProjectV2CustomField(input:{projectId:$p,name:$n,dataType:SINGLE_SELECT,singleSelectOptions:$o}){
+            clientMutationId}}''',
+          {"p":pid,"n":name,"o":[{"name":o,"color":"GRAY","description":""} for o in opts]})
+        print(f"  {'✅' if not e else '❌'} Field: {name}")
+
+    def add_text(name):
+        d, e = gql('''mutation($p:ID!,$n:String!){
+          addProjectV2CustomField(input:{projectId:$p,name:$n,dataType:TEXT}){
+            clientMutationId}}''', {"p":pid,"n":name})
+        print(f"  {'✅' if not e else '❌'} Field: {name}")
+
+    print("\nAdding fields...")
+    add_select("Phase", ["Phase 0: Setup","Phase 1: Vision","Phase 2: Agents",
+                         "Phase 3: Technology","Phase 4: Skills","Phase 5: Platform","Phase 6: Blueprint"])
+    add_select("Status", ["PENDING","IN_PROGRESS","PASS","FAIL","MODIFY"])
+    add_select("Parallel Safe", ["YES","NO"])
+    add_select("Type", ["ARTIFACT","MANUAL"])
+    add_text("Depends On")
+    add_text("Threshold")
+    time.sleep(1)
+
+    # Get field IDs
+    d, e = gql('''query($p:ID!){node(id:$p){...on ProjectV2{
+      fields(first:20){nodes{
+        ...on ProjectV2Field{id name}
+        ...on ProjectV2SingleSelectField{id name options{id name}}}}}}}''',
+      {"p":pid})
+    fields = {}
+    if d:
+        for f in d["node"]["fields"]["nodes"]:
+            if f: fields[f.get("name")] = f
+
+    def opt_id(field_name, opt_name):
+        for o in fields.get(field_name,{}).get("options",[]):
+            if o["name"] == opt_name: return o["id"]
+        return None
+
+    # Add activities
+    activities = parse_activities()
+    print(f"\nAdding {len(activities)} activities...")
+    phase_map = {"0":"Phase 0: Setup","1":"Phase 1: Vision","2":"Phase 2: Agents",
+                 "3":"Phase 3: Technology","4":"Phase 4: Skills",
+                 "5":"Phase 5: Platform","6":"Phase 6: Blueprint"}
 
     for a in activities:
-        task_id = a.get('ID', '')
-        phase = task_id.split('.')[0]
-        parallel = a.get('PARALLEL_SAFE', 'NO') == 'YES'
-        status = a.get('STATUS', 'PENDING')
-        depends = a.get('DEPENDS_ON', 'NONE')
-        threshold = a.get('THRESHOLD', '88')
-        desc = a.get('DESCRIPTION', '')
-        atype = a.get('TYPE', 'ARTIFACT')
+        tid = a.get('ID','')
+        phase = phase_map.get(tid.split('.')[0],"Phase 0: Setup")
+        par = a.get('PARALLEL_SAFE','NO')
+        stat = a.get('STATUS','PENDING')
+        icon = "✅" if stat=="PASS" else "⚡" if par=="YES" else "⏳"
+        title = f"{icon} [{tid}] {a.get('NAME','')}"
+        body = f"**Phase:** {a.get('PHASE','')}\n**Type:** {a.get('TYPE','')}\n**Parallel:** {par}\n**Depends:** {a.get('DEPENDS_ON','NONE')}\n**Threshold:** {a.get('THRESHOLD','88')}/100\n**Status:** {stat}\n\n{a.get('DESCRIPTION','')}"
 
-        title = f"[{task_id}] {a.get('NAME', '')}"
+        d, e = gql('''mutation($p:ID!,$t:String!,$b:String!){
+          addProjectV2DraftIssue(input:{projectId:$p,title:$t,body:$b}){
+            projectItem{id}}}''', {"p":pid,"t":title,"b":body})
+        if not d: print(f"  ❌ {tid}"); continue
+        item_id = d["addProjectV2DraftIssue"]["projectItem"]["id"]
 
-        if title in existing_titles:
-            print(f"  ↺ Already exists: {task_id}")
-            skipped += 1
-            continue
+        def set_select(fname, val):
+            fid = fields.get(fname,{}).get("id")
+            oid = opt_id(fname, val)
+            if not fid or not oid: return
+            gql('''mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){
+              updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,
+                value:{singleSelectOptionId:$v}}){clientMutationId}}''',
+              {"p":pid,"i":item_id,"f":fid,"v":oid})
 
-        labels = [
-            phase_labels.get(phase, 'phase-0'),
-            'parallel-safe' if parallel else 'sequential',
-            'artifact' if atype == 'ARTIFACT' else 'manual',
-        ]
-        if status == 'PASS':
-            labels.append('vash-pass')
-        elif status == 'FAIL':
-            labels.append('vash-fail')
-        else:
-            labels.append('vash-pending')
+        def set_text(fname, val):
+            fid = fields.get(fname,{}).get("id")
+            if not fid: return
+            gql('''mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){
+              updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,
+                value:{text:$v}}){clientMutationId}}''',
+              {"p":pid,"i":item_id,"f":fid,"v":val})
 
-        # Build parallel context
-        parallel_note = ""
-        if parallel:
-            parallel_note = "\n> ⚡ **PARALLEL SAFE** — can run simultaneously with other parallel-safe activities in same phase"
-        else:
-            parallel_note = f"\n> → **SEQUENTIAL** — depends on: `{depends}`"
+        set_select("Phase", phase)
+        set_select("Status", stat)
+        set_select("Parallel Safe", par)
+        set_select("Type", a.get('TYPE','ARTIFACT'))
+        set_text("Depends On", a.get('DEPENDS_ON','NONE'))
+        set_text("Threshold", a.get('THRESHOLD','88'))
 
-        body = f"""## {a.get('NAME', '')}
+        print(f"  {icon} [{tid}] {a.get('NAME','')[:50]}")
+        time.sleep(0.2)
 
-**Phase:** {a.get('PHASE', '')}
-**Type:** `{atype}`
-**Status:** `{status}`
-**Threshold:** {threshold}/100
-{parallel_note}
-
-### Description
-{desc}
-
-### Depends On
-`{depends}`
-
----
-*Auto-managed by VASH 3.0 pipeline*
-*Do not edit the Status or Labels manually — pipeline updates them*"""
-
-        r, err = gh("POST", f"/repos/{OWNER}/{REPO}/issues", {
-            "title": title,
-            "body": body,
-            "labels": labels
-        })
-
-        if err:
-            print(f"  ❌ {task_id}: {err[:60]}")
-        else:
-            state = "✅" if status == "PASS" else "⏳"
-            par = "⚡" if parallel else "→"
-            print(f"  {state} {par} #{r.get('number')} [{task_id}] {a.get('NAME', '')[:45]}")
-            created += 1
-
-        time.sleep(0.3)  # avoid rate limit
-
-    print(f"\nDone: {created} created, {skipped} already existed")
-
-
-def main():
-    if not TOKEN:
-        print("ERROR: GITHUB_TOKEN not set")
-        return
-
-    setup_labels()
-    activities = parse_activities()
-    create_issues(activities)
-
-    print("\n✅ GitHub Project setup complete")
-    print(f"View issues: https://github.com/{OWNER}/{REPO}/issues")
-    print("Create a Project Board at:")
-    print(f"https://github.com/{OWNER}/{REPO}/projects")
-    print("Add issues to board and group by phase label for best view")
-
+    print(f"\n✅ Project ready: {proj['url']}")
 
 if __name__ == "__main__":
     main()
