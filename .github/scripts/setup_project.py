@@ -14,9 +14,13 @@ def gql(query, variables=None):
     try:
         with urllib.request.urlopen(req) as r:
             d = json.loads(r.read())
+            if d.get("errors"):
+                print(f"  GraphQL errors: {d['errors']}")
             return d.get("data"), d.get("errors")
     except urllib.error.HTTPError as e:
-        return None, e.read().decode()
+        err = e.read().decode()
+        print(f"  HTTP error {e.code}: {err[:200]}")
+        return None, err
 
 def parse_activities():
     content = open("knowledge/activity_list.md").read()
@@ -46,8 +50,25 @@ def main():
       createProjectV2(input:{ownerId:$o,title:$t}){
         projectV2{id number url}}}''',
       {"o":owner_id,"t":"VASH 3.0 — Activity Board"})
-    if not d: print(f"Error creating project: {e}"); return
-    proj = d["createProjectV2"]["projectV2"]
+    if not d or "createProjectV2" not in d:
+        print(f"Error creating project: {e}")
+        # Try to find existing project
+        d2, e2 = gql('''query($l:String!){user(login:$l){
+          projectsV2(first:10){nodes{id number url title}}}}''', {"l":OWNER})
+        if d2:
+            for p in d2["user"]["projectsV2"]["nodes"]:
+                if "VASH 3.0" in p.get("title",""):
+                    print(f"Found existing project: {p['url']}")
+                    pid = p["id"]
+                    proj = p
+                    break
+            else:
+                print("No existing VASH project found")
+                return
+        else:
+            return
+    else:
+        proj = d["createProjectV2"]["projectV2"]
     pid = proj["id"]
     print(f"✅ Project: {proj['url']}")
 
