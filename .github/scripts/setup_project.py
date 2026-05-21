@@ -89,7 +89,7 @@ def main():
     print("\nAdding fields...")
     add_select("Phase", ["Phase 0: Setup","Phase 1: Vision","Phase 2: Agents",
                          "Phase 3: Technology","Phase 4: Skills","Phase 5: Platform","Phase 6: Blueprint"])
-    add_select("Status", ["PENDING","IN_PROGRESS","PASS","FAIL","MODIFY"])
+    add_select("VASH Status", ["PENDING","IN_PROGRESS","PASS","FAIL","MODIFY"])
     add_select("Parallel Safe", ["YES","NO"])
     add_select("Type", ["ARTIFACT","MANUAL"])
     add_text("Depends On")

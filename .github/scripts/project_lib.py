@@ -218,7 +218,7 @@ class ProjectClient:
             "title": title,
             "body": body,
             "description": description,
-            "status": fields.get("Status", "PENDING"),
+            "status": fields.get("VASH Status", "PENDING"),
             "phase": fields.get("Phase", ""),
             "parallel_safe": fields.get("Parallel Safe", "NO"),
             "type": fields.get("Type", "ARTIFACT"),
@@ -345,11 +345,11 @@ class ProjectClient:
 
         # Get fields
         fields = self._get_fields(pid)
-        status_field = fields.get("Status", {})
+        status_field = fields.get("VASH Status", {})
         if not status_field:
             return False
 
-        option_id = self._get_option_id(fields, "Status", status)
+        option_id = self._get_option_id(fields, "VASH Status", status)
         if not option_id:
             print(f"[ProjectLib] Status option '{status}' not found")
             return False

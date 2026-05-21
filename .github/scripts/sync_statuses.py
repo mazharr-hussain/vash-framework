@@ -172,8 +172,8 @@ def main():
             continue
 
         # Update custom Status field
-        custom_fid = fields.get("Status", {}).get("id")
-        custom_oid = opt_id(fields, "Status", status)
+        custom_fid = fields.get("VASH Status", {}).get("id")
+        custom_oid = opt_id(fields, "VASH Status", status)
         if custom_fid and custom_oid:
             set_field(pid, item["item_id"], custom_fid, custom_oid)
 
