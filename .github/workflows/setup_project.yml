@@ -11,12 +11,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - name: Create GitHub Project with activities
+
+      - name: Create/update GitHub Project with activities
         env:
-          GITHUB_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: python .github/scripts/setup_project.py
 
   sync-statuses:
@@ -24,11 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+
       - name: Sync activity statuses to Project
         env:
           PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
