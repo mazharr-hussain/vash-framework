@@ -485,7 +485,7 @@ class Orchestrator:
             reset = re.search(r"resets (.+)", output)
             self.reporter.write_limit(task_id, State.CALL_PE_JR,
                                       reset.group(1) if reset else "unknown")
-            self.project.update_status(task_id, "MODIFY")
+            self.project.update_status(task_id, "RETRY")
             return "RETRY"
         if self.runner.failed(output):
             self.reporter.write_error(task_id, State.CALL_PE_JR, output)
@@ -606,6 +606,10 @@ class Orchestrator:
 
         self.files.save_ava_log(task_id, round_num, output)
         self.state.mark_call_complete(task_id, State.CALL_SR)
+        # Update item body in GitHub Project with AvA result
+        score = self.parser.parse_score(output)
+        verdict = self.parser.parse_verdict(output)
+        self.project.update_ava_result(task_id, score, round_num, verdict)
         self.log(f"Senior review saved: round {round_num}")
         return "OK"
 

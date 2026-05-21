@@ -396,3 +396,47 @@ class ProjectClient:
             f"DEPENDS_ON: {activity['depends_on']}",
             f"DESCRIPTION: {activity['description']}",
         ])
+
+    def update_ava_result(self, task_id: str, score: int,
+                          round_num: int, verdict: str) -> bool:
+        """Update Last AvA Result section in item body after each AvA run."""
+        pid = self.get_project_id()
+        if not pid:
+            return False
+        activity = self.get_activity(task_id)
+        if not activity:
+            return False
+        item_id = activity["item_id"]
+        body = activity.get("body", "")
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        new_result = (
+            "## Last AvA Result\n"
+            "- **Score:** " + str(score) + "/100\n"
+            "- **Round:** " + str(round_num) + "\n"
+            "- **Verdict:** " + verdict + "\n"
+            "- **Updated:** " + ts
+        )
+        if "## Last AvA Result" in body:
+            start = body.find("## Last AvA Result")
+            rest = body[start:]
+            end = len(rest)
+            for marker in ["\n## ", "\n---"]:
+                idx = rest.find(marker, 5)
+                if 0 < idx < end:
+                    end = idx
+            body = body[:start] + new_result + rest[end:]
+        else:
+            body = body + "\n\n" + new_result
+        query = """mutation($iid: ID!, $title: String!, $body: String!) {
+          updateProjectV2DraftIssue(input: {
+            draftIssueId: $iid title: $title body: $body
+          }) { draftIssue { id } } }"""
+        data, err = self._gql(query, {
+            "iid": item_id, "title": activity["title"], "body": body
+        })
+        if err:
+            print("[ProjectLib] Body update error: " + str(err)[:100])
+            return False
+        self._all_items_cache = None
+        return True
