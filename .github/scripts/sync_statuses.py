@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
 VASH 3.0 — Sync activity statuses to GitHub Project.
-Reads validation results from runtime/validation/
-and updates Project items accordingly.
-Run once via workflow_dispatch.
+Runs standalone — does not depend on setup_project.
+Reads:
+  1. runtime/validation/ for pipeline-completed activities
+  2. KNOWN_STATUSES for manually approved activities
+Updates GitHub Project item Status field for each.
 """
 import os, re, sys
 from pathlib import Path
@@ -11,67 +13,91 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from project_lib import ProjectClient
 
-# Known statuses from completed pipeline runs + manual approvals
+# Manually approved activities not yet in validation files
 KNOWN_STATUSES = {
-    "0.1":  "PASS",    # AvA score 89 — APPROVED
-    "0.2":  "FAIL",    # AvA score 82 — below threshold 88
-    "0.3":  "PASS",    # AvA score 94 — APPROVED
-    "0.10": "PASS",    # human approved
-    "0.11": "PASS",    # human approved
-    "0.12": "PASS",    # manual — token added
-    "0.13": "PASS",    # human approved
-    "1.1":  "MODIFY",  # AvA score 81 — needs corrections
+    "0.10": "PASS",
+    "0.11": "PASS",
+    "0.12": "PASS",
 }
 
-def get_status_from_validation(task_id: str) -> str:
-    """Read status from validation summary if available."""
-    tid = task_id.replace(".", "-")
-    path = Path(f"runtime/validation/{tid}_summary.md")
-    if not path.exists():
-        return ""
-    content = path.read_text(encoding="utf-8")
-    m = re.search(r"\*\*Verdict:\*\*\s*(\w+)", content)
-    if not m:
-        return ""
-    verdict = m.group(1).upper()
-    if verdict == "APPROVED":
-        return "PASS"
-    return verdict  # FAIL, MODIFY, RETRY
+def read_validation_statuses() -> dict:
+    """Read all validation summary files and extract verdicts."""
+    statuses = {}
+    val_dir = Path("runtime/validation")
+    if not val_dir.exists():
+        return statuses
+
+    for f in val_dir.glob("*_summary.md"):
+        # Extract task_id from filename e.g. 0-1_summary.md -> 0.1
+        tid = re.match(r"(\d+-\d+)_summary", f.name)
+        if not tid:
+            continue
+        task_id = tid.group(1).replace("-", ".")
+        content = f.read_text(encoding="utf-8")
+
+        # Extract verdict
+        m = re.search(r"\*\*Verdict:\*\*\s*(\w+)", content)
+        if not m:
+            continue
+        verdict = m.group(1).upper()
+
+        # Map verdict to Project status
+        if verdict == "APPROVED":
+            statuses[task_id] = "PASS"
+        elif verdict in ("FAIL", "MODIFY", "RETRY"):
+            statuses[task_id] = verdict
+        elif verdict == "ESCALATE":
+            statuses[task_id] = "FAIL"
+
+    return statuses
 
 def main():
     client = ProjectClient()
     pid = client.get_project_id()
     if not pid:
-        print("ERROR: Project not found — run setup_project workflow first")
+        print("ERROR: Project not found")
+        print("Run 'VASH 3.0 Project Setup' workflow first")
         sys.exit(1)
 
-    # Build status map: validation files take priority over known statuses
+    # Build final status map
+    # Validation files take priority over known statuses
+    statuses = {**KNOWN_STATUSES, **read_validation_statuses()}
+    print(f"Status map built: {len(statuses)} activities to update\n")
+
+    # Get all project activities
     all_activities = client.get_all_activities()
-    print(f"Found {len(all_activities)} activities in Project\n")
+    if not all_activities:
+        print("ERROR: No activities found in Project")
+        print("Run 'VASH 3.0 Project Setup' workflow first")
+        sys.exit(1)
+
+    print(f"Project has {len(all_activities)} activities\n")
 
     updated = 0
+    skipped = 0
+
     for activity in all_activities:
         task_id = activity["task_id"]
         current = activity["status"]
+        target = statuses.get(task_id, "")
 
-        # Check validation file first
-        status = get_status_from_validation(task_id)
-
-        # Fall back to known statuses
-        if not status:
-            status = KNOWN_STATUSES.get(task_id, "")
-
-        # Skip if no update needed
-        if not status or status == current:
+        if not target:
+            skipped += 1
             continue
 
-        result = client.update_status(task_id, status)
-        icon = {"PASS": "✅", "FAIL": "❌", "MODIFY": "⚠️",
-                "IN_PROGRESS": "🔄", "PENDING": "⏳"}.get(status, "?")
-        print(f"  {icon} [{task_id}] {current} → {status} {'OK' if result else 'FAILED'}")
-        updated += 1
+        if target == current:
+            icon = {"PASS":"✅","FAIL":"❌","MODIFY":"⚠️","PENDING":"⏳"}.get(current,"?")
+            print(f"  {icon} [{task_id}] already {current} — skipped")
+            skipped += 1
+            continue
 
-    print(f"\n✅ Updated {updated} activities")
+        result = client.update_status(task_id, target)
+        icon = {"PASS":"✅","FAIL":"❌","MODIFY":"⚠️","IN_PROGRESS":"🔄","PENDING":"⏳"}.get(target,"?")
+        print(f"  {icon} [{task_id}] {current} → {target} {'OK' if result else 'FAILED'}")
+        if result:
+            updated += 1
+
+    print(f"\nDone — {updated} updated, {skipped} skipped")
 
 if __name__ == "__main__":
     main()
