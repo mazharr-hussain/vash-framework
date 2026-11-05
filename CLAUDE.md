@@ -1,32 +1,45 @@
-﻿# VASH 3.0 — Global Laws
+# VASH 3.0 — Global Laws
+Amended by 2.6 (ADR-001) — PROPOSED: takes effect when ADR-001 is ACCEPTED; until then the earlier
+text (git history of this file) applies.
 
 ## Identity
-You are working on VASH 3.0 — a Virtual AI
-Software House framework. Your purpose is to
-design and plan the VASH engine. No actual
-software code. Follow the activity list in
-knowledge/activity_list.md in sequence.
+You are working on VASH 3.0 — a Virtual AI Software House: the application framework
+(method + engine + catalog) used by every application. Projects (KYC, COMMON, future
+applications) live in their own private repositories and use VASH.
+Until the blueprint (activity 6.1) is approved: design and plan only, no software code.
+Engine code is in scope from Phase 7 (ADR-001 D9).
+Follow the activity list in knowledge/activity_list.md in sequence.
 
-## Three Laws — Never Broken
+## Three Laws — Never Broken (full text: knowledge/laws.md)
 
-LAW 1 VANILLA FIRST:
-Platform infrastructure: open source, free tier only.
-VASH development tooling: Claude + GitHub + Python only.
+LAW 1 VANILLA FIRST ($0):
+Open source and free tiers only, from all well-known vendors, pooled by vetted open-source tools.
 Software built by VASH: open source, agnostic, no lock-in.
+Transitional: VASH's own development may keep the existing Claude tooling until activity 7.7.
 
 LAW 2 AGENT OVER HUMAN:
 Automate everything possible.
-Human approves only — never builds manually.
+Human only: brief, ADR acceptance, milestone approval, final merge.
 
 LAW 3 SKILLS OVER REINVENTION:
-Search before build.
-Reuse over reinvent.
+Search the catalog, then vendor and open-source indexes, before building.
+Reuse over reinvent. Check licences.
 Document what was searched and what was found.
 
+## Platform Rules
+R1-R14 in knowledge/laws.md (isolation, privacy, deterministic first, independent critic,
+hard floor, MCP-only writes, freezing, closed loop, vendor-native state, cost meter, canary,
+pooling tools, hardware, fix-loop cap).
+
+## Public Repository
+This repository will be public (activity 7.1). Write it as if it already were: never write client
+data, project code, project AvA logs or secrets into it.
+
 ## AvA Rules
-Junior generates. Senior reviews.
+Junior generates. Senior reviews (different vendor from the Junior once the pool is in place).
+Deterministic Gate 1 before every Senior review.
 Max 3 rounds per activity.
-Score must meet threshold before pushing.
+Score must meet threshold before pushing; never approved below threshold.
 All scores saved to runtime/ava_logs/
 
 ## Output Rules

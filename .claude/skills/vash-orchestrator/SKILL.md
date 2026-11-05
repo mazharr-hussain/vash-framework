@@ -43,10 +43,11 @@ IF round = 3 → check stalemate
 STEP 5: STALEMATE CHECK
 Read last 2 rounds from ava_logs.
 IF score improvement < 3 points:
-  Score ≥ 80 → AUTO-APPROVE with warning flag
-  Score 70-79 → ESCALATE to human
+  (Amended by 2.6, rule R5 — never approved below threshold)
+  Score 70 to below threshold → ESCALATE to human
   Score < 70 → FAIL
 IF no stalemate → continue loop
+IF round = 3 AND score < threshold AND no stalemate → ESCALATE to human (never APPROVED)
 
 STEP 6: FINAL SAVE
 Move artifact from runtime/drafts/ to runtime/artifacts/

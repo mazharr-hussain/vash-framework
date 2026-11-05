@@ -1,49 +1,49 @@
 # knowledge/tech_providers/platforms.md
+Amended by 2.6 (ADR-001). PROPOSED: in force when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Purpose
-Reference for platform selection during VASH activities.
-Read this file only during Phase 3 technology decision activities.
+Reference for platform selection. Read during Phase 3 technology decision activities.
 
-## VASH Development Platform (fixed — not decided per project)
+## VASH Platform (fixed)
 | Platform | Purpose | Cost | Why |
 |----------|---------|------|-----|
-| Claude.ai | All AI work — AvA Jr and Sr | Pro subscription | Only AI platform for VASH dev |
-| GitHub | Code, artifacts, automation | Free tier | Version control and automation |
-| Python | Orchestration scripts | Free | LAW 1 compliant |
-| Claude Code | GitHub VM execution | Included in Pro | Runs Claude on GitHub Actions |
+| GitHub (VASH public, projects private) | Code, artifacts, automation, state (Issues, Projects) | Free plan | Version control, automation, vendor-native state (R9) |
+| Python | Engine and scripts | Free | Open source |
+| Pooled free-tier LLMs + local Ollama | All AI work once activity 7.7 exits | Free | LAW 1, R2, R4, R12 |
+| OCI Always Free | Self-hosted runner, local model, database for Oracle-stack projects | Free | v8.2 execution engine |
+| Claude tooling (transitional, OD-1) | VASH's own development until 7.7 | Existing subscription | Time-limited exception, recorded in ADR-001 |
 
-## Platform Categories for Software Built BY VASH
-These are options — Architecture Agent selects per project ADR.
-
+## Platform Categories (options, decided by ADR)
 ### Orchestration and Pipeline
 | Option | Type | License | Free Tier |
 |--------|------|---------|-----------|
-| LangGraph | Open source | MIT | Self-host free |
+| LangGraph | Open source | MIT | Self-host free (v8.2 candidate, decided in 3.1) |
 | CrewAI | Open source | MIT | Self-host free |
 | Temporal | Open source | MIT | Self-host free |
 
 ### Human-in-Loop Communication
 | Option | Type | License | Free Tier |
 |--------|------|---------|-----------|
+| GitHub Issues / PR / ADR file | SaaS | Proprietary | Free (v8.2 baseline: ADR PROPOSED -> ACCEPTED) |
 | Telegram Bot | API | Free | Unlimited |
 | Slack | SaaS | Proprietary | Limited free |
-| GitHub Issues | SaaS | Proprietary | Free |
 
 ### State and Memory
 | Option | Type | License | Free Tier |
 |--------|------|---------|-----------|
-| Redis (Upstash) | Managed | Open source | 10K cmd/day |
-| PostgreSQL | Open source | MIT | Self-host free |
-| SQLite | Open source | Public domain | Always free |
+| GitHub Projects + read-only status export | SaaS | Proprietary | Free (R9 baseline) |
+| SQLite (graph checkpoints) | Open source | Public domain | Always free |
+| PostgreSQL | Open source | PostgreSQL licence | Self-host free |
+| Redis (Upstash) | Managed | Open source | Limited free |
 
 ### Storage
 | Option | Type | License | Free Tier |
 |--------|------|---------|-----------|
-| GitHub | SaaS | Proprietary | Free tier |
-| Supabase | Open source | Apache 2.0 | 500MB free |
+| GitHub (git, Releases) | SaaS | Proprietary | Free |
+| OCI Object Storage | Managed | Proprietary | Always Free allowance |
 | MinIO | Open source | AGPL | Self-host free |
 
 ## LAW 1 Compliance
-All platforms must have open source alternative.
-Free tier required until VASH generates revenue.
-No proprietary lock-in in core logic.
+All platforms must have an open-source alternative.
+Free tier only. No proprietary lock-in in core logic.
+Licences of every catalog asset are verified before use (licence verifier).

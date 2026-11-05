@@ -37,9 +37,10 @@ EVALUATE:
 
 STALEMATE RULE:
 - Score improvement < 3 points over 2 rounds = STALEMATE
-- Score ≥ 80 + stalemate → AUTO-APPROVE with flag
-- Score 70-79 + stalemate → ESCALATE to human
+- (Amended by 2.6, rule R5) never approved below threshold
+- Score 70 to below threshold + stalemate → ESCALATE to human
 - Score < 70 + stalemate → FAIL → rebuild
+- Round 3, below threshold, no stalemate → ESCALATE to human
 ```
 
 ### Pattern: Parallel Execution

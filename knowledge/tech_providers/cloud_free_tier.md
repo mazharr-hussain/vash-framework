@@ -1,51 +1,54 @@
 # knowledge/tech_providers/cloud_free_tier.md
+Amended by 2.6 (ADR-001 D6). PROPOSED: in force when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Purpose
-Reference for cloud free tier options during VASH activities.
-Read this file only during Phase 3 infrastructure decision activities.
+Reference for free-tier infrastructure. Read during activity 3.4 and activity-list Phase 7 (7.6, 7.10).
+Every figure here changes over time: verify in activity 3.4 before use.
 
 ## LAW 1 Rule
-Use free tier always until VASH generates revenue.
-Document why paid tier is needed if ever selected.
+$0: free tiers and open source only. A paid tier is never selected for the baseline.
 
-## Compute Free Tiers
-| Provider | Free Compute | Limit | Notes |
-|----------|-------------|-------|-------|
-| GitHub Actions | 2000 min/month | Linux runners | Best for VASH automation |
-| Oracle Cloud | 2 AMD VMs always free | 1GB RAM each | Best always-free compute |
-| Google Cloud | f1-micro instance | 1 per region | 30GB disk included |
-| AWS | t2.micro | 12 months only | Expires after year 1 |
-| Fly.io | 3 shared VMs | 256MB RAM | Good for small apps |
-| Render | Web service | Sleeps after 15min | Not for always-on |
+## Execution Engine (Blueprint v8.2)
+| Provider | Resource | Published Always Free allowance | Use in VASH |
+|----------|----------|--------------------------------|-------------|
+| Oracle Cloud | Ampere A1 (ARM64) compute | 4 OCPU / 24 GB in total (v8.2 sizes one VM at 2 OCPU / 12 GB) | Self-hosted runner for private projects' heavy jobs; local model (Ollama) |
+| Oracle Cloud | Autonomous Database (Always Free) | Small fixed instances; session limit (v8.2: 30) | Database for Oracle stack projects; connections serialized |
+| Oracle Cloud | Object Storage | Small free allowance | Terraform state, large test outputs (videos, traces) |
+| Oracle Cloud | AMD micro VMs | 1 GB RAM each | Too small for the runner or the local model |
+To verify in 3.4: idle-instance reclaim policy for Always Free compute, regional A1 capacity.
 
-## Database Free Tiers
-| Provider | Free DB | Limit | Notes |
-|----------|---------|-------|-------|
-| Supabase | PostgreSQL | 500MB | Best free PostgreSQL |
-| PlanetScale | MySQL | 5GB | Serverless MySQL |
-| Neon | PostgreSQL | 3GB | Serverless PostgreSQL |
-| Turso | SQLite | 9GB | Edge SQLite |
-| MongoDB Atlas | MongoDB | 512MB | NoSQL option |
+## GitHub (Free plan)
+| Item | Public repository (VASH) | Private repository (projects) |
+|------|--------------------------|-------------------------------|
+| Hosted Linux minutes | Unlimited | 2,000 / month (Windows 2x, macOS 10x); each job rounded up to a whole minute |
+| Branch protection / rulesets enforced | Yes | No |
+| Environment required reviewers | Yes | No |
+| Code scanning / secret push protection | Free | Not free |
+| Artifact and package storage | Free | 500 MB |
+| Actions cache | 10 GB per repository (to verify in 3.4) | 10 GB per repository (to verify in 3.4) |
+| Self-hosted runners | Not used (untrusted code risk) | Used; a per-minute charge for self-hosted runners in private repositories may apply — verify in 3.4 |
 
-## Storage Free Tiers
-| Provider | Free Storage | Limit | Notes |
-|----------|-------------|-------|-------|
-| GitHub | Unlimited public | LFS limited | Best for artifacts |
-| Cloudflare R2 | 10GB/month | 1M requests | S3-compatible |
-| Backblaze B2 | 10GB | Free egress to CF | Good with Cloudflare |
-| Supabase Storage | 1GB | Included in free | Good for small files |
+## Overflow (emergency only, by ADR)
+| Provider | Free CI allowance (to verify) |
+|----------|-------------------------------|
+| GitLab | Limited monthly compute minutes |
+| Azure DevOps | One free parallel job with monthly minutes (grant may need a request) |
 
-## Cache Free Tiers
-| Provider | Free Cache | Limit | Notes |
-|----------|-----------|-------|-------|
-| Upstash Redis | 256MB | 10K cmd/day | Best for VASH state |
-| Redis Cloud | 30MB | Always free | Very limited |
+## Other Free Tiers (options for projects, chosen per project ADR)
+| Category | Options |
+|----------|---------|
+| Compute | GitHub Actions, Google Cloud micro instance, Fly.io, Render (sleeps) |
+| Database | Oracle Autonomous Database, Supabase PostgreSQL, Neon PostgreSQL, Turso SQLite, MongoDB Atlas |
+| Storage | GitHub Releases, OCI Object Storage, Cloudflare R2, Backblaze B2 |
+| Cache | Upstash Redis, Redis Cloud |
+| CDN | Cloudflare |
 
-## Recommended Stack For VASH MVP (all free)
+## Baseline (replaces the earlier "Recommended Stack For VASH MVP")
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Compute | GitHub Actions | Already integrated with VASH |
-| Database | Supabase PostgreSQL | Best free tier + open source |
-| Storage | GitHub + Supabase | Already using GitHub |
-| Cache | Upstash Redis | Sufficient for pipeline state |
-| CDN | Cloudflare | Free tier very generous |
+| CI (VASH) | GitHub Actions hosted | Public: unlimited minutes |
+| CI (projects) | GitHub Actions: light jobs hosted, heavy jobs on OCI A1 self-hosted | 2,000-minute limit |
+| Local AI | Ollama on OCI A1 | Privacy (R2), fallback |
+| State | GitHub Issues and Projects | Rule R9 |
+| Artifacts | Git (audit trail), GitHub Releases, OCI Object Storage | Free |
+| Infrastructure as code | Terraform | Open source |

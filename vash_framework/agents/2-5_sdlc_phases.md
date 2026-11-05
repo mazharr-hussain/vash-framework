@@ -1,4 +1,5 @@
 # VASH 3.0 — SDLC Phases Complete Sequence
+Amendments marked "Amended by 2.6" are PROPOSED: they take effect when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Overview
 
@@ -9,6 +10,9 @@ VASH 3.0 follows a structured Software Development Lifecycle with 8 phases. Each
 ## Phase 1: Brief Intake
 
 **Purpose:** Transform the human owner's brief into a validated, structured input ready for decomposition.
+
+**Privacy (Amended by 2.6, rule R2):** The brief and any client data are processed by the local model
+only; raw input is kept in the project's git-ignored intake folder.
 
 **Entry Criteria:** Human submits project brief via GitHub Issue or P1 chat
 
@@ -82,10 +86,15 @@ VASH 3.0 follows a structured Software Development Lifecycle with 8 phases. Each
 - Security design principles
 - Integration design
 - LAW 1 compliance verification for every selection
+- Stack selection from the VASH catalog: stack pack, skills, agents, tools, runner, budget (Amended by 2.6)
+- Catalog gap handling: search, licence check, AvA, catalog ADR before use (Amended by 2.6)
 
 **Artifacts Produced:**
 - HLD document
 - ADR per technology decision
+- Stack ADR (PROPOSED -> ACCEPTED by the human) in the project repository (Amended by 2.6)
+- On ACCEPTED: project-stack.json written by the engine, and the project repository provisioned
+  (pinned VASH, pinned workflows, audit folders) — deterministic, no AI (Amended by 2.6)
 - Entity-relationship diagrams
 - OpenAPI 3.0 specifications
 - Security design document
@@ -313,3 +322,17 @@ All artifacts → Blueprint (Phase 8)
 ```
 
 This ensures no orphaned artifacts and no untested requirements.
+
+---
+
+## Amendment by 2.6 — Freeze Change Rule and Execution Stages
+
+### Freeze change rule
+A project's project-stack.json changes only through a new ADR that supersedes the earlier one, accepted
+by the human, followed by Stage 0 and the full pipeline. A deterministic check refuses any change to the
+Freeze file that does not name an ACCEPTED ADR. Upgrading the pinned VASH version follows the same rule.
+
+### Execution stages (Blueprint v8.2 Stages 0-10)
+The build, review, pipeline, fix-loop, release and post-release stages that follow Phase 8 are mapped
+in vash_framework/architecture/2-6_application_framework.md, Section 5. They are execution stages, not SDLC phases; they are built by activity-list Phase 7 — Engine Build
+and apply to projects, each in its own repository.

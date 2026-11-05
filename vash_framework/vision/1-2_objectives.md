@@ -104,4 +104,4 @@ VASH 3.0 is successful when:
 3. Every artifact has passed AvA with score ≥ 88
 4. Human has approved each milestone in ≤ 5 minutes per review
 5. Zero proprietary lock-in in any output
-6. Total cost: Claude Pro subscription only
+6. Total cost: $0 — open source and pooled free tiers only (Amended by 2.6, in force when ADR-001 is ACCEPTED; transitional exception for VASH's own development tooling until activity 7.7, open decision OD-1)
