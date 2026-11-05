@@ -15,7 +15,7 @@ Follow the activity list in knowledge/activity_list.md in sequence.
 LAW 1 VANILLA FIRST ($0):
 Open source and free tiers only, from all well-known vendors, pooled by vetted open-source tools.
 Software built by VASH: open source, agnostic, no lock-in.
-Transitional: VASH's own development may keep the existing Claude tooling until activity 7.7.
+Transitional: VASH's own development may keep the existing Claude tooling until activity 7.7 (or earlier under OD-7).
 
 LAW 2 AGENT OVER HUMAN:
 Automate everything possible.

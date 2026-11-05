@@ -10,7 +10,7 @@ Use the free tiers of all well-known vendors (LLMs, CI/CD, cloud), pooled throug
 open-source tools. OCI Always Free is the execution engine and privacy fallback.
 Software built BY VASH: open source, database-agnostic, cloud-agnostic, no lock-in.
 Transitional exception (D10, open decision OD-1): VASH's own development may keep the existing
-Claude tooling until the engine runs on the pool (activity 7.7). No project depends on a paid service.
+Claude tooling until the engine runs on the pool (activity 7.7) (or earlier under OD-7). No project depends on a paid service.
 
 LAW 2 AGENT OVER HUMAN:
 If an agent or a script can do it, a human must not.
@@ -31,7 +31,7 @@ R2 DATA PRIVACY: Client data and intake are processed only by the local model. N
 R3 DETERMINISTIC FIRST: Tests, linters, schema and secret checks (Gate 1) run before any AI
    review. A Gate 1 failure returns to the Junior / Coder; the Senior / Critic is not invoked.
 R4 INDEPENDENT CRITIC: The Senior / Critic runs on a different vendor from the Junior / Coder.
-   Transitional exception OD-1: until 7.7 exits, VASH's own development may run Junior and Senior
+   Transitional exception OD-1: until 7.7 exits (or earlier under OD-7), VASH's own development may run Junior and Senior
    on the same vendor in isolated contexts; recorded in each AvA log.
 R5 HARD FLOOR: No artifact or change is approved below its threshold; no threshold below 88.
 R6 MCP-ONLY WRITES: Build agents write files only through the MCP write tool, inside the

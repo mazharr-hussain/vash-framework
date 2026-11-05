@@ -390,7 +390,7 @@ TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
 DEPENDS_ON: 2.6
-DESCRIPTION: Review knowledge/tech_providers/ai_models.md. Define routing rules for software BUILT BY VASH and (Amended by 2.6) for VASH's own work once 7.7 exits. Jr models, Sr models, cost per task estimate (under $0: free-tier quota and token use per task). Amended by 2.6: LAW 3 verification of the pooling tool named by v8.2 (freellmpool), LiteLLM only as fallback candidate, different-vendor critic, local intake on Ollama, free-tier data-use terms, cost-meter token source; dependency changed to 2.6.
+DESCRIPTION: Review knowledge/tech_providers/ai_models.md. Define routing rules for software BUILT BY VASH and (Amended by 2.6) for VASH's own work once 7.7 exits. Jr models, Sr models, cost per task estimate (under $0: free-tier quota and token use per task). Amended by 2.6: LAW 3 verification of the pooling tool named by v8.2 (freellmpool), Ollama (local), OpenRouter (free models), the free-claude-code harness bridge (AGPL run-only, provider terms for automated use; 2.6 MODIFY 1), a vetted local-fallback mechanism (R12: no custom failover logic), LiteLLM only as fallback candidate, different-vendor critic, local intake on Ollama, free-tier data-use terms, cost-meter token source; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-3_model_routing.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -796,7 +796,7 @@ TYPE: CODE
 PHASE: Phase 7 — Engine Build (activity list)
 PARALLEL_SAFE: NO
 DEPENDS_ON: 7.3, 7.6
-DESCRIPTION: Configure the pooling tool chosen in 3.3, the different-vendor critic route, local intake on the A1 model, the local fallback, and switch the AvA scripts to two model routes (Junior and Senior on different vendors). Exit ends the transitional Claude exception (OD-1).
+DESCRIPTION: Configure the pooling tool chosen in 3.3 (engine calls), the free-claude-code harness bridge if OD-7 is accepted (harness sessions), OpenRouter and other pool providers, the different-vendor critic route, local intake on the A1 model, the local fallback, and switch the AvA scripts to two model routes (Junior and Senior on different vendors). Exit ends the transitional Claude exception (OD-1), unless OD-7 has ended it earlier.
 OUTPUT_PATH: framework/pool/
 CHECKLIST: checklists/code.md
 THRESHOLD: 90

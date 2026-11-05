@@ -22,6 +22,7 @@ layer.
 | Approved VASH artifacts 1.1–2.5 | vash_framework/vision/, vash_framework/agents/ |
 | Laws and tech provider references | knowledge/laws.md, knowledge/tech_providers/ |
 | Session validation findings C1–C11 | runtime/prompts/2-6_prompt.md |
+| Owner MODIFY 1 (5 Nov 2026): include Ollama, OpenRouter, free-claude-code | runtime/prompts/2-6_prompt.md, MODIFY 1 |
 
 ### 1.3 Owner positions (5 Nov 2026 session)
 | # | Position |
@@ -231,6 +232,7 @@ Written by the engine from an ACCEPTED ADR. Never edited by hand.
 | `paths.allowed_write[]` | Yes | Paths the MCP write tool may change |
 | `models.intake` | Yes | Local model for intake (privacy) |
 | `models.coder`, `models.critic` | Yes | Pool routes; the critic route must name a different vendor |
+| `models.harness` | No | Coding-agent harness and its proxy for build sessions (e.g. an open-source harness through free-claude-code), with the provider list it may use (Section 9.6) |
 | `thresholds` | Yes | Per artifact type; none below the floor 88 |
 | `limits.max_retries` | Yes | Fix-loop cap (3) |
 | `canary.interval` | Yes | Number of AvA rounds between canary checks |
@@ -257,6 +259,7 @@ catalog assets), `entries[]` with the fields below.
 | `source` | Upstream repository or vendor index |
 | `fork` | Path under `external/` or `skills/` / `stacks/` |
 | `licence` | SPDX id, verified by the licence verifier |
+| `use` | `fork` (copied or linked into VASH or a project; licence must allow it in a public MIT repository) or `run` (run unmodified as a separate local service, never forked or linked) |
 | `version`, `commit` | Pinned version |
 | `stacks[]` | Stack packs it applies to (empty = stack-neutral) |
 | `adr` | VASH catalog ADR that accepted it |
@@ -421,11 +424,25 @@ the baseline. OCI DevOps is not used in the baseline (one CI system).
 | Fallback when every free tier is exhausted | Local Ollama | Availability |
 
 ### 9.2 Pooling tool
-v8.2 names `freellmpool` (MIT, many providers behind one OpenAI-compatible endpoint). It is **not yet
-verified** in this session. Activity 3.3 carries out the LAW 3 verification (existence,
-maintenance, licence, providers, quota tracking, local fallback). If it fails, the alternative
+v8.2 names `freellmpool`. Found on 5 Nov 2026 (PyPI): latest version 0.13.0 (30 Aug 2026), status
+Beta, MIT licence, source github.com/0xzr/freellmpool; OpenAI-compatible proxy plus library, CLI and
+MCP server; 22 providers (including Groq, Cerebras, NVIDIA NIM, OpenRouter, Gemini, Cloudflare,
+Mistral, Cohere, Ollama Cloud); failover and daily usage tracking.
+Known risk: imported local models (Ollama, LM Studio, llama.cpp) are excluded from automatic routing
+(`auto = false`), so the v8.2 "falls back to local Ollama" does not happen by itself — the local
+fallback must come from a vetted mechanism found in 3.3 (R12: no custom failover logic); if no vetted
+mechanism exists, 3.3 raises it to the owner as an R12 decision.
+Still to verify in 3.3: maintenance, provider data-use terms. If it fails, the alternative
 candidates are LiteLLM (current reference) and others found in the search; the choice is made by ADR.
 No custom routing logic is written (platform rule R12).
+
+### 9.2a Named components (owner request, MODIFY 1)
+| Component | Role in VASH | Interface | Licence / use | Privacy |
+|---|---|---|---|---|
+| **Ollama** | Local model on the A1 VM: intake, every step that sees client data, final fallback | OpenAI-compatible local endpoint | MIT, `run` | Local only: the only route allowed for client data (R2). Ollama's cloud models are external providers, not "local" |
+| **OpenRouter** | One provider in the pool: many models, including free ones, behind one key; a candidate Critic route because it reaches vendors other than the Coder's | OpenAI-compatible API | Hosted service, $0 on free models | External: public VASH work and non-confidential project steps only; data-use terms of each free model to verify in 3.3 |
+| **free-claude-code (FCC)** | Harness bridge: lets coding-agent harnesses (Claude Code, OpenCode, Aider, Cline and others) run on free providers (NVIDIA NIM, OpenRouter, Groq, Gemini, Ollama, ...) through a local proxy; used for build sessions and AvA rounds run in a harness (Section 9.6) | Local proxy for agent harnesses | AGPL-3.0-only, `run` only | Same routing rules: client data only to a local Ollama on the same host (never FCC's Ollama cloud models) |
+| **freellmpool** | Pool for the engine's own model calls (supervisor graph, Gate 2 scoring) | OpenAI-compatible proxy / library | MIT, `run` (or `fork` if needed) | Same routing rules |
 
 ### 9.3 Different-vendor Critic
 The Freeze file names the coder and critic routes; Stage 0 refuses a Freeze in which both name the
@@ -442,6 +459,41 @@ escalated to the human for change.
 Until the engine runs on the pool (exit of activity 7.7, activity-list Phase 7), VASH's own development may continue
 with the Claude tooling already in use. This is an explicit, time-limited exception to LAW 1
 (open decision OD-1). No client project depends on a paid service.
+
+FCC can end the exception earlier: VASH's existing harness workflow (Junior and Senior run as
+harness sessions) keeps working while FCC routes each role to a free provider, Junior and Senior on
+different vendors. That is open decision OD-7. Rule: the exception ends at whichever comes first —
+FCC accepted and running both AvA routes on free providers on different vendors (OD-7), or the exit of
+7.7. "Until 7.7" elsewhere means this end date: the earlier of the two.
+
+### 9.6 Harness bridge rules (free-claude-code)
+1. **Run, never fork.** FCC is AGPL-3.0-only. VASH runs it unmodified as a separate local service on
+   the developer machine or the A1 VM, pinned to a release tag and its commit (it releases often —
+   several per week; latest seen v6.18.11 on 5 Nov 2026 — so an upgrade is a deliberate catalog
+   change, not automatic), and records it in
+   ai-manifest.json with `use: run`. It is never copied into VASH's MIT code or linked from it; any
+   change is proposed upstream. Whether AGPL `run`-only tools are allowed is decided in OD-7 and
+   activity 4.1 (allowed licences).
+2. **Local and protected.** FCC's proxy authentication is optional and off by default; VASH requires
+   it on. Stage 0 (and the loader) refuse to start a harness session unless the proxy listens on the
+   loopback address only and the bearer token is set. The proxy holds the provider keys and is never
+   exposed to the internet.
+3. **Privacy.** Client data goes only to a local Ollama on the same host. FCC's Ollama cloud models and
+   every other external provider (NIM, OpenRouter, Groq, Gemini and others) only for public VASH work
+   and non-confidential project steps (the same scope as Sections 9.1 and 9.2a).
+4. **Different vendors.** The Junior and Senior harness sessions use FCC routes on different vendors
+   (R4); the AvA log records both routes.
+5. **Provider terms.** Providers whose terms limit use to personal or interactive coding are not used
+   for automated pipeline runs. FCC states that one failed request can consume usage on several
+   providers; the cost meter counts per provider.
+6. **One job per tool.** freellmpool serves the engine's model calls; FCC serves agent-harness
+   sessions; neither has custom routing added (R12). Both reach the same free providers with separate
+   counters, so the provider quotas are shared: the cost meter adds both tools' usage per provider, and
+   the budget is set per provider, not per tool.
+7. **Open harness by default (LAW 1).** FCC also drives open-source harnesses (OpenCode, Aider, Cline).
+   The default for OD-7 is an open-source harness through FCC. Running the proprietary Claude Code
+   harness on non-Anthropic backends stays an option only if its terms allow it — checked in 3.3; the
+   long-term engine harness is chosen in 3.1 / 3.3.
 
 ---
 
@@ -510,7 +562,7 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 | 7.4 | Clean-slate loader (shell and PowerShell) and status export | CODE | 7.3 |
 | 7.5 | Deterministic Gate 1 tools (linters, schema, secret scan) and regression fixtures | CODE | 7.3 |
 | 7.6 | A1 VM, self-hosted runner and local model (IaC) | CODE | 7.2 |
-| 7.7 | LLM pool configuration, different-vendor Critic, local intake, and the AvA scripts switched to two model routes — exit ends OD-1 | CODE | 7.3, 7.6 |
+| 7.7 | LLM pool configuration, different-vendor Critic, local intake, and the AvA scripts switched to two model routes — exit ends OD-1 (unless OD-7 ended it earlier) | CODE | 7.3, 7.6 |
 | 7.8 | Supervisor graph with ADR gate, hard floor and fix-loop cap; AvA scripts aligned (no stalemate auto-approve, CODE type) | CODE | 7.5, 7.7 |
 | 7.9 | Cost meter, canary injector, licence verifier | CODE | 7.8 |
 | 7.10 | Reusable workflows (light hosted, heavy self-hosted with host-wide lock) | CODE | 7.9 |
@@ -519,12 +571,13 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 ## 13. Open Decisions for the Human Owner
 | ID | Decision | Recommendation |
 |---|---|---|
-| OD-1 | Allow VASH's own development to keep using the existing Claude tooling until 7.7 exits | Yes, time-limited |
+| OD-1 | Allow VASH's own development to keep using the existing Claude tooling until 7.7 exits (or earlier under OD-7) | Yes, time-limited |
 | OD-2 | Human merge approval in private projects: approval label + ACCEPTED ADR, enforced by the pipeline, with the residual risk and mitigations of Section 8.3 accepted | Yes (a paid plan would be needed for enforced protection) |
 | OD-3 | One CI system (GitHub Actions); OCI DevOps and mirrors only by later ADR | Yes |
 | OD-4 | Repository model: VASH public core, one private repository per project | Yes |
 | OD-5 | Engine code in scope from activity-list Phase 7, after 6.1 is approved | Yes |
 | OD-6 | Repository name: keep `vash3-framework` as the platform core (no separate "predictive-profit-platform-core") | Keep `vash3-framework` |
+| OD-7 | Adopt free-claude-code as the harness bridge (run-only, AGPL accepted for unmodified separate use, proxy authentication required), with an open-source harness as default, so VASH's own AvA can move to free providers on different vendors before 7.7 | Yes, after the 3.3 checks (provider terms for automated use, data use, harness terms, release stability) |
 
 ---
 
@@ -533,16 +586,19 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 ### 14.1 Laws
 | Law | How this artifact complies |
 |---|---|
-| LAW 1 Vanilla First | $0 baseline; open-source and free-tier only; public MIT core; the single paid dependency is named, time-limited and open for decision (OD-1) |
+| LAW 1 Vanilla First | $0 baseline; open-source and free-tier only; public MIT core; the single paid dependency is named, time-limited and open for decision (OD-1), ending at 7.7 or earlier under OD-7 |
 | LAW 2 Agent Over Human | Every repeated step is deterministic and automated; the human only approves brief, ADRs, milestones and final merge |
 | LAW 3 Skills Over Reinvention | Catalog-first; external tools reused (pooling tool, linters, scanners, runner, IaC modules); nothing built where a vetted tool exists |
 
 ### 14.2 Search record
 | Searched | Found | Reused / decision |
 |---|---|---|
-| Blueprint v8.2 tool list (freellmpool, LangGraph, utPLSQL, Playwright, SQLcl, Terraform, Ollama, Semgrep rules, agent personas, Oracle skills) | Named by the owner; not verified in this session | Verification assigned: 3.1 (LangGraph), 3.3 (pool, Ollama), 3.4 (Terraform, A1), 4.x (skills, personas, licences) |
+| Blueprint v8.2 tool list (freellmpool, LangGraph, utPLSQL, Playwright, SQLcl, Terraform, Ollama, Semgrep rules, agent personas, Oracle skills) | Named by the owner; freellmpool, Ollama, OpenRouter and free-claude-code checked in MODIFY 1 (rows below); the others not yet verified | Verification assigned: 3.1 (LangGraph), 3.3 (pool, Ollama), 3.4 (Terraform, A1), 4.x (skills, personas, licences) |
 | Existing VASH artifacts 1.1–2.5 | Method complete; execution layer missing | Kept and amended (Section 11) |
 | The owner's existing private project pipeline (KYC) | Generic patterns that work on GitHub Free private repositories | Source for the `oracle-apex` stack pack (7.11), generic parts only; patterns adopted as VASH rules: actions pinned to commit SHAs, hashed dependencies, short artifact retention, one report per run |
+| LLM pooling (v8.2 freellmpool) | freellmpool on PyPI: MIT, 0.13.0 (30 Aug 2026), Beta, source github.com/0xzr/freellmpool, OpenAI-compatible, 22 providers, failover, daily usage; local models excluded from automatic routing | Candidate for the engine's model calls; completed in 3.3 |
+| Harness bridge (owner request) | free-claude-code: AGPL-3.0-only, about 66.6k stars, 61 providers (NVIDIA NIM default), harnesses Claude Code / Codex / OpenCode / Aider / Cline and others, frequent tagged releases (v6.18.11 on 5 Nov 2026), proxy authentication optional by default | Candidate, `run` only (Section 9.6, OD-7); completed in 3.3 |
+| Local model and free router (owner request) | Ollama (MIT, local); OpenRouter (hosted, free models) | Named routes (Section 9.2a); limits and data-use terms completed in 3.3 |
 | Licence verifier | Candidates: ScanCode Toolkit (Apache-2.0), licensee (MIT), REUSE tool | Search completed and decided in 4.1 (catalog governance); build only if none fits |
 | Cost meter | Candidates: GitHub billing usage API through the GitHub CLI; the pooling tool's own quota tracking | Search completed in 3.3 / 5.6; the meter only combines existing sources |
 | Canary injector | Candidates: mutation-testing tools (for code); no known tool for design artifacts | Search completed in 4.6 (quality skills); built only for what no tool covers |

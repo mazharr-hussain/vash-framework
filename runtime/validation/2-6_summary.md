@@ -6,11 +6,17 @@ Re-baseline VASH as an application framework (Blueprint v8.2 merge)
 | 1 | 82 | 90 | MODIFY (18 objections) | runtime/ava_logs/2-6_round1.md |
 | 2 | 89 | 90 | MODIFY (8 objections) | runtime/ava_logs/2-6_round2.md |
 | 3 | 92 | 90 | APPROVED | runtime/ava_logs/2-6_round3.md |
+| 4 | 86 | 90 | MODIFY 1, session round 1: MODIFY (8 objections, wrong facts on releases and freellmpool) | runtime/ava_logs/2-6_round4.md |
+| 5 | 92 | 90 | MODIFY 1, session round 2: APPROVED | runtime/ava_logs/2-6_round5.md |
 
 Gate 1 (run before every round): all 14 sections present, canonical and runtime copies identical,
 findings C1-C11 resolved with file references, no code fences except directory trees.
 Round 3 non-blocking notes OBJ-027 to OBJ-030 applied after the round (ADR debt timing, 7.2 audit path,
 licences_allowed[] notation, 3.3 cost wording and initial ai-manifest.json in 7.2).
+
+MODIFY 1 (owner, 5 Nov 2026): include Ollama, OpenRouter and free-claude-code - Section 9.2a / 9.6, OD-7.
+Round 5 notes OBJ-035 (end rule "7.7 or earlier under OD-7" everywhere) and OBJ-039 to OBJ-043 applied
+after the round.
 
 Known limitation: Junior and Senior ran on the same vendor in isolated contexts (OD-1 transitional
 exception, recorded in each log).
@@ -20,4 +26,4 @@ decisions/ADR-001-vash-application-framework.md (PROPOSED), decisions/2-6_decisi
 amendments marked "Amended by 2.6" (PROPOSED until ADR-001 is ACCEPTED), knowledge/checklists/code.md.
 
 Human action: set decisions/2-6_decision.md to APPROVED / REJECTED / MODIFY, change ADR-001 Status to
-ACCEPTED, and answer OD-1 to OD-6.
+ACCEPTED, and answer OD-1 to OD-7.

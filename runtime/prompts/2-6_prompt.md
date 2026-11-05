@@ -97,3 +97,30 @@ decisions/2-6_decision.md with DECISION: PENDING (human approves; the agent neve
 ## CHECKLIST
 knowledge/checklists/artifact.md, plus: every finding C1-C11 resolved with a file reference;
 every v8.2 stage 0-10 mapped; owner positions 1-4 reflected; open decisions listed.
+
+---
+
+## MODIFY 1 — owner request, 5 Nov 2026
+"Can you include Ollama, OpenRouter, https://github.com/Alishahryar1/free-claude-code"
+
+### Task
+Name Ollama, OpenRouter and free-claude-code (FCC) explicitly in the LLM strategy, with a role, the
+privacy rules, the licence position and the LAW 3 search record. Update the artifact (Sections 6.1,
+6.2, 9, 13, 14.2), ADR-001, knowledge/tech_providers/ai_models.md and platforms.md, and the
+activity list (3.3, 7.7). New AvA session (round numbering continues: round 4 = MODIFY 1 round 1).
+
+### Facts found in session (5 Nov 2026), to be completed in 3.3
+- FCC: local proxy routing coding-agent harnesses (Claude Code, Codex, OpenCode, Cline, Aider, ...)
+  to about 60 providers (NVIDIA NIM default, OpenRouter, Groq, Gemini, Cerebras, Cloudflare,
+  Ollama local and cloud, LM Studio, llama.cpp, custom OpenAI-style). Python. Licence
+  AGPL-3.0-only. About 66.6k stars; frequent tagged releases (v6.18.11 on 5 Nov 2026; corrected in round 4). Not affiliated with Anthropic.
+  Stated: provider limits change; a failed request can consume usage on several providers;
+  some providers restrict use to personal / interactive coding.
+- freellmpool: on PyPI, latest 0.13.0 (30 Aug 2026), Beta, MIT, source github.com/0xzr/freellmpool;
+  OpenAI-compatible proxy, library, CLI and MCP server; 22 providers; daily usage tracking; failover;
+  local models excluded from automatic routing (corrected in round 4).
+- Ollama and OpenRouter: already candidates in ai_models.md.
+
+### Rules
+Same as the main prompt. AGPL use must be decided explicitly (run unmodified as a separate service
+vs fork / link). Client data never through external providers (R2).
