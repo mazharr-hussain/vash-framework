@@ -68,7 +68,7 @@ Actual vendor selection, negotiation, and contracting is human work.
 ### Technology Constraint (Amended by 2.6)
 VASH development uses GitHub + Python + open-source tools from the VASH catalog.
 AI work runs on pooled free-tier LLMs and local models; the existing Claude tooling is kept for VASH's
-own development only until activity 7.7 (OD-1).
+own development until the owner changes it (OD-1).
 Each project's technology is decided by VASH with the human (ADR) and frozen in the project's
 project-stack.json.
 
@@ -93,7 +93,7 @@ the engine under the code checklist.
 
 1. The human owner has a clear product vision and can articulate it in a brief
 2. The GitHub repository is accessible and the OAuth token is valid
-3. (Amended by 2.6) The pooled free tiers and the local model provide sufficient capacity for development activities — to verify in 3.3; the existing Claude tooling is used only until 7.7 (OD-1)
+3. (Amended by 2.6) The pooled free tiers and the local model provide sufficient capacity for development activities — to verify in 3.3; Claude remains the main tooling for VASH's own development until the owner changes it (OD-1)
 4. The human owner can review and decide within 24 hours of notification
 5. All client projects submitted to VASH are legal and ethical
 

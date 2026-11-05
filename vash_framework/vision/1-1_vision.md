@@ -255,8 +255,8 @@ vash_framework/architecture/2-6_application_framework.md.
    provisions the project repository.
 3. **Cost.** The "Current VASH stack compliance" statement in the LAW 1 section above ("Claude AI (VASH
    development tooling — explicitly permitted by LAW 1)") is superseded: LAW 1
-   now requires $0 through pooled free tiers and local models. VASH's own development keeps the existing
-   Claude tooling only until activity 7.7 (open decision OD-1).
+   now requires $0 through pooled free tiers and local models. VASH's own development uses Claude as
+   its main AI tooling until the owner changes it (owner decision OD-1, 5 Nov 2026).
 4. **Evolution.** The step from design to code ("V4.0" above) is brought into VASH 3.x as activity-list
    Phase 7 — Engine Build, after the blueprint (6.1) is approved. The V4.0 entry condition above ("not
    started until V3.0 has produced at least one complete client project") is replaced by "after 6.1 is

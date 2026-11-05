@@ -455,16 +455,27 @@ defect in a copy of the artifact under review. The Critic must find it. A missed
 that round's score, is recorded in the audit trail, and after two misses in a row the critic route is
 escalated to the human for change.
 
-### 9.5 Transitional rule for VASH development
-Until the engine runs on the pool (exit of activity 7.7, activity-list Phase 7), VASH's own development may continue
-with the Claude tooling already in use. This is an explicit, time-limited exception to LAW 1
-(open decision OD-1). No client project depends on a paid service.
+### 9.5 Owner exception for VASH's own development (OD-1 answered, MODIFY 2)
+Owner decision, 5 Nov 2026 (verbatim in runtime/prompts/2-6_prompt.md, MODIFY 2): for VASH's own
+work, Claude is used mainly until the owner changes it. VASH's own
+development (its design activities, AvA rounds and, from Phase 7, its engine build sessions) uses
+Claude as its main AI tooling. The exception has no end date and is not tied to any activity; it ends
+or changes only when the owner records a new ADR. It is an explicit, owner-decided exception to LAW 1
+for VASH's own work only: every project stays $0 and never depends on a paid service.
 
-FCC can end the exception earlier: VASH's existing harness workflow (Junior and Senior run as
-harness sessions) keeps working while FCC routes each role to a free provider, Junior and Senior on
-different vendors. That is open decision OD-7. Rule: the exception ends at whichever comes first —
-FCC accepted and running both AvA routes on free providers on different vendors (OD-7), or the exit of
-7.7. "Until 7.7" elsewhere means this end date: the earlier of the two.
+Independence of VASH's own reviews while on one vendor (R4 exception): Junior and Senior run in
+isolated contexts, preferably on different Claude models; canary checks (R11) once the canary injector exists (activity 7.9; until then none); each AvA log
+records both routes. Once OD-7 is accepted and the 3.3 checks are done, the owner may route a role to a
+free provider (Section 9.6).
+
+Residual risk: from Phase 7 the engine that every project runs is built and reviewed on one vendor.
+It is reduced by the deterministic Gate 1 (tests, linters, schema and secret checks run before every
+Senior review, R3), by canaries once 7.9 exists, and, at the owner's choice, by a free-provider Senior
+on a different vendor (OD-7). The owner accepts it as part of OD-1.
+
+FCC is an optional alternative for VASH's own work, at the owner's choice (OD-7): VASH's harness
+workflow keeps working while FCC routes a role (for example the Senior) to a free provider on a
+different vendor. Choosing it does not end the owner exception; only a new owner ADR does.
 
 ### 9.6 Harness bridge rules (free-claude-code)
 1. **Run, never fork.** FCC is AGPL-3.0-only. VASH runs it unmodified as a separate local service on
@@ -515,7 +526,7 @@ Re-verify every figure in activity 3.4.
 
 | ID | Change | Files |
 |---|---|---|
-| C1 | LAW 1 now requires $0 for everything VASH builds and runs; a time-limited exception for VASH's own development tooling (9.5, OD-1) | knowledge/laws.md, CLAUDE.md, vision/1-2_objectives.md, tech_providers/platforms.md |
+| C1 | LAW 1 now requires $0 for every project and for everything VASH runs for projects; an owner exception for VASH's own development tooling (Claude, until the owner changes it; 9.5, OD-1) | knowledge/laws.md, CLAUDE.md, vision/1-2_objectives.md, tech_providers/platforms.md |
 | C2 | Multi-vendor pooling through a vetted tool; "Claude only" removed; LiteLLM becomes a fallback candidate pending 3.3 | agents/2-1_agent_registry.md, tech_providers/ai_models.md |
 | C3 | Senior / Critic must run on a different vendor; enforced by Stage 0 and the AvA protocol | agents/2-2_ava_protocol.md, agents/2-1_agent_registry.md |
 | C4 | Stalemate auto-approve removed: below threshold is never approved; 70 to below threshold escalates to the human; < 70 fails; round 3 below threshold without stalemate escalates | agents/2-2_ava_protocol.md, .claude/skills/vash-orchestrator/SKILL.md, .claude/skills/multi-agent-patterns/SKILL.md |
@@ -543,7 +554,7 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
    residual risk); 3.3 model routing (pool verification, critic vendor, local intake); 3.4
    infrastructure (A1, Autonomous Database, GitHub quotas, runner registration); 3.5 state (GitHub
    Projects, status export, graph checkpoints); 3.6 storage (audit/ committed, runtime/ ignored).
-3. Descriptions amended: 3.3 (routing also for VASH's own work after 7.7), 4.1 (catalog and stack-pack
+3. Descriptions amended: 3.3 (routing for projects; optional free routes for VASH's own work under OD-7), 4.1 (catalog and stack-pack
    governance, licence verifier search), 4.6 (canary injector search), 4.8 (stack packs alongside domain
    packs), 5.1 (finalise Section 7, loader search), 5.2 (finalise Section 8, pinning search), 5.4 (pool
    routing, no LiteLLM default), 5.6 (cost meter and its search).
@@ -562,7 +573,7 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 | 7.4 | Clean-slate loader (shell and PowerShell) and status export | CODE | 7.3 |
 | 7.5 | Deterministic Gate 1 tools (linters, schema, secret scan) and regression fixtures | CODE | 7.3 |
 | 7.6 | A1 VM, self-hosted runner and local model (IaC) | CODE | 7.2 |
-| 7.7 | LLM pool configuration, different-vendor Critic, local intake, and the AvA scripts switched to two model routes — exit ends OD-1 (unless OD-7 ended it earlier) | CODE | 7.3, 7.6 |
+| 7.7 | LLM pool configuration, different-vendor Critic, local intake, and the AvA scripts able to use two model routes (required for projects; optional for VASH's own work under OD-1) | CODE | 7.3, 7.6 |
 | 7.8 | Supervisor graph with ADR gate, hard floor and fix-loop cap; AvA scripts aligned (no stalemate auto-approve, CODE type) | CODE | 7.5, 7.7 |
 | 7.9 | Cost meter, canary injector, licence verifier | CODE | 7.8 |
 | 7.10 | Reusable workflows (light hosted, heavy self-hosted with host-wide lock) | CODE | 7.9 |
@@ -571,13 +582,13 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 ## 13. Open Decisions for the Human Owner
 | ID | Decision | Recommendation |
 |---|---|---|
-| OD-1 | Allow VASH's own development to keep using the existing Claude tooling until 7.7 exits (or earlier under OD-7) | Yes, time-limited |
+| OD-1 | Tooling for VASH's own development | **Answered by the owner, 5 Nov 2026:** Claude as the main AI tooling until the owner changes it by a new ADR (no end date) |
 | OD-2 | Human merge approval in private projects: approval label + ACCEPTED ADR, enforced by the pipeline, with the residual risk and mitigations of Section 8.3 accepted | Yes (a paid plan would be needed for enforced protection) |
 | OD-3 | One CI system (GitHub Actions); OCI DevOps and mirrors only by later ADR | Yes |
 | OD-4 | Repository model: VASH public core, one private repository per project | Yes |
 | OD-5 | Engine code in scope from activity-list Phase 7, after 6.1 is approved | Yes |
 | OD-6 | Repository name: keep `vash3-framework` as the platform core (no separate "predictive-profit-platform-core") | Keep `vash3-framework` |
-| OD-7 | Adopt free-claude-code as the harness bridge (run-only, AGPL accepted for unmodified separate use, proxy authentication required), with an open-source harness as default, so VASH's own AvA can move to free providers on different vendors before 7.7 | Yes, after the 3.3 checks (provider terms for automated use, data use, harness terms, release stability) |
+| OD-7 | Adopt free-claude-code as the harness bridge (run-only, AGPL accepted for unmodified separate use, proxy authentication required), with an open-source harness as default, as an optional route for VASH's own work (e.g. a free-provider Senior on a different vendor) and the harness bridge for projects | Yes, after the 3.3 checks (provider terms for automated use, data use, harness terms, release stability) |
 
 ---
 
@@ -586,7 +597,7 @@ All changes are marked "Amended by 2.6" in knowledge/activity_list.md.
 ### 14.1 Laws
 | Law | How this artifact complies |
 |---|---|
-| LAW 1 Vanilla First | $0 baseline; open-source and free-tier only; public MIT core; the single paid dependency is named, time-limited and open for decision (OD-1), ending at 7.7 or earlier under OD-7 |
+| LAW 1 Vanilla First | $0 baseline; open-source and free-tier only; public MIT core; the single paid dependency (Claude for VASH's own development) is named and owner-decided (OD-1), limited to VASH's own work, never a project dependency |
 | LAW 2 Agent Over Human | Every repeated step is deterministic and automated; the human only approves brief, ADRs, milestones and final merge |
 | LAW 3 Skills Over Reinvention | Catalog-first; external tools reused (pooling tool, linters, scanners, runner, IaC modules); nothing built where a vetted tool exists |
 

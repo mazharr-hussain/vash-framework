@@ -14,7 +14,9 @@ This runs inside every single activity automatically.
 ### Participants
 - **Junior Creator:** Generates the artifact. Model from the pool configuration (Amended by 2.6).
 - **Senior Validator:** Reviews the artifact adversarially. Runs on a different vendor from the Junior
-  (rule R4); transitional exception until activity 7.7 (OD-1).
+  (rule R4); owner exception for VASH's own development while it uses Claude (OD-1): same vendor
+  allowed, isolated contexts, preferably different models, canary checks once the injector exists
+  (7.9).
 
 ### Flow
 ```

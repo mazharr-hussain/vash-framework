@@ -4,7 +4,7 @@ Amendments marked "Amended by 2.6" are PROPOSED: they take effect when ADR-001 i
 ## Design Principles
 - Every role has a Junior (generator) and Senior (reviewer) persona
 - Junior and Senior run in isolated context windows — no shared memory
-- Model selection follows the pool configuration and rule R4 (Amended by 2.6); transitional Claude tooling until 7.7 (OD-1)
+- Model selection follows the pool configuration and rule R4 (Amended by 2.6); Claude for VASH's own development until the owner changes it (OD-1)
 - Roles are technology-agnostic — no stack hardcoded in any definition
 - Each role has a defined skill set drawn from .claude/skills/
 
@@ -231,6 +231,6 @@ project's project-stack.json (projects).
 - Senior / Critic: free-tier pool route on a **different vendor** from the Junior / Coder (rule R4).
 - Intake and any client data: local model only (rule R2).
 - Fallback when the free tiers are exhausted: local model.
-Transitional (OD-1): until activity 7.7, VASH's own development runs Junior and Senior on the existing
-Claude tooling; independence is then by model and isolated context only, and this is recorded as a
-known limitation in each AvA log.
+Owner exception (OD-1): while the owner keeps Claude for VASH's own development, Junior and Senior
+may run on the existing Claude tooling; independence is then by isolated context (and, preferably, by
+different models), and this is recorded as a known limitation in each AvA log.

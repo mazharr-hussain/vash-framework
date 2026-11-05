@@ -9,11 +9,11 @@ Reference for platform selection. Read during Phase 3 technology decision activi
 |----------|---------|------|-----|
 | GitHub (VASH public, projects private) | Code, artifacts, automation, state (Issues, Projects) | Free plan | Version control, automation, vendor-native state (R9) |
 | Python | Engine and scripts | Free | Open source |
-| Pooled free-tier LLMs + local Ollama | All AI work once activity 7.7 exits | Free | LAW 1, R2, R4, R12 |
+| Pooled free-tier LLMs + local Ollama | All project AI work; optional for VASH's own work | Free | LAW 1, R2, R4, R12 |
 | OpenRouter (free models) | One pool provider; candidate critic route | Free models | Many vendors behind one key |
-| free-claude-code (run-only, AGPL) | Harness bridge: agent harness sessions on free providers (OD-7) | Free | Ends the Claude exception early if OD-7 is accepted |
+| free-claude-code (run-only, AGPL) | Harness bridge: agent harness sessions on free providers (OD-7) | Free | Optional free route for VASH's own work; harness bridge for projects (OD-7) |
 | OCI Always Free | Self-hosted runner, local model, database for Oracle-stack projects | Free | v8.2 execution engine |
-| Claude tooling (transitional, OD-1) | VASH's own development until 7.7 (or earlier under OD-7) | Existing subscription | Time-limited exception, recorded in ADR-001 |
+| Claude tooling (owner exception, OD-1) | VASH's own development, until the owner changes it | Existing subscription | Owner decision 5 Nov 2026, recorded in ADR-001 D10 |
 
 ## Platform Categories (options, decided by ADR)
 ### Orchestration and Pipeline

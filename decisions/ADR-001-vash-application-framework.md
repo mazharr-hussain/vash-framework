@@ -27,7 +27,7 @@ with the human decides each project's stack, and that VASH is public while clien
 | D7 | LLMs: pooled free tiers from many vendors through a vetted pooling tool (v8.2 names freellmpool: on PyPI, MIT; full check in activity 3.3); OpenRouter as one pool provider; Critic on a different vendor from the Coder; client data and intake on local Ollama only; local fallback. Coding-agent harness sessions through free-claude-code (AGPL-3.0-only, run unmodified as a separate local service, never forked or linked; proxy authentication and loopback-only required; open-source harness by default), subject to OD-7. freellmpool excludes local models from automatic routing, so the local fallback is a separate engine route. |
 | D8 | AvA hardening: deterministic Gate 1 before every Senior review; no approval below threshold (stalemate auto-approve removed); floor 88; canary checks of the Critic. |
 | D9 | Scope: design-only until the blueprint (6.1) is approved; engine code in scope from activity-list Phase 7 (provisional activities 7.1-7.11, new activity type CODE with its own checklist). |
-| D10 | Transitional: VASH's own development may keep the existing Claude tooling until activity 7.7 exits, or earlier when free-claude-code runs both AvA routes on free providers on different vendors (OD-7), whichever comes first; recorded in each AvA log as a same-vendor limitation; no project depends on a paid service. |
+| D10 | Owner exception (OD-1 answered 5 Nov 2026): VASH's own development uses Claude as its main AI tooling until the owner changes it by a new ADR (no end date); free routes for VASH's own work stay optional (OD-7); residual risk accepted: the engine every project runs is built and reviewed on one vendor, reduced by Gate 1, canaries (from 7.9) and an optional free-provider Senior; recorded in each AvA log as a same-vendor limitation; no project depends on a paid service. |
 | D11 | Same folder names in VASH and projects: `audit/` holds the committed audit trail (prompts, AvA logs, validations, metric summaries); `runtime/` is always git-ignored (checkpoints, raw logs, scratch). VASH moves today's runtime/ audit folders to audit/ in 7.2. |
 | D12 | KYC is the first project: adopted through its own ADR "Adopt existing stack" (activity 7.11), in the KYC repository (referenced as kyc:ADR-001; ADR ids are per repository). |
 
@@ -43,4 +43,5 @@ with the human decides each project's stack, and that VASH is public while clien
   repository goes public.
 - Unverified facts (pooling tool, licences, free-tier limits, A1 reclaim policy, self-hosted runner
   charges) are assigned to activities 3.3, 3.4 and 4.x and must not be treated as confirmed.
-- Open decisions OD-1 to OD-7 (artifact Section 13) are answered by the owner when accepting this ADR.
+- OD-1 was answered by the owner on 5 Nov 2026 (D10). Open decisions OD-2 to OD-7 (artifact Section 13)
+  are answered by the owner when accepting this ADR.

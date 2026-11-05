@@ -9,8 +9,9 @@ Everything VASH builds and runs uses open source and free tiers only. No paid Sa
 Use the free tiers of all well-known vendors (LLMs, CI/CD, cloud), pooled through vetted
 open-source tools. OCI Always Free is the execution engine and privacy fallback.
 Software built BY VASH: open source, database-agnostic, cloud-agnostic, no lock-in.
-Transitional exception (D10, open decision OD-1): VASH's own development may keep the existing
-Claude tooling until the engine runs on the pool (activity 7.7) (or earlier under OD-7). No project depends on a paid service.
+Owner exception (D10, owner decision OD-1, 5 Nov 2026): VASH's own development uses Claude as its
+main AI tooling until the owner changes this by a new ADR; it is not tied to any activity. The $0 rule
+applies in full to every project: no project depends on a paid service.
 
 LAW 2 AGENT OVER HUMAN:
 If an agent or a script can do it, a human must not.
@@ -31,8 +32,9 @@ R2 DATA PRIVACY: Client data and intake are processed only by the local model. N
 R3 DETERMINISTIC FIRST: Tests, linters, schema and secret checks (Gate 1) run before any AI
    review. A Gate 1 failure returns to the Junior / Coder; the Senior / Critic is not invoked.
 R4 INDEPENDENT CRITIC: The Senior / Critic runs on a different vendor from the Junior / Coder.
-   Transitional exception OD-1: until 7.7 exits (or earlier under OD-7), VASH's own development may run Junior and Senior
-   on the same vendor in isolated contexts; recorded in each AvA log.
+   Owner exception OD-1: while VASH's own development uses Claude, its Junior and Senior may run on
+   the same vendor, in isolated contexts, preferably on different models, with canary checks (R11) once the canary injector exists (activity 7.9; until then none);
+   recorded in each AvA log. Projects have no such exception.
 R5 HARD FLOOR: No artifact or change is approved below its threshold; no threshold below 88.
 R6 MCP-ONLY WRITES: Build agents write files only through the MCP write tool, inside the
    allowed paths of the Freeze file.

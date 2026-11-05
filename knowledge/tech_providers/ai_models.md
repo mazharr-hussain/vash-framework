@@ -54,6 +54,8 @@ public, non-client content (VASH's own design work), never for client data (R2).
 | Senior / Critic | Pool route B — different vendor from route A |
 | Exhausted free tiers | Local Ollama |
 
-## Transitional (OD-1)
-Until activity 7.7 (or earlier under OD-7), VASH's own development keeps the existing Claude tooling for Junior and Senior.
+## Owner Exception (OD-1, answered 5 Nov 2026)
+VASH's own development uses Claude as its main AI tooling for Junior and Senior until the owner
+changes it by a new ADR. Free routes (pool, OpenRouter, free-claude-code) stay optional for VASH's
+own work (OD-7). Projects always use the free routes above.
 This is recorded as a known limitation (same vendor) in each AvA log.

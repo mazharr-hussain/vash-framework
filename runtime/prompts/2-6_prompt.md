@@ -124,3 +124,16 @@ activity list (3.3, 7.7). New AvA session (round numbering continues: round 4 = 
 ### Rules
 Same as the main prompt. AGPL use must be decided explicitly (run unmodified as a separate service
 vs fork / link). Client data never through external providers (R2).
+
+---
+
+## MODIFY 2 — owner decision, 5 Nov 2026
+"For vash own work i will use claude mainly until i change"
+
+### Task
+Record the owner's answer to OD-1: Claude is the main AI tooling for VASH's own development, with no
+end date; it changes only when the owner decides (by a new ADR). Remove the "ends at 7.7 / earlier
+under OD-7" timing everywhere; keep $0 for every project; make OD-7 (free-claude-code) an optional
+alternative for VASH's own work, not the way the exception ends; keep R4 independence for projects and
+state how VASH's own reviews stay independent while on one vendor. One AvA session round
+(round 6 = MODIFY 2 round 1).

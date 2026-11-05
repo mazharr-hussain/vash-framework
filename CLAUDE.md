@@ -15,7 +15,8 @@ Follow the activity list in knowledge/activity_list.md in sequence.
 LAW 1 VANILLA FIRST ($0):
 Open source and free tiers only, from all well-known vendors, pooled by vetted open-source tools.
 Software built by VASH: open source, agnostic, no lock-in.
-Transitional: VASH's own development may keep the existing Claude tooling until activity 7.7 (or earlier under OD-7).
+Owner exception (OD-1): VASH's own development uses Claude as its main AI tooling until the owner
+changes this by a new ADR. Every project stays $0.
 
 LAW 2 AGENT OVER HUMAN:
 Automate everything possible.
@@ -36,7 +37,8 @@ This repository will be public (activity 7.1). Write it as if it already were: n
 data, project code, project AvA logs or secrets into it.
 
 ## AvA Rules
-Junior generates. Senior reviews (different vendor from the Junior once the pool is in place).
+Junior generates. Senior reviews: a different vendor from the Junior for projects (R4); for VASH's
+own work the same vendor is allowed under the owner exception (OD-1), in an isolated context.
 Deterministic Gate 1 before every Senior review.
 Max 3 rounds per activity.
 Score must meet threshold before pushing; never approved below threshold.
