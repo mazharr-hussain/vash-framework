@@ -580,7 +580,7 @@ TYPE: ARTIFACT
 PHASE: Phase 5 — Platform Design
 PARALLEL_SAFE: YES
 DEPENDS_ON: 3.7
-DESCRIPTION: Final repo structure for VASH engine and all projects it will build. Folder hierarchy, naming conventions, file formats, branch strategy. Amended by 2.6: finalise 2-6_application_framework.md Section 7 (core and project repositories); complete the loader / provisioner LAW 3 search.
+DESCRIPTION: Final repo structure for VASH engine and all projects it will build. Folder hierarchy, naming conventions, file formats, branch strategy. Amended by 2.6: finalise 2-6_application_framework.md Section 7 (core and project repositories); complete the loader / provisioner LAW 3 search. Brought forward by owner decision (6 Nov 2026): records the structure frozen by the owner (D1-D9, ADR-002).
 OUTPUT_PATH: vash_framework/platform/5-1_repo_structure.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
