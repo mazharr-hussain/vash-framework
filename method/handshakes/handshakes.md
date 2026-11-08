@@ -1,7 +1,5 @@
 # VASH 3.0 — Agent Handshake Contracts
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 Handshakes are the defined data contracts between agents at every role-to-role transition.
 
 ## Handshake 1: Human Owner to Project Manager

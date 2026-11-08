@@ -1,5 +1,4 @@
 # Checklist: Code Activity
-Added by 2.6 (ADR-001 D9) — PROPOSED: in force when ADR-001 is ACCEPTED.
 Use this checklist for every activity with TYPE: CODE (activity-list Phase 7 onward).
 Design activities keep checklists/artifact.md, including its "no code" rule.
 

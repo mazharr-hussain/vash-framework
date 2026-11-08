@@ -8,7 +8,6 @@ use: run
 version: 0.13.0
 commit: to-verify
 stacks: []
-adr: ADR-001
 search_log: search-log.md
 status: candidate
 ---

@@ -175,9 +175,6 @@
   "gates": {
     "merge": "human-approval-label"
   },
-  "decisions": [
-    "ADR-001",
-    "ADR-002"
-  ],
+  "decisions": [],
   "owner_exception": "OD-1"
 }

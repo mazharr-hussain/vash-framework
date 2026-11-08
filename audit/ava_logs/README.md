@@ -1,4 +1,4 @@
-﻿# runtime/ava_logs/
+# runtime/ava_logs/
 
 This folder stores all Agent vs Agent (AvA) review logs, one file per round per task.
 

@@ -1,7 +1,5 @@
 # VASH 3.0 — AvA Protocol Rulebook
 
-Amended by 2.6 (ADR-001, Blueprint v8.2 merge) — PROPOSED
-
 ## What Is AvA
 
 Agent vs Agent (AvA) is the adversarial quality control mechanism built into every VASH activity.

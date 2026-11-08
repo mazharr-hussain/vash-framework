@@ -1,7 +1,5 @@
 # VASH 3.0 — Group Configurations
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 Groups are collections of agent roles that collaborate on specific phases of a project.
 
 ## Group 1: Discovery and Requirements

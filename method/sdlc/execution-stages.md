@@ -1,7 +1,5 @@
 # v8.2 Execution Stages
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 Execution stages are the build-and-run path a project follows after SDLC design is complete.
 Every stage has a defined actor (Engine, AI, or Human), a mode (Deterministic or AI), and a gate.
 

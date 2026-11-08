@@ -1,7 +1,5 @@
 # VASH 3.0 — Agent Registry
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 ## Design Principles
 
 - Every role has a Junior (generator) and Senior (reviewer) persona.

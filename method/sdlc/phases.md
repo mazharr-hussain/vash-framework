@@ -1,7 +1,5 @@
 # VASH 3.0 — SDLC Phases Complete Sequence
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 VASH 3.0 follows a structured SDLC with 8 phases. Each has defined entry/exit criteria,
 responsible groups, artifacts produced, parallel execution opportunities, and a human gate.
 

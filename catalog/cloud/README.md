@@ -1,5 +1,4 @@
 # catalog/cloud_free_tier.md
-Amended by 2.6 (ADR-001 D6). PROPOSED: in force when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Purpose
 Reference for free-tier infrastructure. Read during activity 3.4 and activity-list Phase 7 (7.6, 7.10).
