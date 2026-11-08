@@ -61,6 +61,12 @@ class Freeze:
         return self.data.get("thresholds", {})
 
     @property
+    def delivery(self) -> tuple[str, int | None]:
+        """Delivery mode and iteration length; phased when the freeze has no delivery block."""
+        d = self.data.get("delivery", {})
+        return (d.get("mode", "phased"), d.get("iteration_days"))
+
+    @property
     def floor(self) -> int:
         return self.data.get("floor", 88)
 

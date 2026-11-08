@@ -467,6 +467,30 @@
         "null"
       ],
       "description": "'OD-1' for VASH's own dev; null for projects."
+    },
+    "delivery": {
+      "type": "object",
+      "description": "How work is delivered. Optional; without it the mode is phased (Phases 1-8, then execution).",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "phased",
+            "iterative"
+          ],
+          "description": "phased: full design path first. iterative: inception once, then one feature loop per work item (method/sdlc/iteration-mode.md)."
+        },
+        "iteration_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "description": "Length of one iteration (sprint) in days, iterative mode only."
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

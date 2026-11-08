@@ -1,5 +1,7 @@
 # VASH 3.0 — SDLC Phases Complete Sequence
 
+Projects in iterative mode run only Phases 1-3 once, then the feature loop of sdlc/iteration-mode.md.
+
 VASH 3.0 follows a structured SDLC with 8 phases. Each has defined entry/exit criteria,
 responsible groups, artifacts produced, parallel execution opportunities, and a human gate.
 

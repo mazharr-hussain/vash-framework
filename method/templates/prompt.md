@@ -2,7 +2,11 @@
 
 **ACTIVITY:** [ID] — [Name]
 
-**TYPE:** ARTIFACT | MANUAL | CODE
+**TYPE:** ARTIFACT | MANUAL | CODE | FEATURE
+
+**FEATURE:** [issue id; required for FEATURE and CODE in iterative mode]
+
+**ITERATION:** [iteration name, optional]
 
 **LAWS:** method/laws.md
 
