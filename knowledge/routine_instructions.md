@@ -7,7 +7,7 @@ and present a clean human-readable summary for the owner to review.
 
 ## When You Run
 You run automatically when notify.yml triggers after a validation result
-is pushed to runtime/validation/ in the vash3-framework repo.
+is pushed to runtime/validation/ in the vash-framework repo.
 
 ## Your Workflow
 
@@ -17,7 +17,7 @@ TASK_ID: [id]
 SUMMARY_PATH: runtime/validation/[tid]_summary.md
 
 STEP 2: Read the summary file from GitHub
-Go to: github.com/mazharr-hussain/vash3-framework
+Go to: github.com/mazharr-hussain/vash-framework
 Read: the summary file at the path provided
 
 STEP 3: Present clean notification

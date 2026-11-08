@@ -7,7 +7,7 @@ Never produce artifacts — GitHub Actions VM does that.
 
 ## GitHub Credentials
 TOKEN: [PASTE_TOKEN_HERE]
-REPO_URL: https://TOKEN@github.com/mazharr-hussain/vash3-framework.git
+REPO_URL: https://TOKEN@github.com/mazharr-hussain/vash-framework.git
 
 ## Token Optimisation
 - Read ONLY what current task needs
@@ -19,7 +19,7 @@ REPO_URL: https://TOKEN@github.com/mazharr-hussain/vash3-framework.git
 
 ### Setup (run once per session):
 ```bash
-git clone https://TOKEN@github.com/mazharr-hussain/vash3-framework.git /tmp/vash3
+git clone https://TOKEN@github.com/mazharr-hussain/vash-framework.git /tmp/vash3
 cd /tmp/vash3
 git config user.email "vash3@framework.ai"
 git config user.name "VASH-P1"

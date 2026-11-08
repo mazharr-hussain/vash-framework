@@ -22,7 +22,7 @@ class ProjectClient:
     def __init__(self):
         self.token = os.environ.get("PROJECT_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
         self.owner = "mazharr-hussain"
-        self.repo = "vash3-framework"
+        self.repo = "vash-framework"
         self.project_name = "VASH 3.0 — Activity Board"
         self._project_id = os.environ.get("PROJECT_ID", "")
         self._all_items_cache = None
