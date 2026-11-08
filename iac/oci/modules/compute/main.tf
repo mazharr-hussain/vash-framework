@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     oci = {
-      source = "oracle/oci"
+      source  = "oracle/oci"
       version = ">= 6.0"
     }
   }
@@ -14,8 +14,8 @@ resource "oci_core_instance" "runner" {
   display_name        = "vash-runner"
 
   shape_config {
-    ocpus         = 2
-    memory_in_gbs = 12
+    ocpus         = var.ocpus
+    memory_in_gbs = var.memory_in_gbs
   }
 
   source_details {
@@ -24,10 +24,12 @@ resource "oci_core_instance" "runner" {
   }
 
   create_vnic_details {
-    subnet_id = var.subnet_id
+    subnet_id        = var.subnet_id
+    assign_public_ip = true
   }
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    user_data           = var.user_data == "" ? null : base64encode(var.user_data)
   }
 }

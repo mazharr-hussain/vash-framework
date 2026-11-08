@@ -26,6 +26,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_cost.add_argument("--repo", type=Path, default=Path.cwd())
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
+    p_onboard = subparsers.add_parser("onboard", help="Create a cloud runner VM with VASH installed")
+    p_onboard.add_argument("cloud", help="Cloud adapter id from the catalog")
+    p_onboard.add_argument("--down", action="store_true", help="Remove what onboarding created")
+    p_onboard.add_argument("--yes", action="store_true", help="Do not ask before creating or removing")
+    p_onboard.add_argument("--runner-repo", help="owner/name: register a self-hosted CI runner for it")
+    p_onboard.add_argument("--admin-cidr", help="CIDR allowed to SSH (default: this shell's IP/32)")
+    p_onboard.add_argument("--ocpus", type=int, default=2)
+    p_onboard.add_argument("--memory", type=int, default=12, help="GB of memory")
+    p_onboard.add_argument("--os-version", default="24.04")
+    p_onboard.add_argument("--model", default="qwen2.5-coder:7b", help="Model to pull on the VM")
+    p_onboard.add_argument("--workdir", help="Where the terraform state is kept")
 
     args = parser.parse_args(argv)
 
@@ -56,6 +67,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "status":
             from vash.cli.status import run
             return run(args.repo)
+        elif args.command == "onboard":
+            from vash.cli.onboard import run
+            return run(args)
     except NotAvailableYet as e:
         print(f"Error: {e}")
         return 0
