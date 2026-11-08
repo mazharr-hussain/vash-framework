@@ -2,10 +2,14 @@
 
 - **ID:** ADR-001
 - **Title:** Make VASH the application framework for every project
-- **Status:** ACCEPTED
-- **Date:** 2026-11-05
-- **Activity:** 2.6 (vash_framework/architecture/2-6_application_framework.md)
-- **Decided by:** Human owner (changes Status to ACCEPTED or rejects)
+- **Activity:** 2.6 (docs/design/2-6_application_framework.md)
+- **Decided by:** Human owner
+
+## Status
+ACCEPTED (owner, 2026-11-08)
+
+## Date
+2026-11-05 (proposed); 2026-11-08 (accepted)
 
 ## Context
 The owner's Master Architecture Blueprint v8.2 (November 2026) defines an 11-stage, deterministic-first
@@ -44,4 +48,16 @@ with the human decides each project's stack, and that VASH is public while clien
 - Unverified facts (pooling tool, licences, free-tier limits, A1 reclaim policy, self-hosted runner
   charges) are assigned to activities 3.3, 3.4 and 4.x and must not be treated as confirmed.
 - OD-1 was answered by the owner on 5 Nov 2026 (D10). Open decisions OD-2 to OD-7 (artifact Section 13)
-  are answered by the owner when accepting this ADR.
+  are answered by this acceptance (8 Nov 2026): OD-2, OD-3, OD-4, OD-5 as recommended; OD-6 superseded by
+  ADR-002 D3 (repository name vash-framework); OD-7 as recommended, after the 3.3 checks.
+
+## Alternatives Considered
+- VASH as tooling for one application only (rejected: the owner stated VASH is the framework for any
+  application; D1, D12).
+- A separate platform-core repository next to VASH (rejected: OD-6; one public VASH core, one private
+  repository per project, OD-4).
+- A paid plan for enforced branch protection in private projects (rejected: $0 mandate; pipeline-enforced
+  approval label plus ACCEPTED ADR instead, OD-2).
+- Several CI systems, OCI DevOps or mirrors from the start (rejected: one CI system, others only by later
+  ADR; OD-3).
+- One paid LLM vendor for projects (rejected: LAW 1; pooled free tiers with local intake and fallback; D7).

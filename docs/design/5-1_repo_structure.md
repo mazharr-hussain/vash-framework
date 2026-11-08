@@ -1,6 +1,6 @@
 <!-- Activity 5.1 — Design complete GitHub repository structure | Phase 5 | Threshold 88
      Brought forward by owner decision (6 Nov 2026). Source: the structure frozen by the owner (v7, D1-D9),
-     also published as the page "VASH Repository Structure". ADR: decisions/ADR-002-repository-structure.md (PROPOSED).
+     also published as the page "VASH Repository Structure". ADR: decisions/ADR-002-repository-structure.md (ACCEPTED 8 Nov 2026, with D10).
      Written by: H owner · A agent (AvA) · A→H agent then owner approval · E engine (generated) · X upstream (pinned). -->
 
 # VASH Repository Structure
@@ -30,7 +30,8 @@ vash-framework/
 ├── plan/                   VASH's own roadmap
 ├── decisions/              VASH's ADRs and activity decisions
 ├── audit/                  VASH's own AvA trail
-├── .claude/                settings.json tracked; agents/skills/hooks generated
+├── AGENTS.md               one instruction file for every coding tool (generated, D10)
+├── .claude/                Claude Code harness: settings.json tracked; the rest generated
 └── runtime/                git-ignored scratch
 ```
 
@@ -48,10 +49,11 @@ The front door of the repository: what a visitor, an installer and the engine re
 | `CODE_OF_CONDUCT.md` | Behaviour rules (reused Contributor Covenant, Law 3) | X | Applies to issues and PRs | W1 |
 | `CHANGELOG.md` | What changed in each release | E | Projects read it before moving their pinned VASH version | W1 |
 | `pyproject.toml` | Package definition: name vash (free on PyPI, checked 5 Nov 2026), semver version starting 3.0.0, dependencies, the vash command | A | pip install vash installs the engine and CLI | W1 |
-| `requirements.lock` | Exact dependency versions with hashes | E | CI and installs use --require-hashes: reproducible and tamper-proof | W1 |
+| `requirements.lock` | Exact dependency versions with hashes | E | CI and installs use --require-hashes: reproducible and tamper-proof | W2 |
 | `ai-manifest.json` | Catalog index: every accepted asset with type, source, licence, version, commit, use (fork / run), accepting ADR, and the allowed-licence list. Kept at the root (v8.2); generated from catalog/ and the catalog ADRs, never hand-edited | E (from catalog ADRs) | Read by the stack-proposal agent and by vash check (Stage 0) | W1 |
 | `project-stack.json` | VASH's own freeze: one choice per category (stack design-only + Python engine, llm routes with Claude for its own work under OD-1, forge GitHub, ci GitHub Actions, cloud none), plus agents, skills, thresholds and budget | E (from an ACCEPTED ADR) | Read by vash load and vash check for VASH's own sessions | W1 |
-| `CLAUDE.md` | Instructions for Claude Code sessions, generated from method/laws.md and project-stack.json | E | Claude Code reads it at every session start; a check fails if it differs from its sources | W1 |
+| `AGENTS.md` | The one instruction file for every coding tool (D10), generated from method/laws.md and project-stack.json; committed | E | Read by every harness (directly, or through its own pointer file); a check fails if it differs from its sources | W2 |
+| `CLAUDE.md` | Instructions for Claude Code sessions, generated from method/laws.md and project-stack.json. Committed until AGENTS.md lands (wave 2); then a git-ignored pointer to AGENTS.md written by the Claude Code harness adapter | E | Claude Code reads it at every session start; a check fails if it differs from its sources | W1 |
 | `.env.example` | Names of the API keys a user may set (free providers); never any values | A | Users copy it to .env (git-ignored) | W1 |
 | `.gitattributes` | Line endings and text handling: every text file LF, UTF-8 | A | Keeps files identical on Windows, macOS and Linux | W1 |
 | `.gitignore` | Ignores runtime/, .env, data/ (incl. data/intake/), caches, and the generated parts of .claude/ (agents/, skills/, hooks/) | A | Keeps secrets and scratch out of git. VASH holds no client data and needs no intake folder; data/intake/ exists only in projects (local Ollama only, never the pool) | W1 |
@@ -171,7 +173,7 @@ VASH's own checks (VASH itself is hosted on GitHub), plus the reusable workflows
 | `workflows/security.yml` | Secret scan, CodeQL, dependency review | Every push and PR; free on a public repo | W2 |
 | `workflows/release.yml` | On a release tag: changelog, GitHub Release, package publish | Produces the versions projects pin | W3 |
 | `workflows/ava.yml` | VASH's own AvA loop | Runs VASH's own reviews | W1 |
-| `workflows/project-sync.yml` | Syncs VASH's plan to its GitHub Project board (configurable, nothing hard-coded) | VASH's own board | W1 |
+| `workflows/project-sync.yml` | Syncs VASH's plan to its GitHub Project board (configurable, nothing hard-coded) | VASH's own board | W2 |
 | `workflows/reusable-light.yml` | Light project jobs (lint, checks, status), hosted | Called by projects | W1 |
 | `workflows/reusable-heavy.yml` | Heavy project jobs (deploy, tests, UI), self-hosted, one at a time | Called by private projects | W1 |
 | `workflows/reusable-merge-gate.yml` | Merge only with ACCEPTED ADR + approval label + audit of direct pushes | Called by private projects | W1 |
@@ -214,7 +216,6 @@ VASH is its own first project, laid out exactly like any project made with vash 
 |---|---|---|---|---|
 | `plan/README.md` | How VASH plans its own work: issues on GitHub, activities in activity_list.md, decisions in decisions/ | A | Entry point for VASH's own planning | W1 |
 | `plan/activity_list.md` | VASH's own roadmap (activities 0.1 … 7.11) | A→H | The orchestrator picks the next activity from it | W1 |
-| `plan/operations/` | VASH's own operating notes (today's p1, p2, routine instructions) | A | How VASH's own sessions and routines run | W1 |
 | `plan/triggers/` | Files that start an AvA run (control, not history) | E | Read by ava.yml | W1 |
 | `decisions/ADR-*.md` | VASH's architecture decisions (ADR-001 …) | A→H | Accepted by the owner; superseded, never edited after ACCEPTED | W1 |
 | `decisions/N-N_decision.md` | Decision per activity (APPROVED / REJECTED / MODIFY) | H | Unlocks the next activity | W1 |
@@ -227,6 +228,7 @@ VASH is its own first project, laid out exactly like any project made with vash 
 | `audit/metrics/` | Monthly cost-meter summaries | E | Tracks minutes, storage, tokens | W1 |
 | `.claude/settings.json` | Tracked: SessionStart hook that runs bin/vash-load, plus permissions | A→H | Lets a cloud session load itself before any work | W1 |
 | `.claude/agents, skills, hooks` | Generated: only the frozen ones, linked from catalog/ | E (loader) | Git-ignored; rebuilt by vash load every session | W1 |
+| Other harness files (e.g. `.github/copilot-instructions.md`) | Generated by that harness's loader adapter (catalog/harness/), pointing to AGENTS.md; the harness is each developer's choice (D10) | E (loader) | Git-ignored; written by vash load for the developer's harness | W2 |
 | `runtime/` | Git-ignored scratch: drafts, checkpoints, raw logs. Never committed | E | Temporary; never relied on | W1 |
 
 ## Conventions
@@ -266,8 +268,8 @@ VASH is its own first project, laid out exactly like any project made with vash 
 
 ## Build waves
 
-- **Wave 1 — the core plus the pilot's technology.** Root essentials, method/, catalog/stacks/_template/, design-only/ and oracle-apex/ (from public Oracle tooling), catalog/llm, forge, ci, cloud entries for the pilot choices, catalog/skills, agents, hooks, src/vash/core (incl. interfaces.py, exceptions.py) + cli (with stubs for later commands) + loader + ava + tools (stack check, Gate 1) + mcp write guard, adapters: forge/github, ci/github-actions and ci/local-hooks (the no-CI fallback), cloud/oci, llm (Ollama + configured routes), iac/oci/, bin/, scaffold/project/, .github ci.yml, ava.yml, project-sync.yml, reusable light / heavy / merge-gate workflows, tests/engine, fixtures, catalog, docs/design/, plan/, decisions/, audit/. Pilots: the owner's private Oracle APEX projects (Oracle APEX + Autonomous Database + OCI Always Free + GitHub), each adopting VASH through its own ADR in its own repository.
-- **Wave 2 — more of the engine.** src/vash/supervisor/, the full MCP server around the wave 1 write guard, freellmpool and free-claude-code routes in production use, cost meter, canary injector, licence verifier, security.yml, dependabot, docs/ (user guides).
+- **Wave 1 — the core plus the pilot's technology.** Root essentials, method/, catalog/stacks/_template/, design-only/ and oracle-apex/ (from public Oracle tooling), catalog/llm, forge, ci, cloud entries for the pilot choices, catalog/skills, agents, hooks, src/vash/core (incl. interfaces.py, exceptions.py) + cli (with stubs for later commands) + loader + ava + tools (stack check, Gate 1) + mcp write guard, adapters: forge/github, ci/github-actions and ci/local-hooks (the no-CI fallback), cloud/oci, llm (Ollama + configured routes), iac/oci/, bin/, scaffold/project/, .github ci.yml, ava.yml, reusable light / heavy / merge-gate workflows, tests/engine, fixtures, catalog, docs/design/, plan/, decisions/, audit/. Pilots: the owner's private Oracle APEX projects (Oracle APEX + Autonomous Database + OCI Always Free + GitHub), each adopting VASH through its own ADR in its own repository.
+- **Wave 2 — more of the engine.** src/vash/supervisor/, the full MCP server around the wave 1 write guard, freellmpool and free-claude-code routes in production use, cost meter, canary injector, licence verifier, security.yml, dependabot, docs/ (user guides), project-sync.yml, requirements.lock, docs/reference/versioning.md; harness category (D10): AGENTS.md generation, catalog/harness/ with one loader adapter per coding tool, and a free open-source harness on the OCI host with the free LLM routes.
 - **Wave 3 — more technology options.** Adapters and catalog entries for gitlab, forgejo / gitea, local git, gitlab-ci, forgejo-actions and further clouds; examples/, tests/examples, release.yml with package publishing, reusable-post-release.yml, docs/faq.
 
 ## Feedback review
@@ -319,7 +321,7 @@ VASH is its own first project, laid out exactly like any project made with vash 
 | `knowledge/tech_providers/cloud_free_tier.md` | catalog/cloud/ and catalog/forge/ (GitHub quotas) |
 | `knowledge/tech_providers/platforms.md` | catalog/platforms.md |
 | `knowledge/activity_list.md` | plan/activity_list.md |
-| `knowledge/p1, p2, routine_instructions.md` | plan/operations/ |
+| `knowledge/p1, p2, routine_instructions.md` | removed (owner: not needed for waves 1-3) |
 | `vash_framework/agents/2-1 … 2-5` | method/roles, ava, groups, handshakes, sdlc |
 | `vash_framework/vision/*, architecture/2-6…` | docs/design/ |
 | `vash_framework/blueprint, platform, skills (READMEs only)` | removed (replaced by docs/ and catalog/) |
@@ -334,7 +336,7 @@ VASH is its own first project, laid out exactly like any project made with vash 
 
 ## Frozen
 
-1. **Technology choices.** five catalog categories (stacks, llm, forge, ci, cloud) with one adapter each in src/vash/adapters/, and the vendor-free core
+1. **Technology choices.** five catalog categories (stacks, llm, forge, ci, cloud) with one adapter each in src/vash/adapters/, and the vendor-free core; plus the harness (coding tool), chosen by each developer, with one loader adapter each and one committed AGENTS.md for all (D10)
 2. **Structure.** the four product areas, scaffold/project/, method/schemas/, plan/triggers/, tracked .claude/settings.json, GOVERNANCE.md
 3. **Rules.** the twelve design rules, starting with technology independence and $0, and including LLM route safety (R12 amendment) and project state on its own git host (R9 amendment)
 4. **Bootstrap and waves.** stages A–C and waves 1–3
