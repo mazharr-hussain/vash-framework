@@ -2,7 +2,7 @@
 
 - **ID:** ADR-001
 - **Title:** Make VASH the application framework for every project
-- **Status:** PROPOSED
+- **Status:** ACCEPTED
 - **Date:** 2026-11-05
 - **Activity:** 2.6 (vash_framework/architecture/2-6_application_framework.md)
 - **Decided by:** Human owner (changes Status to ACCEPTED or rejects)
