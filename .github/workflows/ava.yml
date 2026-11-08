@@ -18,7 +18,7 @@ jobs:
       - name: Detect changed trigger files
         id: detect
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | grep 'plan/triggers/.*_trigger\.md' || true)
+          FILES=$(git diff --name-only -M --diff-filter=A HEAD~1 HEAD | grep 'plan/triggers/.*_trigger\.md' || true)
           echo "Changed files: $FILES"
           JSON="["
           FIRST=true
