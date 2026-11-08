@@ -2,7 +2,7 @@
 
 ## Workflow Rules
 One activity at a time unless PARALLEL_SAFE: YES.
-Always read knowledge/activity_list.md first.
+Always read plan/activity_list.md first.
 Always save prompt before starting any work.
 Always run AvA before pushing to GitHub.
 Never start next activity without APPROVED decision.

@@ -3,7 +3,7 @@ name: VASH 3.0 AvA Pipeline
 on:
   push:
     paths:
-      - 'runtime/triggers/**.md'
+      - 'plan/triggers/**.md'
 
 jobs:
   detect-triggers:
@@ -18,7 +18,7 @@ jobs:
       - name: Detect changed trigger files
         id: detect
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/triggers/.*_trigger\.md' || true)
+          FILES=$(git diff --name-only HEAD~1 HEAD | grep 'plan/triggers/.*_trigger\.md' || true)
           echo "Changed files: $FILES"
           JSON="["
           FIRST=true
@@ -102,7 +102,7 @@ jobs:
           git config user.name "VASH-3.0-AvA"
           git config user.email "vash3@framework.ai"
           git pull --rebase origin main || true
-          git add runtime/ knowledge/activity_list.md
+          git add audit/ plan/
           git diff --staged --quiet || git commit -m "AvA: Task ${{ matrix.task_id }} | $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push
 
@@ -115,8 +115,8 @@ jobs:
           script: |
             const fs = require('fs');
             const taskId = '${{ matrix.task_id }}'.replace('.', '-');
-            const summaryPath = `runtime/validation/${taskId}_summary.md`;
-            let summary = 'Validation complete. Check runtime/validation/ for results.';
+            const summaryPath = `audit/validation/${taskId}_summary.md`;
+            let summary = 'Validation complete. Check audit/validation/ for results.';
             try { summary = fs.readFileSync(summaryPath, 'utf8'); } catch(e) {}
             await github.rest.issues.create({
               owner: context.repo.owner,

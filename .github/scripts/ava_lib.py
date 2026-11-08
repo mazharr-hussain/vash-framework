@@ -61,7 +61,7 @@ class Files:
 
     def save_artifact(self, task_id: str, content: str, output_path: str = "") -> None:
         tid = task_id.replace(".", "-")
-        self.write(f"runtime/artifacts/{tid}_artifact.md", content)
+        self.write(f"audit/artifacts/{tid}_artifact.md", content)
         # Also write to canonical output path if provided and valid
         if (output_path and
                 output_path not in ("N/A", "Multiple files") and
@@ -73,11 +73,11 @@ class Files:
         tid = task_id.replace(".", "-")
         ts = datetime.now(timezone.utc).isoformat()
         log = f"# AvA Log — Activity {task_id} Round {round_num}\nTimestamp: {ts}\n\n{content}"
-        self.write(f"runtime/ava_logs/{tid}_round{round_num}.md", log)
+        self.write(f"audit/ava_logs/{tid}_round{round_num}.md", log)
 
     def save_summary(self, task_id: str, content: str) -> None:
         self.write(
-            f"runtime/validation/{task_id.replace('.', '-')}_summary.md",
+            f"audit/validation/{task_id.replace('.', '-')}_summary.md",
             content
         )
 
@@ -97,7 +97,7 @@ class State:
         self.files = files
 
     def _path(self, task_id: str) -> str:
-        return f"runtime/ava_logs/{task_id.replace('.', '-')}_state.json"
+        return f"audit/ava_logs/{task_id.replace('.', '-')}_state.json"
 
     def load(self, task_id: str) -> dict:
         content = self.files.read(self._path(task_id))
@@ -163,10 +163,10 @@ class State:
         tid = task_id.replace(".", "-")
         self.files.delete(self._path(task_id))
         for i in range(1, 10):
-            self.files.delete(f"runtime/ava_logs/{tid}_round{i}.md")
-        self.files.delete(f"runtime/artifacts/{tid}_artifact.md")
-        self.files.delete(f"runtime/prompts/{tid}_jr_prompt.md")
-        self.files.delete(f"runtime/prompts/{tid}_sr_prompt.md")
+            self.files.delete(f"audit/ava_logs/{tid}_round{i}.md")
+        self.files.delete(f"audit/artifacts/{tid}_artifact.md")
+        self.files.delete(f"audit/prompts/{tid}_jr_prompt.md")
+        self.files.delete(f"audit/prompts/{tid}_sr_prompt.md")
 
 
 # ─────────────────────────────────────────────
@@ -297,7 +297,7 @@ class Reporter:
             "",
             f"**Score:** {score}/100 (threshold: {threshold})",
             f"**Verdict:** {verdict}",
-            f"**Artifact:** runtime/artifacts/{tid}_artifact.md",
+            f"**Artifact:** audit/artifacts/{tid}_artifact.md",
             ""
         ]
         if failed:
@@ -413,7 +413,7 @@ class Orchestrator:
                 return result
 
         # All 4 calls complete — read result
-        sr_output = self.files.read(f"runtime/ava_logs/{tid}_round{round_num}.md")
+        sr_output = self.files.read(f"audit/ava_logs/{tid}_round{round_num}.md")
         parsed = self.parser.parse_all(sr_output)
         score = parsed["score"]
         verdict = parsed["verdict"]
@@ -464,12 +464,12 @@ class Orchestrator:
             activity_details,
             "",
             "Read these files for context:",
-            "- knowledge/laws.md",
-            "- knowledge/checklists/artifact.md",
+            "- method/laws.md",
+            "- method/ava/checklists/artifact.md",
             "",
             "The prompt you generate must:",
             "- Tell Junior exactly what artifact to produce",
-            "- Tell Junior to read knowledge/laws.md and knowledge/checklists/artifact.md",
+            "- Tell Junior to read method/laws.md and method/ava/checklists/artifact.md",
             "- Say: output artifact text to stdout only, no file writes",
             "- Be clear and specific, under 1000 chars",
             locked_note,
@@ -493,12 +493,12 @@ class Orchestrator:
             return "FAIL"
 
         # Verify PE saved the prompt file
-        if not self.files.exists(f"runtime/prompts/{tid}_jr_prompt.md"):
+        if not self.files.exists(f"audit/prompts/{tid}_jr_prompt.md"):
             # PE may have output the prompt instead of saving it
             # Save it ourselves from the output
-            self.files.write(f"runtime/prompts/{tid}_jr_prompt.md", output)
+            self.files.write(f"audit/prompts/{tid}_jr_prompt.md", output)
 
-        self.log(f"Junior prompt saved: runtime/prompts/{tid}_jr_prompt.md")
+        self.log(f"Junior prompt saved: audit/prompts/{tid}_jr_prompt.md")
         return "OK"
 
     def _call_jr(self, task_id: str, round_num: int) -> str:
@@ -506,7 +506,7 @@ class Orchestrator:
         tid = task_id.replace(".", "-")
         prompt = "\n".join([
             "You are VASH 3.0 Junior Creator.",
-            f"Read your task from: runtime/prompts/{tid}_jr_prompt.md",
+            f"Read your task from: audit/prompts/{tid}_jr_prompt.md",
             "",
             "Execute the task exactly as specified.",
             "Output ONLY the artifact text content to stdout.",
@@ -546,11 +546,11 @@ class Orchestrator:
             f"Generate an optimal Senior Validator prompt for activity {task_id} round {round_num}.",
             "",
             "Read these files to understand the task:",
-            "- knowledge/activity_list.md",
-            "- knowledge/laws.md",
-            "- knowledge/checklists/artifact.md",
-            f"- runtime/prompts/{tid}_jr_prompt.md",
-            f"- runtime/artifacts/{tid}_artifact.md",
+            "- plan/activity_list.md",
+            "- method/laws.md",
+            "- method/ava/checklists/artifact.md",
+            f"- audit/prompts/{tid}_jr_prompt.md",
+            f"- audit/artifacts/{tid}_artifact.md",
             "",
             "The prompt you generate must tell Senior to:",
             "- Read and review the artifact",
@@ -575,10 +575,10 @@ class Orchestrator:
             self.reporter.write_error(task_id, State.CALL_PE_SR, output)
             return "FAIL"
 
-        if not self.files.exists(f"runtime/prompts/{tid}_sr_prompt.md"):
-            self.files.write(f"runtime/prompts/{tid}_sr_prompt.md", output)
+        if not self.files.exists(f"audit/prompts/{tid}_sr_prompt.md"):
+            self.files.write(f"audit/prompts/{tid}_sr_prompt.md", output)
 
-        self.log(f"Senior prompt saved: runtime/prompts/{tid}_sr_prompt.md")
+        self.log(f"Senior prompt saved: audit/prompts/{tid}_sr_prompt.md")
         return "OK"
 
     def _call_sr(self, task_id: str, round_num: int, threshold: int) -> str:
@@ -586,7 +586,7 @@ class Orchestrator:
         tid = task_id.replace(".", "-")
         prompt = "\n".join([
             "You are VASH 3.0 Senior Validator.",
-            f"Read your review task from: runtime/prompts/{tid}_sr_prompt.md",
+            f"Read your review task from: audit/prompts/{tid}_sr_prompt.md",
             "",
             "Execute the review exactly as specified.",
             "Output ONLY the review in the specified format to stdout.",

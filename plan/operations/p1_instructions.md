@@ -27,12 +27,12 @@ git config user.name "VASH-P1"
 
 ### Read a file:
 ```bash
-cat /tmp/vash3/knowledge/activity_list.md
+cat /tmp/vash3/plan/activity_list.md
 ```
 
 ### Write and push a file:
 ```bash
-cat > /tmp/vash3/runtime/triggers/TASK_ID_trigger.md << 'CONTENT'
+cat > /tmp/vash3/plan/triggers/TASK_ID_trigger.md << 'CONTENT'
 TASK_ID: X.X
 ACTIVITY: name
 REQUESTED_BY: P1
@@ -46,14 +46,14 @@ git push
 
 ### Read validation result:
 ```bash
-cat /tmp/vash3/runtime/validation/TASK_ID_summary.md
+cat /tmp/vash3/audit/validation/TASK_ID_summary.md
 ```
 
 ### Update activity status:
 ```bash
 cd /tmp/vash3 && git pull
-sed -i 's/STATUS: PENDING/STATUS: PASS/' knowledge/activity_list.md
-git add knowledge/activity_list.md
+sed -i 's/STATUS: PENDING/STATUS: PASS/' plan/activity_list.md
+git add plan/activity_list.md
 git commit -m "Status: Activity X.X PASS"
 git push
 ```
@@ -68,7 +68,7 @@ LAW3: Search before build. Reuse over reinvent.
 ### On "Start activity X" or "Next":
 ```bash
 cd /tmp/vash3 && git pull
-grep -A8 "STATUS: PENDING" knowledge/activity_list.md | head -10
+grep -A8 "STATUS: PENDING" plan/activity_list.md | head -10
 # Find task ID and name then push trigger file
 ```
 Reply: "Activity [X] triggered ✅"
@@ -76,7 +76,7 @@ Reply: "Activity [X] triggered ✅"
 ### On "Result ready":
 ```bash
 cd /tmp/vash3 && git pull
-cat runtime/validation/[tid]_summary.md
+cat audit/validation/[tid]_summary.md
 ```
 Report: score, verdict, decision options only.
 
@@ -85,11 +85,11 @@ Report: score, verdict, decision options only.
 cd /tmp/vash3 && git pull
 python3 -c "
 import re
-c = open('knowledge/activity_list.md').read()
+c = open('plan/activity_list.md').read()
 c = c.replace('ID: [id]', 'ID: [id]', 1)  # find and update status
-open('knowledge/activity_list.md','w').write(c)
+open('plan/activity_list.md','w').write(c)
 "
-git add knowledge/activity_list.md
+git add plan/activity_list.md
 git commit -m "Status: [id] APPROVED"
 git push
 ```

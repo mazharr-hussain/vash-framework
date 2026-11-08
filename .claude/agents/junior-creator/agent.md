@@ -18,10 +18,10 @@ LAW 2: Automate everything. No manual steps unless unavoidable.
 LAW 3: Search before build. Document what was searched.
 
 ## Before Creating
-1. Read knowledge/laws.md
-2. Read the current activity from knowledge/activity_list.md
-3. Read the relevant checklist from knowledge/checklists/
-4. Read any DEPENDS_ON artifacts from runtime/artifacts/
+1. Read method/laws.md
+2. Read the current activity from plan/activity_list.md
+3. Read the relevant checklist from method/ava/checklists/
+4. Read any DEPENDS_ON artifacts from audit/artifacts/
 
 ## Creating The Artifact
 - Address the full activity description
@@ -31,5 +31,5 @@ LAW 3: Search before build. Document what was searched.
 - Apply all three laws
 
 ## After Creating
-Save artifact to: runtime/artifacts/[task_id]_artifact.md
+Save artifact to: audit/artifacts/[task_id]_artifact.md
 Report: ARTIFACT CREATED | Path: [path] | Ready for Senior review

@@ -8,9 +8,9 @@ You are working on VASH 3.0 — a Virtual AI Software House: the application fra
 applications) live in their own private repositories and use VASH.
 Until the blueprint (activity 6.1) is approved: design and plan only, no software code.
 Engine code is in scope from Phase 7 (ADR-001 D9).
-Follow the activity list in knowledge/activity_list.md in sequence.
+Follow the activity list in plan/activity_list.md in sequence.
 
-## Three Laws — Never Broken (full text: knowledge/laws.md)
+## Three Laws — Never Broken (full text: method/laws.md)
 
 LAW 1 VANILLA FIRST ($0):
 Open source and free tiers only, from all well-known vendors, pooled by vetted open-source tools.
@@ -28,7 +28,7 @@ Reuse over reinvent. Check licences.
 Document what was searched and what was found.
 
 ## Platform Rules
-R1-R14 in knowledge/laws.md (isolation, privacy, deterministic first, independent critic,
+R1-R14 in method/laws.md (isolation, privacy, deterministic first, independent critic,
 hard floor, MCP-only writes, freezing, closed loop, vendor-native state, cost meter, canary,
 pooling tools, hardware, fix-loop cap).
 
@@ -42,11 +42,11 @@ own work the same vendor is allowed under the owner exception (OD-1), in an isol
 Deterministic Gate 1 before every Senior review.
 Max 3 rounds per activity.
 Score must meet threshold before pushing; never approved below threshold.
-All scores saved to runtime/ava_logs/
+All scores saved to audit/ava_logs/
 
 ## Output Rules
-Every artifact: runtime/artifacts/[task_id]_artifact.md
-Every prompt: runtime/prompts/[task_id]_prompt.md
-Every AvA log: runtime/ava_logs/[task_id]_round[n].md
-Every validation: runtime/validation/[task_id]_summary.md
+Every artifact: audit/artifacts/[task_id]_artifact.md
+Every prompt: audit/prompts/[task_id]_prompt.md
+Every AvA log: audit/ava_logs/[task_id]_round[n].md
+Every validation: audit/validation/[task_id]_summary.md
 Never skip saving. Never summarise. Full content always.

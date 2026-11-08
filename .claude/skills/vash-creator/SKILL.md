@@ -1,6 +1,6 @@
 ---
 name: vash-creator
-description: Generate VASH artifacts as Junior Creator. Use when starting any VASH activity that requires producing a new artifact. Reads activity from knowledge/activity_list.md, applies three laws, produces full artifact, saves to runtime/artifacts/. Built custom — no marketplace equivalent for VASH-specific artifact generation.
+description: Generate VASH artifacts as Junior Creator. Use when starting any VASH activity that requires producing a new artifact. Reads activity from plan/activity_list.md, applies three laws, produces full artifact, saves to audit/artifacts/. Built custom — no marketplace equivalent for VASH-specific artifact generation.
 ---
 
 # VASH Creator Skill (Junior Role)
@@ -20,10 +20,10 @@ require custom implementation.
 
 ### Step 1: Read Context (minimal — only what needed)
 ```
-Read: knowledge/activity_list.md (current activity only)
-Read: knowledge/laws.md
-Read: knowledge/checklists/artifact.md
-Read: DEPENDS_ON artifacts from runtime/artifacts/ if any
+Read: plan/activity_list.md (current activity only)
+Read: method/laws.md
+Read: method/ava/checklists/artifact.md
+Read: DEPENDS_ON artifacts from audit/artifacts/ if any
 DO NOT: load entire repo into context
 ```
 
@@ -54,12 +54,12 @@ Content rules:
 If any No — revise before saving.
 
 ### Step 5: Save
-Save to: runtime/artifacts/[task_id]_artifact.md
+Save to: audit/artifacts/[task_id]_artifact.md
 Report:
 ```
 ARTIFACT CREATED
 Activity: [ID] — [Name]
-Path: runtime/artifacts/[task_id]_artifact.md
+Path: audit/artifacts/[task_id]_artifact.md
 Self-check: PASS
 Ready for: vash-validator skill
 ```

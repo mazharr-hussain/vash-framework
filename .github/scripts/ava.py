@@ -4,7 +4,7 @@ VASH 3.0 — AvA Orchestrator v2
 Fixes:
 - Pre-creates all output directories before Claude runs
 - Generates full prompt before Junior session
-- Writes to both runtime/artifacts/ AND canonical output path
+- Writes to both audit/artifacts/ AND canonical output path
 - Never overwrites AvA logs — always appends with correct round number
 - Always exits 0 so commit step runs
 LAW 1: Python stdlib only
@@ -73,7 +73,7 @@ def run_claude(prompt):
 
 
 def get_activity(task_id):
-    content = rf("knowledge/activity_list.md")
+    content = rf("plan/activity_list.md")
     pattern = rf"ID: {re.escape(task_id)}\n(.*?)(?=\n---|\Z)"
     m = re.search(pattern, content, re.DOTALL)
     return m.group(0) if m else ""
@@ -96,7 +96,7 @@ def get_next_round_num(task_id):
     """Find next available round number — never overwrite existing logs."""
     tid = task_id.replace(".", "-")
     n = 1
-    while exists(f"runtime/ava_logs/{tid}_round{n}.md"):
+    while exists(f"audit/ava_logs/{tid}_round{n}.md"):
         n += 1
     return n
 
@@ -112,20 +112,20 @@ def parse_verdict(text):
 
 
 def update_status(task_id, status):
-    content = rf("knowledge/activity_list.md")
+    content = rf("plan/activity_list.md")
     tid = re.escape(task_id)
     updated = re.sub(
         rf"(ID: {tid}.*?STATUS:)\s*\w+",
         rf"\1 {status}", content, flags=re.DOTALL
     )
-    wf("knowledge/activity_list.md", updated)
+    wf("plan/activity_list.md", updated)
 
 
 def build_full_prompt(task_id, role, objections=""):
     """Build a complete prompt — not a stub."""
     activity = get_activity(task_id)
-    laws = rf("knowledge/laws.md")
-    checklist = rf("knowledge/checklists/artifact.md")
+    laws = rf("method/laws.md")
+    checklist = rf("method/ava/checklists/artifact.md")
     tid = task_id.replace(".", "-")
     output_path = get_output_path(task_id)
     threshold = get_threshold(task_id)
@@ -137,7 +137,7 @@ def build_full_prompt(task_id, role, objections=""):
         deps = [d.strip() for d in dep_match.group(1).split(",")]
         for dep in deps[:2]:  # limit to 2 deps to save tokens
             dep_tid = dep.replace(".", "-")
-            dep_content = rf(f"runtime/artifacts/{dep_tid}_artifact.md")
+            dep_content = rf(f"audit/artifacts/{dep_tid}_artifact.md")
             if dep_content:
                 dep_context += f"\nDEPENDENCY {dep}:\n{dep_content[:500]}\n"
 
@@ -168,7 +168,7 @@ def build_full_prompt(task_id, role, objections=""):
         return "\n\n".join(p for p in parts if p)
 
     else:  # SENIOR
-        artifact = rf(f"runtime/artifacts/{tid}_artifact.md")
+        artifact = rf(f"audit/artifacts/{tid}_artifact.md")
         return f"""You are the VASH 3.0 Senior Validator.
 ACTIVITY ID: {task_id}
 ACTIVITY DEFINITION:
@@ -210,7 +210,7 @@ def run_ava(task_id):
     tid = task_id.replace(".", "-")
     threshold = get_threshold(task_id)
     output_path = get_output_path(task_id)
-    artifact_path = f"runtime/artifacts/{tid}_artifact.md"
+    artifact_path = f"audit/artifacts/{tid}_artifact.md"
 
     log(f"Starting AvA for activity {task_id}")
     log(f"Threshold: {threshold} | Output: {output_path}")
@@ -218,9 +218,9 @@ def run_ava(task_id):
     # Pre-authorise ALL output paths before any Claude call
     pre_authorise_paths(
         artifact_path,
-        f"runtime/prompts/{tid}_prompt.md",
-        f"runtime/ava_logs/{tid}_round1.md",
-        f"runtime/validation/{tid}_summary.md",
+        f"audit/prompts/{tid}_prompt.md",
+        f"audit/ava_logs/{tid}_round1.md",
+        f"audit/validation/{tid}_summary.md",
     )
     if output_path and output_path != "N/A" and output_path != "Multiple files":
         pre_authorise_paths(output_path)
@@ -243,7 +243,7 @@ def run_ava(task_id):
         # Get objections from previous round
         objections = ""
         if round_num > 1:
-            prev = rf(f"runtime/ava_logs/{tid}_round{round_num-1}.md")
+            prev = rf(f"audit/ava_logs/{tid}_round{round_num-1}.md")
             obj_m = re.search(r"OBJECTIONS:(.*?)(?=CORRECTIONS:|\Z)", prev, re.DOTALL)
             if obj_m:
                 objections = obj_m.group(1).strip()
@@ -255,7 +255,7 @@ def run_ava(task_id):
             log("Junior generating artifact...")
             junior_prompt = build_full_prompt(task_id, "JUNIOR", objections)
             # Save full prompt
-            wf(f"runtime/prompts/{tid}_prompt.md", junior_prompt)
+            wf(f"audit/prompts/{tid}_prompt.md", junior_prompt)
             junior_output = run_claude(junior_prompt)
 
             if not junior_output or junior_output.startswith("ERROR"):
@@ -289,7 +289,7 @@ def run_ava(task_id):
         ava_log = f"# AvA Log — Activity {task_id} Round {next_round}\n"
         ava_log += f"Timestamp: {datetime.now(timezone.utc).isoformat()}\n\n"
         ava_log += senior_output
-        wf(f"runtime/ava_logs/{tid}_round{next_round}.md", ava_log)
+        wf(f"audit/ava_logs/{tid}_round{next_round}.md", ava_log)
 
         if score >= threshold:
             verdict = "APPROVED"
@@ -327,7 +327,7 @@ def run_ava(task_id):
     else:
         summary += f"→ REJECTED {task_id} [reason]\n"
 
-    wf(f"runtime/validation/{tid}_summary.md", summary)
+    wf(f"audit/validation/{tid}_summary.md", summary)
 
     # Update activity status
     if verdict == "APPROVED":
