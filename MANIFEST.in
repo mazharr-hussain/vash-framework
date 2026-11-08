@@ -1,0 +1,4 @@
+graft method
+graft catalog
+graft scaffold
+global-exclude __pycache__ *.pyc
