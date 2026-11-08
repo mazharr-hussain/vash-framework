@@ -2,7 +2,7 @@
 
 - **ID:** ADR-002
 - **Title:** Freeze the VASH repository structure
-- **Status:** PROPOSED
+- **Status:** ACCEPTED
 - **Date:** 2026-11-06
 - **Activity:** 5.1 (vash_framework/platform/5-1_repo_structure.md), brought forward by owner decision
 - **Builds on:** ADR-001 (VASH as the application framework, PROPOSED)
