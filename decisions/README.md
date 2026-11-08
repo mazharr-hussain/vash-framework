@@ -1,4 +1,4 @@
-﻿# decisions/
+# decisions/
 
 This folder contains Architecture Decision Records (ADRs) for VASH 3.0.
 

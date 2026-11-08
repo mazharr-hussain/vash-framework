@@ -12,4 +12,4 @@ Example: 0.1_summary.md
 - Decision (APPROVED / FAIL)
 - Number of rounds taken
 - Key feedback from Senior review
-- Status written back to knowledge/activity_list.md
+- Status written back to plan/activity_list.md

@@ -1,7 +1,5 @@
 # VASH 3.0 — Freeze Lifecycle
 
-Amended by 2.6 (ADR-001) — PROPOSED
-
 How a project's stack is proposed, accepted, frozen, provisioned, and later changed.
 
 ## Who Decides

@@ -1,5 +1,4 @@
 # catalog/ai_models.md
-Amended by 2.6 (ADR-001 D7). PROPOSED: in force when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Purpose
 Reference for AI model routing. Read during Phase 3 activity 3.3 and when writing a project's

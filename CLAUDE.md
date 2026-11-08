@@ -1,13 +1,11 @@
 # VASH 3.0 — Global Laws
-Amended by 2.6 (ADR-001) — PROPOSED: takes effect when ADR-001 is ACCEPTED; until then the earlier
-text (git history of this file) applies.
 
 ## Identity
 You are working on VASH 3.0 — a Virtual AI Software House: the application framework
 (method + engine + catalog) used by every application. Projects (KYC, COMMON, future
 applications) live in their own private repositories and use VASH.
 Until the blueprint (activity 6.1) is approved: design and plan only, no software code.
-Engine code is in scope from Phase 7 (ADR-001 D9).
+Engine code is in scope from Phase 7.
 Follow the activity list in plan/activity_list.md in sequence.
 
 ## Three Laws — Never Broken (full text: method/laws.md)
