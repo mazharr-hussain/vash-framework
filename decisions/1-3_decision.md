@@ -1,6 +1,0 @@
-# Decision: Activity 1.3
-ID: 1.3
-NAME: scope
-DECISION: APPROVED
-DATE: 2026-05-11
-AVA_SCORE: 91/100

@@ -1,6 +1,0 @@
-# Decision: Activity 2.2
-ID: 2.2
-NAME: AvA protocol
-DECISION: APPROVED
-DATE: 2026-05-11
-AVA_SCORE: 93/100
