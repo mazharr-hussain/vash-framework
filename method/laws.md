@@ -42,14 +42,16 @@ R7 PROJECT FREEZING: A project loads only what its project-stack.json lists. The
    written by the engine from an ACCEPTED ADR and never edited by hand.
 R8 CLOSED LOOP: Every novel pipeline failure becomes a deterministic check with a regression
    fixture. Improvements found in a project return to VASH only as generic, cleaned rules.
-R9 VENDOR-NATIVE STATE: Project state lives in GitHub Issues and Projects, read and written
-   through the official GitHub CLI / API. No third-party sync tools.
+R9 VENDOR-NATIVE STATE: Project state lives on the chosen git host, read and written through
+   the forge adapter. No third-party sync tools.
+   (Amended by 5.1 / ADR-002 — PROPOSED)
 R10 COST METER: Hosted minutes, storage and tokens are measured every run; warn at 70 %,
    switch private projects' jobs to the self-hosted runner at 90 %.
 R11 CANARY: The Critic is periodically tested with a planted defect; a missed canary invalidates
    the round's score.
 R12 REUSE POOLING TOOLS: LLM pooling and failover use a vetted open-source tool; no custom
-   routing logic.
+   routing logic. One configured fallback route (local Ollama).
+   (Amended by 5.1 / ADR-002 — PROPOSED)
 R13 HARDWARE REALITY: Local AI fits the OCI Always Free A1 allowance; one heavy job at a time.
 R14 FIX-LOOP CAP: At most 3 automatic fix attempts, then escalation to the human.
 

@@ -1,10 +1,10 @@
-﻿# Checklist: AvA Validation
+# Checklist: AvA Validation
 
 Use this checklist when running the Agent vs Agent (AvA) review loop.
 
 ## Setup
-- [ ] Junior artifact is saved at untime/artifacts/[task_id]_artifact.md
-- [ ] Prompt is saved at untime/prompts/[task_id]_prompt.md
+- [ ] Junior artifact is saved at audit/artifacts/[task_id]_artifact.md
+- [ ] Prompt is saved at audit/prompts/[task_id]_prompt.md
 - [ ] Round number tracked (max 3 rounds)
 
 ## Senior review criteria
@@ -17,7 +17,7 @@ Use this checklist when running the Agent vs Agent (AvA) review loop.
 ## Scoring
 - [ ] Score assigned out of 100
 - [ ] Score meets or exceeds activity threshold
-- [ ] AvA log saved at untime/ava_logs/[task_id]_round[n].md
+- [ ] AvA log saved at audit/ava_logs/[task_id]_round[n].md
 
 ## Decision
 - [ ] APPROVED — score meets threshold, proceed
