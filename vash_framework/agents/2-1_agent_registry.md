@@ -1,9 +1,10 @@
 # VASH 3.0 — Agent Registry
+Amendments marked "Amended by 2.6" are PROPOSED: they take effect when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## Design Principles
 - Every role has a Junior (generator) and Senior (reviewer) persona
 - Junior and Senior run in isolated context windows — no shared memory
-- Model selection follows LAW 1: Claude only for VASH development
+- Model selection follows the pool configuration and rule R4 (Amended by 2.6); Claude for VASH's own development until the owner changes it (OD-1)
 - Roles are technology-agnostic — no stack hardcoded in any definition
 - Each role has a defined skill set drawn from .claude/skills/
 
@@ -102,7 +103,7 @@
 
 **AvA Role:** Jr produces UX spec, Sr reviews against user needs
 
-**Threshold:** 85
+**Threshold:** 88 (floor, Amended by 2.6)
 
 **Accountability:** Every user interaction has a defined flow. Accessibility requirements documented.
 
@@ -216,14 +217,20 @@
 | 2 | Prompt Engineer | 88 | prompt-engineer | Both Jr and Sr |
 | 3 | Business Analyst | 88 | code-reviewer | Both Jr and Sr |
 | 4 | Solution Architect | 90 | senior-architect | Both Jr and Sr |
-| 5 | UI/UX Designer | 85 | code-reviewer | Both Jr and Sr |
+| 5 | UI/UX Designer | 88 (floor, 2.6) | code-reviewer | Both Jr and Sr |
 | 6 | Software Engineer | 88 | code-reviewer | Both Jr and Sr |
 | 7 | Data Engineer | 88 | code-reviewer | Both Jr and Sr |
 | 8 | AI/ML Engineer | 90 | senior-architect | Both Jr and Sr |
 | 9 | QA Engineer | 88 | code-reviewer | Both Jr and Sr |
 | 10 | DevOps Engineer | 88 | senior-architect | Both Jr and Sr |
 
-## Model Assignment (VASH Development)
-Junior sessions: Claude Haiku — fast generation
-Senior sessions: Claude Sonnet — best review quality
-All models: Claude only — LAW 1 compliance
+## Model Assignment (Amended by 2.6, ADR-001 D7)
+Model names are never fixed in role definitions. They come from the pool configuration (VASH) or the
+project's project-stack.json (projects).
+- Junior / Coder: free-tier pool route.
+- Senior / Critic: free-tier pool route on a **different vendor** from the Junior / Coder (rule R4).
+- Intake and any client data: local model only (rule R2).
+- Fallback when the free tiers are exhausted: local model.
+Owner exception (OD-1): while the owner keeps Claude for VASH's own development, Junior and Senior
+may run on the existing Claude tooling; independence is then by isolated context (and, preferably, by
+different models), and this is recorded as a known limitation in each AvA log.

@@ -1,4 +1,5 @@
 # VASH 3.0 — Scope and Boundaries
+Amendments marked "Amended by 2.6" are PROPOSED: they take effect when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## IN SCOPE — What VASH Does
 
@@ -35,9 +36,10 @@
 
 ## OUT OF SCOPE — What VASH Does NOT Do
 
-### Source Code Production (Phase 1 of VASH)
-VASH 3.0 produces design artifacts only.
-Actual source code generation is a future phase (VASH 4.0).
+### Source Code Production (Amended by 2.6, ADR-001 D9)
+Until the blueprint (6.1) is approved, VASH produces design artifacts only.
+From Phase 7 — Engine Build, VASH builds its own engine code; projects' code is then built by the
+engine inside each project's private repository, under the same AvA loop.
 
 ### Infrastructure Provisioning
 VASH produces IaC templates and runbooks.
@@ -63,21 +65,27 @@ Actual vendor selection, negotiation, and contracting is human work.
 
 ## CONSTRAINTS
 
-### Technology Constraint
-All VASH development uses Claude + GitHub + Python only.
-No other development tools regardless of quality or convenience.
+### Technology Constraint (Amended by 2.6)
+VASH development uses GitHub + Python + open-source tools from the VASH catalog.
+AI work runs on pooled free-tier LLMs and local models; the existing Claude tooling is kept for VASH's
+own development until the owner changes it (OD-1).
+Each project's technology is decided by VASH with the human (ADR) and frozen in the project's
+project-stack.json.
 
-### Cost Constraint
-VASH platform infrastructure must use free tier until VASH generates revenue.
-No paid platforms in the VASH engine itself.
+### Cost Constraint (Amended by 2.6)
+$0: open source and free tiers only, for the VASH engine and for every project. No paid SaaS.
+
+### Visibility Constraint (Added by 2.6)
+VASH is public. Client projects are private. No client data enters the VASH repository.
 
 ### Quality Constraint
 No artifact reaches the human without passing AvA.
 Minimum score thresholds are non-negotiable.
 
-### Scope Constraint
-VASH designs software — it does not write it (in 3.0).
-Any activity that produces runnable code is out of scope for this phase.
+### Scope Constraint (Amended by 2.6, ADR-001 D9)
+Until the blueprint (6.1) is approved, VASH designs software and does not write it; any activity that
+produces runnable code is out of scope until then. From activity-list Phase 7, CODE activities build
+the engine under the code checklist.
 
 ---
 
@@ -85,7 +93,7 @@ Any activity that produces runnable code is out of scope for this phase.
 
 1. The human owner has a clear product vision and can articulate it in a brief
 2. The GitHub repository is accessible and the OAuth token is valid
-3. Claude Pro subscription provides sufficient usage for development activities
+3. (Amended by 2.6) The pooled free tiers and the local model provide sufficient capacity for development activities — to verify in 3.3; Claude remains the main tooling for VASH's own development until the owner changes it (OD-1)
 4. The human owner can review and decide within 24 hours of notification
 5. All client projects submitted to VASH are legal and ethical
 
@@ -98,3 +106,12 @@ Any activity that produces runnable code is out of scope for this phase.
 - Guarantee the security of generated designs without human security review
 - Operate autonomously without any human oversight
 - Build itself (VASH cannot bootstrap itself from scratch — Phase 0 requires human setup)
+
+---
+
+## Amendment by 2.6 — In Scope Additions
+- The VASH catalog (ai-manifest.json) and stack packs (stacks/)
+- Deciding each project's stack with the human and writing its Freeze file (project-stack.json)
+- Provisioning project repositories (Freeze file, pinned VASH, workflows, audit folders)
+- From Phase 7: the engine (supervisor, deterministic gate tools, loader, cost meter, canary injector,
+  licence verifier, reusable workflows, IaC for the self-hosted runner)

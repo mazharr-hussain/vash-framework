@@ -5,7 +5,7 @@
 Each activity follows this structure:
 ID: [phase.number]
 NAME: [activity name]
-TYPE: [ARTIFACT / MANUAL]
+TYPE: [ARTIFACT / MANUAL / CODE]  (CODE added by 2.6, checklist checklists/code.md)
 PHASE: [phase name]
 PARALLEL_SAFE: [YES / NO]
 DEPENDS_ON: [activity IDs or NONE]
@@ -338,6 +338,20 @@ STATUS: PENDING
 ---
 
 ---
+ID: 2.6
+NAME: Re-baseline VASH as an application framework (Blueprint v8.2 merge)
+TYPE: ARTIFACT
+PHASE: Phase 2 — Agent Architecture
+PARALLEL_SAFE: NO
+DEPENDS_ON: 2.5
+DESCRIPTION: Merge the owner's Master Architecture Blueprint v8.2 into VASH. Define VASH as the application framework (method + engine + catalog; core / stack pack / project layers), the stack decision and freeze lifecycle (VASH proposes, human accepts, VASH writes project-stack.json and provisions), v8.2 Stages 0-10 mapped to VASH phases, the project-stack.json and ai-manifest.json contracts, target repository structures, public VASH / private projects quota and gate model, LLM strategy, hardware limits, resolution of findings C1-C11, ADR-001, amendments to approved artifacts, provisional Phase 7.
+OUTPUT_PATH: vash_framework/architecture/2-6_application_framework.md
+CHECKLIST: checklists/artifact.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
 
 ## Phase 3: Technology Decisions
 
@@ -347,8 +361,8 @@ NAME: Evaluate and decide AvA debate management platform
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: Review knowledge/tech_providers/platforms.md AvA options. Score each: free tier, open source, fits VASH. Select and justify. Free tier required.
+DEPENDS_ON: 2.6
+DESCRIPTION: Review knowledge/tech_providers/platforms.md AvA options. Score each: free tier, open source, fits VASH. Select and justify. Free tier required. Amended by 2.6: include the supervisor graph candidate named by Blueprint v8.2 (LangGraph), interrupt-based ADR gate, hard floor, fix-loop cap; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-1_ava_platform.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -361,8 +375,8 @@ NAME: Evaluate and decide human-in-loop platform
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: Review platform options for human approval channel. Select primary and fallback. Free tier confirmed. Document selection reasoning.
+DEPENDS_ON: 2.6
+DESCRIPTION: Review platform options for human approval channel. Select primary and fallback. Free tier confirmed. Document selection reasoning. Amended by 2.6: ADR file gate (PROPOSED -> ACCEPTED), merge gate per repository visibility and its residual risk (2.6 Section 8.3); dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-2_hitl_platform.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -375,8 +389,8 @@ NAME: Evaluate and decide AI model routing for client projects
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: Review knowledge/tech_providers/ai_models.md. Define routing rules for software BUILT BY VASH — not VASH dev itself. Jr models, Sr models, cost per task estimate.
+DEPENDS_ON: 2.6
+DESCRIPTION: Review knowledge/tech_providers/ai_models.md. Define routing rules for software BUILT BY VASH and (Amended by 2.6) optional free routes for VASH's own work (OD-1: Claude stays its main tooling until the owner changes it). Jr models, Sr models, cost per task estimate (under $0: free-tier quota and token use per task). Amended by 2.6: LAW 3 verification of the pooling tool named by v8.2 (freellmpool), Ollama (local), OpenRouter (free models), the free-claude-code harness bridge (AGPL run-only, provider terms for automated use; 2.6 MODIFY 1), a vetted local-fallback mechanism (R12: no custom failover logic), LiteLLM only as fallback candidate, different-vendor critic, local intake on Ollama, free-tier data-use terms, cost-meter token source; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-3_model_routing.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -389,8 +403,8 @@ NAME: Evaluate and decide infrastructure platform
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: Review knowledge/tech_providers/cloud_free_tier.md. Select compute, storage, DB for VASH engine platform. Free tier only. Justify each choice.
+DEPENDS_ON: 2.6
+DESCRIPTION: Review knowledge/tech_providers/cloud_free_tier.md. Select compute, storage, DB for VASH engine platform. Free tier only. Justify each choice. Amended by 2.6: OCI Always Free A1 and Autonomous Database, GitHub Free quotas public vs private, self-hosted runner charges, runner registration and host-wide lock, idle reclaim, A1 capacity; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-4_infrastructure.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -403,8 +417,8 @@ NAME: Decide state and memory management
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: How VASH manages pipeline state, agent memory, session context. Free tier options. Open source preferred. Document selection.
+DEPENDS_ON: 2.6
+DESCRIPTION: How VASH manages pipeline state, agent memory, session context. Free tier options. Open source preferred. Document selection. Amended by 2.6: GitHub Issues / Projects as vendor-native state, read-only status export, graph checkpoints; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-5_state_management.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -417,8 +431,8 @@ NAME: Decide storage and artifact management
 TYPE: ARTIFACT
 PHASE: Phase 3 — Technology Decisions
 PARALLEL_SAFE: YES
-DEPENDS_ON: 2.5
-DESCRIPTION: Where VASH artifacts, logs, results are stored. GitHub as primary. Backup strategy. Free tier. Document selection.
+DEPENDS_ON: 2.6
+DESCRIPTION: Where VASH artifacts, logs, results are stored. GitHub as primary. Backup strategy. Free tier. Document selection. Amended by 2.6: audit/ committed vs runtime/ git-ignored, GitHub Releases and OCI Object Storage for large outputs, 500 MB private storage limit; dependency changed to 2.6.
 OUTPUT_PATH: vash_framework/architecture/3-6_storage.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -450,7 +464,7 @@ TYPE: ARTIFACT
 PHASE: Phase 4 — Skills Architecture
 PARALLEL_SAFE: NO
 DEPENDS_ON: 3.7
-DESCRIPTION: Skill categories, naming conventions, versioning, single responsibility rule, no-AI-inside rule, reuse search requirement, skill dependency map.
+DESCRIPTION: Skill categories, naming conventions, versioning, single responsibility rule, no-AI-inside rule, reuse search requirement, skill dependency map. Amended by 2.6: include the VASH catalog (ai-manifest.json), stack-pack governance, allowed licences and the licence-verifier LAW 3 search.
 OUTPUT_PATH: vash_framework/skills/4-1_skills_governance.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -520,7 +534,7 @@ TYPE: ARTIFACT
 PHASE: Phase 4 — Skills Architecture
 PARALLEL_SAFE: YES
 DEPENDS_ON: 4.1
-DESCRIPTION: All test generation, chaos, performance, E2E skills with signatures, inputs, outputs.
+DESCRIPTION: All test generation, chaos, performance, E2E skills with signatures, inputs, outputs. Amended by 2.6: include the canary injector LAW 3 search (mutation-testing tools for code; design-artifact canaries).
 OUTPUT_PATH: vash_framework/skills/4-6_quality_skills.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -548,7 +562,7 @@ TYPE: ARTIFACT
 PHASE: Phase 4 — Skills Architecture
 PARALLEL_SAFE: YES
 DEPENDS_ON: 4.1
-DESCRIPTION: Domain pack schema, freshness rules, sensitivity levels, creation process, approval flow. Template for any industry.
+DESCRIPTION: Domain pack schema, freshness rules, sensitivity levels, creation process, approval flow. Template for any industry. Amended by 2.6: cover stack packs (e.g. oracle-apex) alongside domain packs.
 OUTPUT_PATH: vash_framework/skills/4-8_domain_pack.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -566,7 +580,7 @@ TYPE: ARTIFACT
 PHASE: Phase 5 — Platform Design
 PARALLEL_SAFE: YES
 DEPENDS_ON: 3.7
-DESCRIPTION: Final repo structure for VASH engine and all projects it will build. Folder hierarchy, naming conventions, file formats, branch strategy.
+DESCRIPTION: Final repo structure for VASH engine and all projects it will build. Folder hierarchy, naming conventions, file formats, branch strategy. Amended by 2.6: finalise 2-6_application_framework.md Section 7 (core and project repositories); complete the loader / provisioner LAW 3 search.
 OUTPUT_PATH: vash_framework/platform/5-1_repo_structure.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -580,7 +594,7 @@ TYPE: ARTIFACT
 PHASE: Phase 5 — Platform Design
 PARALLEL_SAFE: YES
 DEPENDS_ON: 3.7
-DESCRIPTION: Complete design: all workflows, triggers, scripts, Claude Code OAuth, AvA loop automation, parallel execution, notification flow.
+DESCRIPTION: Complete design: all workflows, triggers, scripts, Claude Code OAuth, AvA loop automation, parallel execution, notification flow. Amended by 2.6: finalise Section 8 (runner split, gates, reusable workflows); complete the action / dependency pinning LAW 3 search.
 OUTPUT_PATH: vash_framework/platform/5-2_gha_design.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 90
@@ -608,7 +622,7 @@ TYPE: ARTIFACT
 PHASE: Phase 5 — Platform Design
 PARALLEL_SAFE: YES
 DEPENDS_ON: 3.3
-DESCRIPTION: LiteLLM or equivalent config for software built BY VASH. Routing rules, fallback chains, cost tracking, health monitoring.
+DESCRIPTION: pooling tool or equivalent config for software built BY VASH. Routing rules, fallback chains, cost tracking, health monitoring. Amended by 2.6: route through the pooling tool chosen in 3.3 (no LiteLLM default), critic on a different vendor, local intake.
 OUTPUT_PATH: vash_framework/platform/5-4_model_router.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -636,7 +650,7 @@ TYPE: ARTIFACT
 PHASE: Phase 5 — Platform Design
 PARALLEL_SAFE: YES
 DEPENDS_ON: 3.7
-DESCRIPTION: How VASH tracks token costs per client project, enforces budget limits, alerts on overruns, reports usage.
+DESCRIPTION: How VASH tracks token costs per client project, enforces budget limits, alerts on overruns, reports usage. Amended by 2.6: the cost meter of 2.6 Section 8.4 (GitHub minutes and storage, tokens, A1 load; 70 % warn, 90 % switch). Amended by 2.6: complete the cost-meter LAW 3 search (GitHub billing usage API, pooling tool quota tracking).
 OUTPUT_PATH: vash_framework/platform/5-6_cost_tracking.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
@@ -686,5 +700,161 @@ DESCRIPTION: Define the first real project VASH will build when operational. Sco
 OUTPUT_PATH: vash_framework/blueprint/6-3_first_project.md
 CHECKLIST: checklists/artifact.md
 THRESHOLD: 88
+STATUS: PENDING
+---
+
+## Phase 7: Engine Build — activity-list phase (PROVISIONAL — added by 2.6, confirmed or changed by 6.2; not SDLC Phase 7)
+
+---
+ID: 7.1
+NAME: Prepare VASH for public visibility
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 6.2
+DESCRIPTION: Automated: full-history secret scan, MIT LICENSE, every action pinned to a commit SHA, safe workflow triggers, fine-grained token scopes checked. Human only: the visibility switch.
+OUTPUT_PATH: runtime/validation/7-1_summary.md
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
+ID: 7.2
+NAME: Create the core repository structure
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.1
+DESCRIPTION: Create the VASH core layout of 2.6 Section 7.1 as finalised by 5.1 (method/, framework/, stacks/, skills/, external/, iac/, tests/, audit/), move today's runtime/ audit folders to audit/ and update the workflows' paths, create the initial ai-manifest.json (schema_version, licences_allowed[]), without loss of history.
+OUTPUT_PATH: repository root (the structure itself); record in audit/validation/7-2_summary.md
+CHECKLIST: checklists/code.md
+THRESHOLD: 88
+STATUS: PENDING
+---
+
+---
+ID: 7.3
+NAME: Freeze contract validator and Stage 0 check
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.2
+DESCRIPTION: Build the project-stack.json and ai-manifest.json validators and the Stage 0 check (versions, catalog ids, licences, critic vendor, thresholds, canary settings, ACCEPTED ADRs) with regression fixtures.
+OUTPUT_PATH: framework/tools/
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
+ID: 7.4
+NAME: Clean-slate loader and status export
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.3
+DESCRIPTION: Build the loader (shell and PowerShell, copy fallback when symbolic links are unavailable) that loads only frozen agents and skills, links tracked hooks and settings, generates CLAUDE.md, and exports read-only project status through the GitHub CLI; reuse the tools chosen in 5.1.
+OUTPUT_PATH: framework/loader/
+CHECKLIST: checklists/code.md
+THRESHOLD: 88
+STATUS: PENDING
+---
+
+---
+ID: 7.5
+NAME: Deterministic Gate 1 tools
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.3
+DESCRIPTION: Build Gate 1: artifact format and no-code checks, schema checks, secret scan, linters, each with regression fixtures (rule R8).
+OUTPUT_PATH: framework/tools/
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
+ID: 7.6
+NAME: A1 VM, self-hosted runner and local model
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.2
+DESCRIPTION: Terraform modules and the Always Free environment for the A1 VM: self-hosted runner registration (per 3.4), host-wide lock for one heavy job at a time, Ollama with one coder model, pinned ARM64 tools with checksums.
+OUTPUT_PATH: iac/
+CHECKLIST: checklists/code.md
+THRESHOLD: 88
+STATUS: PENDING
+---
+
+---
+ID: 7.7
+NAME: LLM pool, independent critic and local intake
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.3, 7.6
+DESCRIPTION: Configure the pooling tool chosen in 3.3 (engine calls), the free-claude-code harness bridge if OD-7 is accepted (harness sessions), OpenRouter and other pool providers, the different-vendor critic route, local intake on the A1 model, the local fallback, and make the AvA scripts able to use two model routes (Junior and Senior on different vendors; required for projects, optional for VASH's own work under OD-1).
+OUTPUT_PATH: framework/pool/
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
+ID: 7.8
+NAME: Supervisor graph with ADR gate and fix-loop cap
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.5, 7.7
+DESCRIPTION: Build the supervisor flow (Supervisor, Prompt Engineer, Junior / Coder, Gate 1, Senior / Critic) with the ADR human gate, hard floor and MAX_RETRIES = 3; align the AvA scripts: no stalemate auto-approve, CODE activity type.
+OUTPUT_PATH: framework/supervisor/
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
+STATUS: PENDING
+---
+
+---
+ID: 7.9
+NAME: Cost meter, canary injector, licence verifier
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.8
+DESCRIPTION: Build or configure the three tools of 2.6 Sections 3.3, 8.4 and 9.4 from the tools chosen in the LAW 3 searches (2.6 Section 14.2), with their audit outputs.
+OUTPUT_PATH: framework/tools/
+CHECKLIST: checklists/code.md
+THRESHOLD: 88
+STATUS: PENDING
+---
+
+---
+ID: 7.10
+NAME: Reusable workflows
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.9
+DESCRIPTION: Reusable GitHub workflows for projects: light jobs hosted, heavy jobs self-hosted with the host-wide lock, merge gate and scheduled audit job of 2.6 Section 8.3, all actions pinned by SHA.
+OUTPUT_PATH: .github/workflows/
+CHECKLIST: checklists/code.md
+THRESHOLD: 88
+STATUS: PENDING
+---
+
+---
+ID: 7.11
+NAME: First stack pack (oracle-apex) and KYC adoption
+TYPE: CODE
+PHASE: Phase 7 — Engine Build (activity list)
+PARALLEL_SAFE: NO
+DEPENDS_ON: 7.10
+DESCRIPTION: Build the oracle-apex stack pack from generic pipeline patterns (no client data) and adopt KYC through its own ADR 'Adopt existing stack' and project-stack.json in the KYC repository.
+OUTPUT_PATH: stacks/oracle-apex/
+CHECKLIST: checklists/code.md
+THRESHOLD: 90
 STATUS: PENDING
 ---

@@ -238,3 +238,28 @@ VASH 3.0 is complete when a solo founder submits a one-page product brief and re
 The measure of success is not agent capability. It is artifact quality: every document produced by VASH must be detailed enough that a competent engineering team can build from it without asking clarifying questions.
 
 ---
+
+---
+
+## Amendment by 2.6 — VASH as the Application Framework (ADR-001, 5 Nov 2026)
+
+This amendment is PROPOSED: it takes effect when ADR-001 is ACCEPTED, and then supersedes the statements above where they conflict. Full detail:
+vash_framework/architecture/2-6_application_framework.md.
+
+1. **What VASH is.** VASH is the application framework used by every application: the method
+   (laws, AvA, roles, groups, handshakes, SDLC phases), the engine (built in Phase 7) and the catalog
+   (vetted stack packs, skills, agents and tools). Projects such as KYC and COMMON live in their own
+   private repositories and use a pinned VASH version.
+2. **Who decides a project's stack.** VASH's agents propose the stack, skills, agents and tools from the
+   catalog; the human accepts the ADR; VASH writes the project's Freeze file (project-stack.json) and
+   provisions the project repository.
+3. **Cost.** The "Current VASH stack compliance" statement in the LAW 1 section above ("Claude AI (VASH
+   development tooling — explicitly permitted by LAW 1)") is superseded: LAW 1
+   now requires $0 through pooled free tiers and local models. VASH's own development uses Claude as
+   its main AI tooling until the owner changes it (owner decision OD-1, 5 Nov 2026).
+4. **Evolution.** The step from design to code ("V4.0" above) is brought into VASH 3.x as activity-list
+   Phase 7 — Engine Build, after the blueprint (6.1) is approved. The V4.0 entry condition above ("not
+   started until V3.0 has produced at least one complete client project") is replaced by "after 6.1 is
+   approved" (D9, OD-5); the engine is needed to deliver the first project. Projects' code is built by the engine under the
+   same AvA loop, with a deterministic Gate 1 before every Senior review.
+5. **Visibility.** VASH is public (MIT). Client projects are private. No client data enters VASH.

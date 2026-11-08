@@ -1,4 +1,5 @@
 # VASH 3.0 — AvA Protocol Rulebook
+Amendments marked "Amended by 2.6" are PROPOSED: they take effect when ADR-001 is ACCEPTED; until then the earlier text (git history) applies.
 
 ## What Is AvA
 
@@ -11,8 +12,11 @@ Agent vs Agent (AvA) is the adversarial quality control mechanism built into eve
 This runs inside every single activity automatically.
 
 ### Participants
-- **Junior Creator:** Generates the artifact. Uses Claude Haiku for VASH development.
-- **Senior Validator:** Reviews the artifact adversarially. Uses Claude Sonnet for VASH development.
+- **Junior Creator:** Generates the artifact. Model from the pool configuration (Amended by 2.6).
+- **Senior Validator:** Reviews the artifact adversarially. Runs on a different vendor from the Junior
+  (rule R4); owner exception for VASH's own development while it uses Claude (OD-1): same vendor
+  allowed, isolated contexts, preferably different models, canary checks once the injector exists
+  (7.9).
 
 ### Flow
 ```
@@ -20,6 +24,9 @@ ROUND N:
 1. Junior receives locked prompt from Prompt Engineer
 2. Junior generates artifact
 3. Artifact saved to runtime/drafts/[task_id]_draft.md
+3a. Gate 1 (deterministic, Amended by 2.6): format, required sections, links, schema, secret scan,
+    no-code check for design artifacts; for code, tests and linters. A Gate 1 failure returns to the
+    Junior with the failure list; the Senior is not invoked and the round is not scored.
 4. Senior receives artifact + checklist (no Junior context)
 5. Senior scores 0-100 and lists objections
 6. Score saved to runtime/ava_logs/[task_id]_round[n].md
@@ -28,6 +35,7 @@ EVALUATE:
 Score ≥ threshold → APPROVED → artifact promoted to runtime/artifacts/
 Score < threshold AND round < 3 → Junior addresses objections → repeat
 Round = 3 → stalemate check
+Round = 3, below threshold, no stalemate → ESCALATE to human, never APPROVED (Amended by 2.6)
 ```
 
 ### Scoring Rules
@@ -40,10 +48,10 @@ Round = 3 → stalemate check
 ### Stalemate Detection
 Triggered when score improvement < 3 points over 2 consecutive rounds.
 
-| Score + Stalemate | Action |
+| Score + Stalemate | Action (Amended by 2.6 — no approval below threshold, rule R5) |
 |-------------------|--------|
-| ≥ 80 | AUTO-APPROVE with warning flag |
-| 70-79 | ESCALATE to human |
+| ≥ threshold | APPROVED (normal rule) |
+| 70 to below threshold | ESCALATE to human with the score trend |
 | < 70 | FAIL — rebuild from scratch |
 
 ### Thresholds By Artifact Type
@@ -59,9 +67,12 @@ Triggered when score improvement < 3 points over 2 consecutive rounds.
 | Platform design | 88 | High importance |
 | Process / workflow | 88 | High importance |
 | Skills catalog | 88 | High importance |
-| Manual step plan | 85 | Standard |
-| Stakeholder map | 85 | Standard |
-| Reference document | 85 | Standard |
+| Manual step plan | 88 | Standard (raised to the floor by 2.6) |
+| Stakeholder map | 88 | Standard (raised to the floor by 2.6) |
+| Reference document | 88 | Standard (raised to the floor by 2.6) |
+
+Floor (Amended by 2.6, rule R5): no threshold is below 88. Thresholds are read from the activity list
+(VASH) or the project's project-stack.json (projects); a value below 88 is refused by Stage 0. The floor applies from activity 2.6 onward; completed activities keep their recorded thresholds.
 
 ---
 
@@ -127,6 +138,15 @@ SUMMARY: [2 plain English sentences]
 
 ---
 
+## Canary Checks (Added by 2.6, rule R11)
+- At the interval set in the pool configuration (VASH) or project-stack.json (projects), the canary
+  injector plants a known defect in a copy of the artifact under review.
+- The Senior must report it as an objection. A missed canary invalidates that round's score and is
+  recorded in the AvA log (CANARY: CAUGHT / MISSED).
+- Two missed canaries in a row escalate the Senior route to the human for change.
+
+---
+
 ## Escalation Protocol
 
 ### Auto-Escalation Triggers
@@ -169,6 +189,10 @@ LAWS:
 LAW1 VANILLA: PASS/FAIL — [reason]
 LAW2 AGENT: PASS/FAIL — [reason]
 LAW3 SKILLS: PASS/FAIL — [reason]
+
+GATE1: PASS/FAIL — [checks run]
+SENIOR_ROUTE: [vendor / model]   JUNIOR_ROUTE: [vendor / model]
+CANARY: NONE / CAUGHT / MISSED
 
 OBJECTIONS:
 OBJ-001: [issue at exact location in artifact]
