@@ -23,15 +23,15 @@ Uses multi-agent-patterns skill for loop structure.
 STEP 1: PROMPT
 Invoke: prompt-engineer skill
 Input: activity ID
-Output: locked prompt saved to runtime/prompts/
+Output: locked prompt saved to audit/prompts/
 
 STEP 2: CREATE (Junior)
 Invoke: vash-creator skill with locked prompt
-Output: artifact saved to runtime/artifacts/
+Output: artifact saved to audit/artifacts/
 
 STEP 3: VALIDATE (Senior)
 Invoke: vash-validator skill
-Output: score and verdict in runtime/ava_logs/
+Output: score and verdict in audit/ava_logs/
 
 STEP 4: EVALUATE
 Read score from ava_log.
@@ -50,9 +50,9 @@ IF no stalemate → continue loop
 IF round = 3 AND score < threshold AND no stalemate → ESCALATE to human (never APPROVED)
 
 STEP 6: FINAL SAVE
-Move artifact from runtime/drafts/ to runtime/artifacts/
-Write summary to runtime/validation/[task_id]_summary.md
-Update STATUS in knowledge/activity_list.md
+Move artifact from runtime/drafts/ to audit/artifacts/
+Write summary to audit/validation/[task_id]_summary.md
+Update STATUS in plan/activity_list.md
 ```
 
 ## Parallel Activity Orchestration
@@ -85,7 +85,7 @@ TYPE: [ARTIFACT/MANUAL]
 AVA ROUNDS: [n]
 SCORE: [score]/100
 VERDICT: [APPROVED/MODIFY/FAIL]
-ARTIFACT: runtime/artifacts/[task_id]_artifact.md
+ARTIFACT: audit/artifacts/[task_id]_artifact.md
 
 SUMMARY: [2 plain English sentences]
 

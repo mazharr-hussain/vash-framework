@@ -18,9 +18,9 @@ LAW 2: Every prompt must specify automation-first approach.
 LAW 3: Every prompt must require search documentation.
 
 ## Before Generating
-1. Read the current activity from knowledge/activity_list.md
-2. Read knowledge/laws.md
-3. Read the relevant checklist from knowledge/checklists/
+1. Read the current activity from plan/activity_list.md
+2. Read method/laws.md
+3. Read the relevant checklist from method/ava/checklists/
 4. Read any DEPENDS_ON artifacts for context
 
 ## Generating The Prompt
@@ -35,5 +35,5 @@ A good prompt includes:
 - Output format specified
 
 ## Output
-Save prompt to: runtime/prompts/[task_id]_prompt.md
+Save prompt to: audit/prompts/[task_id]_prompt.md
 Report: PROMPT LOCKED | Score: [self-score] | Ready for Junior

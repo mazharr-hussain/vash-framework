@@ -26,7 +26,7 @@ Apply all 9 for every VASH artifact:
 6. STRUCTURE — Clear, logical, actionable sections?
 7. SPECIFICITY — Concrete decisions, no vague statements?
 8. CONSISTENCY — No contradictions with existing artifacts?
-9. OUTPUT PATH — Saved to correct runtime/ location?
+9. OUTPUT PATH — Saved to correct audit/ location?
 
 ## Scoring Rubric
 - 90-100: Excellent — all 9 checks pass
@@ -36,7 +36,7 @@ Apply all 9 for every VASH artifact:
 - Below 60: Unacceptable — FAIL, rebuild required
 
 ## Output Format
-Save to: runtime/ava_logs/[task_id]_round[n].md
+Save to: audit/ava_logs/[task_id]_round[n].md
 
 ```
 SCORE: [0-100]

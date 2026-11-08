@@ -14,6 +14,6 @@ Auto-merge after AvA passes threshold.
 Delete branch after merge.
 
 ## File Protection Rules
-Never commit to knowledge/ without human approval.
-Always commit runtime/ files together as one commit.
-knowledge/laws.md is read-only — never modify.
+Never commit to method/ without human approval.
+Always commit audit/ files together as one commit.
+method/laws.md is read-only — never modify.

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'runtime/validation/**_summary.md'
+      - 'audit/validation/**_summary.md'
 
 jobs:
   notify-human:
@@ -21,7 +21,7 @@ jobs:
       - name: Find new summary files
         id: find
         run: |
-          NEW=$(git diff --name-only HEAD~1 HEAD | grep 'runtime/validation/.*_summary\.md' | head -1)
+          NEW=$(git diff --name-only -M --diff-filter=A HEAD~1 HEAD | grep 'audit/validation/.*_summary\.md' | head -1)
           echo "summary_file=$NEW" >> $GITHUB_OUTPUT
           TASK_ID=$(echo "$NEW" | grep -oP '[0-9]+-[0-9]+' | head -1 | tr '-' '.')
           echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT

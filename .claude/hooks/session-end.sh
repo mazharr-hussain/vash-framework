@@ -5,7 +5,7 @@
 # Logs session completion
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-SESSION_LOG="runtime/ava_logs/session_log.md"
+SESSION_LOG="runtime/session_log.md"
 
 # Create log if it does not exist
 if [ ! -f "$SESSION_LOG" ]; then
@@ -17,9 +17,9 @@ fi
 echo "## Session Ended: $TIMESTAMP" >> "$SESSION_LOG"
 
 # Check if prompt was saved for last task
-PROMPT_COUNT=$(find runtime/prompts/ -name "*.md" 2>/dev/null | wc -l)
-ARTIFACT_COUNT=$(find runtime/artifacts/ -name "*.md" 2>/dev/null | wc -l)
-AVA_COUNT=$(find runtime/ava_logs/ -name "*_round*.md" 2>/dev/null | wc -l)
+PROMPT_COUNT=$(find audit/prompts/ -name "*.md" 2>/dev/null | wc -l)
+ARTIFACT_COUNT=$(find audit/artifacts/ -name "*.md" 2>/dev/null | wc -l)
+AVA_COUNT=$(find audit/ava_logs/ -name "*_round*.md" 2>/dev/null | wc -l)
 
 echo "- Prompts saved: $PROMPT_COUNT" >> "$SESSION_LOG"
 echo "- Artifacts saved: $ARTIFACT_COUNT" >> "$SESSION_LOG"

@@ -22,10 +22,10 @@ Uses code-reviewer skill internally for domain checks.
 
 ### Step 1: Read Context (minimal)
 ```
-Read: knowledge/activity_list.md (current activity only)
-Read: knowledge/checklists/artifact.md
-Read: knowledge/laws.md
-Read: runtime/artifacts/[task_id]_artifact.md
+Read: plan/activity_list.md (current activity only)
+Read: method/ava/checklists/artifact.md
+Read: method/laws.md
+Read: audit/artifacts/[task_id]_artifact.md
 DO NOT: read Junior session history
 DO NOT: load entire repo
 ```
@@ -52,7 +52,7 @@ Any code found in artifact → automatic FAIL
 ```
 
 ### Step 5: Save and Report
-Save to: runtime/ava_logs/[task_id]_round[n].md
+Save to: audit/ava_logs/[task_id]_round[n].md
 
 ```
 VASH VALIDATION RESULT

@@ -18,10 +18,10 @@ LAW 2: Reject anything that could be automated but was left manual.
 LAW 3: Reject anything that reinvents without documented search.
 
 ## Before Reviewing
-1. Read knowledge/laws.md
-2. Read the current activity from knowledge/activity_list.md
-3. Read the relevant checklist from knowledge/checklists/
-4. Read the artifact from runtime/artifacts/[task_id]_artifact.md
+1. Read method/laws.md
+2. Read the current activity from plan/activity_list.md
+3. Read the relevant checklist from method/ava/checklists/
+4. Read the artifact from audit/artifacts/[task_id]_artifact.md
 
 ## Reviewing The Artifact
 Run every checklist item. Mark PASS or FAIL.
@@ -32,7 +32,7 @@ Score 0-100 based on:
 - No code: design only, no implementation? (10%)
 
 ## Output Format
-Save to: runtime/ava_logs/[task_id]_round[n].md
+Save to: audit/ava_logs/[task_id]_round[n].md
 
 SCORE: [0-100]
 THRESHOLD: [from activity]

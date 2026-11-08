@@ -20,10 +20,10 @@ def wf(path, content):
     p.write_text(content, encoding="utf-8")
 
 def update_status(task_id, status):
-    content = rf("knowledge/activity_list.md")
+    content = rf("plan/activity_list.md")
     tid = re.escape(task_id)
     updated = re.sub(rf"(ID: {tid}.*?STATUS:)\s*\w+", rf"\1 {status}", content, flags=re.DOTALL)
-    wf("knowledge/activity_list.md", updated)
+    wf("plan/activity_list.md", updated)
 
 if not TASK_ID:
     print("No TASK_ID"); sys.exit(0)
@@ -33,7 +33,7 @@ tid = TASK_ID.replace(".", "-")
 # Find latest AvA log
 ava_log = ""
 for i in range(5, 0, -1):
-    log = rf(f"runtime/ava_logs/{tid}_round{i}.md")
+    log = rf(f"audit/ava_logs/{tid}_round{i}.md")
     if log:
         ava_log = log
         break
@@ -47,7 +47,7 @@ if ava_log:
     verdict = vm.group(1) if vm else "FAIL"
 
 # Get threshold
-activity = rf("knowledge/activity_list.md")
+activity = rf("plan/activity_list.md")
 tm = re.search(rf"ID: {re.escape(TASK_ID)}.*?THRESHOLD:\s*(\d+)", activity, re.DOTALL)
 threshold = int(tm.group(1)) if tm else 88
 
@@ -62,7 +62,7 @@ issues = obj_match.group(1).strip() if obj_match else "None"
 summary = f"# YOUR REVIEW - Activity {TASK_ID}\n\n"
 summary += f"**Score:** {score}/100 (threshold: {threshold})\n"
 summary += f"**Verdict:** {verdict}\n\n"
-summary += f"**Artifact:** runtime/artifacts/{tid}_artifact.md\n\n"
+summary += f"**Artifact:** audit/artifacts/{tid}_artifact.md\n\n"
 if issues and issues != "NONE":
     summary += f"**Issues Found:**\n{issues}\n\n"
 if verdict == "APPROVED":
@@ -73,7 +73,7 @@ else:
     summary += f"- REJECTED {TASK_ID} [reason]\n"
 summary += f"\nTimestamp: {datetime.now(timezone.utc).isoformat()}"
 
-wf(f"runtime/validation/{tid}_summary.md", summary)
+wf(f"audit/validation/{tid}_summary.md", summary)
 
 # Update status
 if verdict == "APPROVED":

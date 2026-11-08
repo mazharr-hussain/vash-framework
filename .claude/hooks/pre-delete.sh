@@ -1,14 +1,14 @@
 #!/bin/bash
 # VASH 3.0 — Pre Delete Hook
-# Blocks any deletion inside the knowledge/ folder
-# knowledge/ is read-only — laws, checklists, activity list must never be deleted
+# Blocks any deletion inside the method/ folder
+# method/ is read-only — laws and checklists must never be deleted
 # Fires before any file delete tool call
 
 FILE_PATH="${1:-unknown}"
 
-# Block deletions in knowledge/ folder
-if echo "$FILE_PATH" | grep -q "^knowledge/"; then
-    echo "BLOCKED: knowledge/ folder is read-only in VASH 3.0"
+# Block deletions in method/ folder
+if echo "$FILE_PATH" | grep -q "^method/"; then
+    echo "BLOCKED: method/ folder is read-only in VASH 3.0"
     echo "File: $FILE_PATH cannot be deleted"
     echo "To modify knowledge files submit a human-approved change"
     exit 1

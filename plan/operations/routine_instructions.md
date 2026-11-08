@@ -7,14 +7,14 @@ and present a clean human-readable summary for the owner to review.
 
 ## When You Run
 You run automatically when notify.yml triggers after a validation result
-is pushed to runtime/validation/ in the vash-framework repo.
+is pushed to audit/validation/ in the vash-framework repo.
 
 ## Your Workflow
 
 STEP 1: Read the trigger context
 The text field passed to you contains:
 TASK_ID: [id]
-SUMMARY_PATH: runtime/validation/[tid]_summary.md
+SUMMARY_PATH: audit/validation/[tid]_summary.md
 
 STEP 2: Read the summary file from GitHub
 Go to: github.com/mazharr-hussain/vash-framework

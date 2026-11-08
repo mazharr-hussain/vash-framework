@@ -3,7 +3,7 @@ name: VASH 3.0 Parallel Activities
 on:
   push:
     paths:
-      - 'runtime/triggers/parallel_**.md'
+      - 'plan/triggers/parallel_**.md'
 
 jobs:
   identify-parallel:
@@ -49,6 +49,6 @@ jobs:
         run: |
           git config user.name "VASH-3.0-Parallel"
           git config user.email "vash3@framework.ai"
-          git add runtime/ knowledge/activity_list.md
+          git add audit/ plan/
           git diff --staged --quiet || git commit -m "Parallel AvA: Task ${{ matrix.task_id }}"
           git push

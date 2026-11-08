@@ -28,7 +28,7 @@ ROUND 1:
 4. Save to runtime/drafts/[task_id]_draft.md
 5. Senior Validator receives artifact
 6. Senior reviews using code-reviewer skill
-7. Senior saves score to runtime/ava_logs/[task_id]_round1.md
+7. Senior saves score to audit/ava_logs/[task_id]_round1.md
 
 EVALUATE:
 - Score ≥ threshold → APPROVED → move to artifacts/

@@ -21,7 +21,7 @@ LAW 3: Search before build — reuse documented
 ## Your Workflow When Activated
 
 STEP 1: Read context only — nothing else
-Read from GitHub: runtime/validation/[task_id]_result.md
+Read from GitHub: audit/validation/[task_id]_result.md
 Read: the specific artifact that failed
 Read: failed checklist items only
 

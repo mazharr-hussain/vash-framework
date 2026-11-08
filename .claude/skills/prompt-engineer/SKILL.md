@@ -18,9 +18,9 @@ LAW 3: Reused existing skill — not built from scratch
 ## Prompt Generation Workflow
 
 ### Step 1: Read Context
-Read the current activity from knowledge/activity_list.md.
-Read knowledge/laws.md.
-Read the relevant checklist from knowledge/checklists/.
+Read the current activity from plan/activity_list.md.
+Read method/laws.md.
+Read the relevant checklist from method/ava/checklists/.
 
 ### Step 2: Apply Anthropic Best Practices
 - Be specific about what to produce
@@ -34,7 +34,7 @@ Every VASH prompt must include:
 ```
 ACTIVITY: [ID] — [Name]
 TYPE: [ARTIFACT/MANUAL]
-LAWS: [reference to knowledge/laws.md]
+LAWS: [reference to method/laws.md]
 TASK: [specific description of what to produce]
 CONTEXT: [relevant prior artifacts to read]
 OUTPUT FORMAT: [exact format required]
@@ -53,5 +53,5 @@ Before locking the prompt:
 If any answer is No — revise before locking.
 
 ### Step 5: Save
-Save locked prompt to: runtime/prompts/[task_id]_prompt.md
+Save locked prompt to: audit/prompts/[task_id]_prompt.md
 Report: PROMPT LOCKED | Path: [path] | Ready for Junior Creator

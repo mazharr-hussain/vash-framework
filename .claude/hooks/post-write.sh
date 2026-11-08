@@ -5,7 +5,7 @@
 
 FILE_PATH="${1:-unknown}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-LOG_FILE="runtime/ava_logs/session_write_log.md"
+LOG_FILE="runtime/session_write_log.md"
 
 # Create log file if it does not exist
 if [ ! -f "$LOG_FILE" ]; then
