@@ -19,7 +19,7 @@ scaffold as separate products. The owner and Claude designed the structure over 
 |---|---|
 | D1 | VASH's own review trail stays in this repository, committed under audit/; runtime/ is git-ignored scratch and is never committed. |
 | D2 | The project skeleton is scaffold/project/ (renamed from templates/project/); method/templates/ holds forms only and method/schemas/ the schemas. |
-| D3 | Package and command name vash (free on PyPI, checked 5 Nov 2026); semver from 3.0.0 shared by package, release tag and method; repository name vash3-framework. |
+| D3 | Package and command name vash (free on PyPI, checked 5 Nov 2026); semver from 3.0.0 shared by package, release tag and method; repository name vash-framework (owner decision 8 Nov 2026; was vash3-framework). |
 | D4 | The design-only stack pack is in wave 1 so VASH works for anyone with no technology chosen. VASH names no application. |
 | D5 | Technology independence and $0 outrank every other rule: every technology layer (stack, LLM, git host, CI/CD, cloud) is a catalog category with one adapter per option, chosen per project in project-stack.json; the core names no vendor. R9 becomes "the project's own git host, through the forge adapter". |
 | D6 | Pilots are the owner's private Oracle APEX projects, so the oracle-apex pack and the GitHub, GitHub Actions, OCI and LLM adapters are in wave 1; each pilot adopts VASH through its own ADR in its own repository. |

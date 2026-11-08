@@ -5,14 +5,14 @@
 
 # VASH Repository Structure
 
-Status: FROZEN by the owner on 6 Nov 2026 (v7, including decision D9). Changes only through a new owner decision. Repository: mazharr-hussain/vash3-framework (public, MIT).
+Status: FROZEN by the owner on 6 Nov 2026 (v7, including decision D9). Changes only through a new owner decision. Repository: mazharr-hussain/vash-framework (public, MIT).
 
 Written by: H = human owner · A = agent, reviewed through AvA · A→H = agent, then owner approval · E = engine (generated, no AI) · X = upstream project, pinned
 
 ## Overview
 
 ```
-vash3-framework/
+vash-framework/
 ├── (root files)            front door, licence, package, catalog index
 ├── method/                 ① THE METHOD   – how work is done and judged
 ├── catalog/                ② THE CATALOG  – every technology choice: stacks, LLM, git host, CI, cloud
@@ -338,4 +338,4 @@ VASH is its own first project, laid out exactly like any project made with vash 
 2. **Structure.** the four product areas, scaffold/project/, method/schemas/, plan/triggers/, tracked .claude/settings.json, GOVERNANCE.md
 3. **Rules.** the twelve design rules, starting with technology independence and $0, and including LLM route safety (R12 amendment) and project state on its own git host (R9 amendment)
 4. **Bootstrap and waves.** stages A–C and waves 1–3
-5. **Names.** package and command vash, semver from 3.0.0, repository vash3-framework
+5. **Names.** package and command vash, semver from 3.0.0, repository vash-framework (renamed from vash3-framework by owner decision, 8 Nov 2026)
