@@ -1,3 +1,0 @@
-# Decision: Activity 0.10
-DECISION: APPROVED
-DATE: 2026-05-11

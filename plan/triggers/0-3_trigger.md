@@ -1,4 +1,0 @@
-TASK_ID: 0.3
-ACTIVITY: Create .claude/agents definitions
-REQUESTED_BY: P1
-TIMESTAMP: 2026-05-19T09:12:55Z
