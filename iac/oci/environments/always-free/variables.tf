@@ -1,9 +1,36 @@
+variable "region" { type = string }
 variable "compartment_id" { type = string }
 variable "availability_domain" { type = string }
 variable "image_id" { type = string }
 variable "admin_cidr" { type = string }
 variable "ssh_public_key" { type = string }
+variable "oci_auth" {
+  type        = string
+  default     = "ApiKey"
+  description = "Provider auth: ApiKey (config file) or InstancePrincipal (Cloud Shell)."
+}
+variable "config_file_profile" {
+  type    = string
+  default = "DEFAULT"
+}
+variable "ocpus" {
+  type    = number
+  default = 2
+}
+variable "memory_in_gbs" {
+  type    = number
+  default = 12
+}
+variable "user_data" {
+  type    = string
+  default = ""
+}
+variable "create_database" {
+  type    = bool
+  default = false
+}
 variable "admin_password" {
   type      = string
+  default   = ""
   sensitive = true
 }

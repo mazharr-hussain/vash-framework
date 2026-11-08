@@ -1,0 +1,189 @@
+import json
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from vash.adapters.cloud.oci import adapter as tf_module
+from vash.adapters.cloud.oci.onboard import Onboarding, Options
+from vash.cli.main import main
+from vash.core.exceptions import AdapterNotInstalled, VashError
+
+TENANCY = "ocid1.tenancy.oc1..t"
+COMPARTMENT = "ocid1.compartment.oc1..c"
+ENV = {"OCI_CLI_CLOUD_SHELL": "True", "OCI_TENANCY": TENANCY, "OCI_REGION": "eu-frankfurt-1"}
+
+
+def done(stdout="", code=0, stderr=""):
+    return subprocess.CompletedProcess([], code, stdout=stdout, stderr=stderr)
+
+
+class FakeCloud:
+    """Answers the oci, ssh and ssh-keygen calls the onboarding makes."""
+
+    def __init__(self, quota=None, compartments=(), images=("ocid1.image.oc1..u",), ready="vash=vash 3.0.0"):
+        self.quota = quota or {"AD-1": (4, 24)}
+        self.compartments = list(compartments)
+        self.images = list(images)
+        self.ready = ready
+        self.calls = []
+
+    def __call__(self, args, **kwargs):
+        self.calls.append((args, kwargs))
+        if args[0] == "oci":
+            return done(json.dumps(self.oci(args[1:])))
+        if args[0] == "ssh-keygen":
+            key = Path(args[args.index("-f") + 1])
+            key.write_text("private")
+            key.with_suffix(".pub").write_text("ssh-ed25519 AAAA test")
+            return done()
+        if args[0] == "ssh":
+            if "cat /var/lib/vash/ready" in args[-1]:
+                return done(self.ready) if self.ready else done(code=255)
+            return done()
+        raise AssertionError(f"unexpected command {args}")
+
+    def oci(self, args):
+        if args[:3] == ["iam", "compartment", "list"]:
+            return {"data": [{"id": c} for c in self.compartments]}
+        if args[:3] == ["iam", "compartment", "create"]:
+            return {"data": {"id": COMPARTMENT}}
+        if args[:3] == ["iam", "availability-domain", "list"]:
+            return {"data": [{"name": ad} for ad in self.quota]}
+        if args[:3] == ["limits", "resource-availability", "get"]:
+            ad = args[args.index("--availability-domain") + 1]
+            cores, memory = self.quota[ad]
+            limit = args[args.index("--limit-name") + 1]
+            return {"data": {"available": cores if "core" in limit else memory}}
+        if args[:3] == ["compute", "image", "list"]:
+            return {"data": [{"id": i, "display-name": "Ubuntu-24.04-aarch64"} for i in self.images]}
+        raise AssertionError(f"unexpected oci call {args}")
+
+
+class FakeTerraform:
+    def __init__(self, capacity_fail=()):
+        self.capacity_fail = set(capacity_fail)
+        self.calls = []
+
+    def __call__(self, cmd, cwd=None, **kwargs):
+        self.calls.append((cmd, Path(cwd)))
+        if cmd[1] == "apply":
+            ad = json.loads((Path(cwd) / "terraform.tfvars.json").read_text())["availability_domain"]
+            if ad in self.capacity_fail:
+                return done(code=1, stderr="Error: 500-InternalError, Out of host capacity.")
+        if cmd[1] == "output":
+            return done(json.dumps({"runner_ip": {"value": "203.0.113.7"}}))
+        return done()
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    return tmp_path / "home"
+
+
+def make(cloud, home, **opts):
+    options = Options(admin_cidr="198.51.100.1/32", workdir=home / ".vash" / "oci", **opts)
+    return Onboarding(options, run=cloud, echo=lambda _m: None, sleep=lambda _s: None, env=ENV)
+
+
+def test_up_creates_vm_and_installs(home, monkeypatch):
+    cloud, tf = FakeCloud(), FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    assert make(cloud, home).up() == 0
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["compartment_id"] == COMPARTMENT
+    assert tfvars["availability_domain"] == "AD-1"
+    assert tfvars["oci_auth"] == "InstancePrincipal"
+    assert tfvars["admin_cidr"] == "198.51.100.1/32"
+    assert "@@" not in tfvars["user_data"]
+    assert "qwen2.5-coder:7b" in tfvars["user_data"]
+    assert [c[0][1] for c in tf.calls] == ["init", "apply", "output"]
+
+
+def test_existing_compartment_is_reused(home, monkeypatch):
+    cloud = FakeCloud(compartments=["ocid1.compartment.oc1..old"])
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home).up()
+    assert not any(a[0][1:4] == ["iam", "compartment", "create"] for a in cloud.calls)
+
+
+def test_no_quota_stops_before_creating(home, monkeypatch):
+    cloud, tf = FakeCloud(quota={"AD-1": (1, 6), "AD-2": (0, 0)}), FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    with pytest.raises(VashError, match="No availability domain"):
+        make(cloud, home).up()
+    assert tf.calls == []
+
+
+def test_capacity_error_moves_to_next_domain(home, monkeypatch):
+    cloud, tf = FakeCloud(quota={"AD-1": (4, 24), "AD-2": (4, 24)}), FakeTerraform(capacity_fail={"AD-1"})
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    assert make(cloud, home).up() == 0
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["availability_domain"] == "AD-2"
+
+
+def test_rerun_keeps_domain_and_image(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(FakeCloud(), home).up()
+    later = FakeCloud(quota={"AD-1": (0, 0)}, images=("ocid1.image.oc1..newer",))
+    assert make(later, home).up() == 0
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["image_id"] == "ocid1.image.oc1..u"
+    assert not any(a[0][1:3] == ["limits", "resource-availability"] for a in later.calls)
+
+
+def test_declined_confirmation_creates_nothing(home, monkeypatch):
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    onboarding = make(FakeCloud(), home)
+    onboarding.confirm = lambda _q: False
+    assert onboarding.up() == 1
+    assert tf.calls == []
+
+
+def test_runner_token_goes_through_stdin_only(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home, runner_repo="owner/app").up(runner_token=lambda: "SECRET-TOKEN")
+    register = [c for c in cloud.calls if c[0][0] == "ssh" and "config.sh" in c[0][-1]]
+    assert len(register) == 1
+    assert register[0][1]["input"] == "SECRET-TOKEN"
+    assert "SECRET-TOKEN" not in " ".join(register[0][0])
+    assert "https://github.com/owner/app" in register[0][0][-1]
+
+
+def test_vm_not_ready_times_out(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    with pytest.raises(VashError, match="did not finish"):
+        make(FakeCloud(ready=""), home, wait_minutes=1).up()
+
+
+def test_missing_oci_cli(home):
+    def missing(args, **kwargs):
+        raise FileNotFoundError(args[0])
+    with pytest.raises(AdapterNotInstalled):
+        make(missing, home).up()
+
+
+def test_down_without_state_does_nothing(home, monkeypatch):
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    assert make(FakeCloud(), home).down() == 0
+    assert tf.calls == []
+
+
+def test_down_destroys(home, monkeypatch):
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    onboarding = make(FakeCloud(), home)
+    onboarding.up()
+    assert onboarding.down() == 0
+    assert tf.calls[-1][0][1] == "destroy"
+
+
+def test_cli_unknown_cloud_is_not_available_yet(capsys):
+    assert main(["onboard", "no-such-cloud"]) == 0
+    assert "No onboarding" in capsys.readouterr().out

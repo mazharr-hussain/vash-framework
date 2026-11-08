@@ -14,3 +14,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Added the catalog, stack packs, scaffold and OCI IaC (Step 7).
 - Added VASH's own CI, templates and freeze (Step 8).
 - Packaged method, catalog and scaffold in the wheel; `pip install` works without `VASH_HOME`.
+- Added `vash onboard oci`: one Cloud Shell command creates the Always Free runner VM and installs VASH, terraform and Ollama.

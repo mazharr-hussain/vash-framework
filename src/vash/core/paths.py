@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-DATA_DIRS = ("method", "catalog", "scaffold")
+DATA_DIRS = ("method", "catalog", "scaffold", "iac")
 
 
 def vash_root() -> Path:

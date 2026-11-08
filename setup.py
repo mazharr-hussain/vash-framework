@@ -5,7 +5,7 @@ from pathlib import Path
 from setuptools import setup
 from setuptools.command.build_py import build_py
 
-DATA_DIRS = ("method", "catalog", "scaffold")
+DATA_DIRS = ("method", "catalog", "scaffold", "iac")
 
 
 class BuildWithData(build_py):
