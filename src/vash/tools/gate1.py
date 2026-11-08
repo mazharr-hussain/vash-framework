@@ -244,18 +244,18 @@ def _check_generated_files(path: Path, text: str, repo_root: Path) -> list[Findi
         rel = path.resolve().relative_to(repo_root.resolve())
     except ValueError:
         return []
-    if str(rel) not in ("CLAUDE.md", "ai-manifest.json"):
+    if str(rel) not in ("CLAUDE.md", "AGENTS.md", "ai-manifest.json"):
         return findings
 
     try:
-        from vash.loader.load import generate_claude_md
+        from vash.loader.load import generate_agents_md, generate_claude_md
         from vash.loader.manifest import generate_manifest
     except ImportError:
         return [Finding("G1-12", str(path), None, "skipped: loader not present", "Run after Step 6", "skipped")]
 
     try:
-        if str(rel) == "CLAUDE.md":
-            expected = generate_claude_md(repo_root)
+        if str(rel) in ("CLAUDE.md", "AGENTS.md"):
+            expected = generate_claude_md(repo_root) if str(rel) == "CLAUDE.md" else generate_agents_md(repo_root)
             if expected != text:
                 findings.append(Finding("G1-12", str(path), None, "Generated file out of sync", "Run vash load"))
         else:
@@ -265,6 +265,20 @@ def _check_generated_files(path: Path, text: str, repo_root: Path) -> list[Findi
     except Exception as e:
         findings.append(Finding("G1-12", str(path), None, f"Failed to generate: {e}", "Run vash load"))
     return findings
+
+def _check_skills_and_agents(path: Path, text: str, repo_root: Path) -> list[Finding]:
+    """G1-13: skills follow the Agent Skills standard (official skills-ref validator); agents follow VASH's neutral format."""
+    from vash.loader.skills import validate_agent, validate_skill
+
+    if path.name == "SKILL.md":
+        errors = validate_skill(path.parent)
+        if errors is None:
+            return [Finding("G1-13", str(path), None, "skipped: skills-ref not installed",
+                            "pip install 'vash[skills]'", "skipped")]
+        return [Finding("G1-13", str(path), None, e, "Follow the Agent Skills spec (agentskills.io)") for e in errors]
+    if path.parent.name == "agents" and path.name != "README.md" and path.suffix == ".md":
+        return [Finding("G1-13", str(path), None, e, "Follow method/templates/agent.md") for e in validate_agent(path)]
+    return []
 
 RULES = [
     Rule("G1-01", "Formatting", ("*",), _check_format, "Use LF, UTF-8, no BOM, no trailing spaces"),
@@ -277,7 +291,8 @@ RULES = [
     Rule("G1-08", "ADR headings", ("decisions/ADR-*.md",), _check_adr_headings, "Add missing sections"),
     Rule("G1-09", "Markdown links", ("*.md",), _check_markdown_links, "Fix broken links"),
     Rule("G1-10", "Artifact code", ("audit/artifacts/*.md",), _check_artifact_code_blocks, "Use text or mermaid"),
-    Rule("G1-12", "Generated files", ("CLAUDE.md", "ai-manifest.json"), _check_generated_files, "Run vash load"),
+    Rule("G1-12", "Generated files", ("CLAUDE.md", "AGENTS.md", "ai-manifest.json"), _check_generated_files, "Run vash load"),
+    Rule("G1-13", "Skills and agents", ("SKILL.md", "*.md"), _check_skills_and_agents, "Follow the Agent Skills spec"),
 ]
 
 def _load_extra_rules() -> list[Rule]:

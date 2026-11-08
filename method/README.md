@@ -5,7 +5,7 @@ The VASH method is how every activity in this repository is done and judged.
 ## Files
 
 **Laws and rules**
-- `laws.md` — three laws and platform rules R1-R14; single source of truth.
+- `laws.md` — three laws and platform rules R1-R15; single source of truth.
 
 **Agent vs Agent protocol**
 - `ava/protocol.md` — flow, Gate 1, scoring, verdict and stalemate tables, floor, canary, OD-1, log format.
@@ -36,6 +36,8 @@ The VASH method is how every activity in this repository is done and judged.
 - `templates/activity.md` — activity entry (ID, TYPE, DEPENDS_ON, THRESHOLD).
 - `templates/prompt.md` — locked prompt.
 - `templates/ava-log.md` — AvA round log.
+- `templates/skill.md` — new skill (Agent Skills standard, SKILL.md); used by `vash skill new`.
+- `templates/agent.md` — new agent (VASH neutral format); used by `vash agent new`.
 
 **Schemas**
 - `schemas/project-stack.schema.json` — project-stack.json freeze file.

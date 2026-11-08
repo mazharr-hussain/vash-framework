@@ -1,6 +1,15 @@
 ---
 name: senior-architect
 description: Review architecture decisions and technology selections for VASH 3.0. Use during Phase 3 technology decisions, Phase 5 platform design, and any artifact involving infrastructure, platform, or technology choices. Adapted from alirezarezvani/claude-skills.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/senior-architect
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
+  vash-upstream: github.com/alirezarezvani/claude-skills
 ---
 
 # Senior Architect Skill

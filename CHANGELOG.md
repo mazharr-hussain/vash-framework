@@ -16,3 +16,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Packaged method, catalog and scaffold in the wheel; `pip install` works without `VASH_HOME`.
 - Added `vash onboard oci`: one Cloud Shell command creates the Always Free runner VM and installs VASH, terraform and Ollama.
 - Added iteration mode (agile delivery): optional `delivery` block in the freeze, FEATURE activities with their checklist, and `feature:`/`iteration:` traced in every AvA log.
+- Added portable skills and agents: `vash skill new|validate|suggest`, `vash agent new`, project skills/ and agents/, AGENTS.md and .agents/skills/ for every coding tool, skills in prompts for plain model APIs, Gate 1 rule G1-13 (official skills-ref validator) and rule R15.

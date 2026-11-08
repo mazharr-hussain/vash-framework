@@ -26,6 +26,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_cost.add_argument("--repo", type=Path, default=Path.cwd())
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
+    for kind in ("skill", "agent"):
+        p_kind = subparsers.add_parser(kind, help=f"Create or check {kind}s (portable, Agent Skills standard)")
+        kind_sub = p_kind.add_subparsers(dest="action", required=True)
+        p_new = kind_sub.add_parser("new", help=f"Create a {kind} from the template")
+        p_new.add_argument("name")
+        p_new.add_argument("--description", required=True, help="What it does and when to use it")
+        p_new.add_argument("--searched", default="to-record", help="LAW 3: what was searched first")
+        p_new.add_argument("--catalog", action="store_true", help="Create it in the VASH catalog, not the project")
+        p_new.add_argument("--repo", type=Path, default=Path.cwd())
+        p_val = kind_sub.add_parser("validate", help="Validate every skill and agent")
+        p_val.add_argument("--repo", type=Path, default=Path.cwd())
+        if kind == "skill":
+            p_sug = kind_sub.add_parser("suggest", help="Rule R15: propose skills for repeated work")
+            p_sug.add_argument("--repo", type=Path, default=Path.cwd())
+            p_sug.add_argument("--min", type=int, default=3, help="Repetitions that make a skill")
+            p_sug.add_argument("--similarity", type=float, default=0.8)
+            p_sug.add_argument("--open-issues", action="store_true", help="Open one issue per proposal")
+            p_sug.add_argument("--label", action="append", help="Label for the opened issues")
     p_onboard = subparsers.add_parser("onboard", help="Create a cloud runner VM with VASH installed")
     p_onboard.add_argument("cloud", help="Cloud adapter id from the catalog")
     p_onboard.add_argument("--down", action="store_true", help="Remove what onboarding created")
@@ -67,6 +85,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "status":
             from vash.cli.status import run
             return run(args.repo)
+        elif args.command in ("skill", "agent"):
+            from vash.cli import skill as skill_cli
+            if args.action == "new":
+                return skill_cli.new_skill(args) if args.command == "skill" else skill_cli.new_agent(args)
+            if args.action == "validate":
+                return skill_cli.validate(args)
+            return skill_cli.suggest(args)
         elif args.command == "onboard":
             from vash.cli.onboard import run
             return run(args)

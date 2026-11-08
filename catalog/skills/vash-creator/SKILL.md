@@ -1,6 +1,14 @@
 ---
 name: vash-creator
 description: Generate VASH artifacts as Junior Creator. Use when starting any VASH activity that requires producing a new artifact. Reads activity from plan/activity_list.md, applies three laws, produces full artifact, saves to audit/artifacts/. Built custom — no marketplace equivalent for VASH-specific artifact generation.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/vash-creator
+  vash-use: run
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # VASH Creator Skill (Junior Role)
