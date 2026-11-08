@@ -26,9 +26,9 @@ Reuse over reinvent. Check licences.
 Document what was searched and what was found.
 
 ## Platform Rules
-R1-R14 in method/laws.md (isolation, privacy, deterministic first, independent critic,
+R1-R15 in method/laws.md (isolation, privacy, deterministic first, independent critic,
 hard floor, MCP-only writes, freezing, closed loop, vendor-native state, cost meter, canary,
-pooling tools, hardware, fix-loop cap).
+pooling tools, hardware, fix-loop cap, repeated work becomes a skill).
 
 ## Public Repository
 This repository will be public (activity 7.1). Write it as if it already were: never write client

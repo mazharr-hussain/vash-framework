@@ -1,15 +1,15 @@
 ---
-id: prompt-engineer
-type: agent
-source: catalog/agents/prompt-engineer.md
-licence: MIT
-use: fork
-version: 1.0.0
-commit: to-verify
-status: candidate
 name: prompt-engineer
 description: Generates optimised locked prompts for VASH activities. Use before any Junior Creator session. Produces prompts that are unambiguous, context-rich, and enforce VASH laws.
 tools: read_file, write_file, list_files
+metadata:
+  vash-type: agent
+  vash-source: catalog/agents/prompt-engineer.md
+  vash-licence: MIT
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # Prompt Engineer Agent

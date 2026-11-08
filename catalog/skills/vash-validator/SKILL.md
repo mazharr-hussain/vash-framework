@@ -1,6 +1,14 @@
 ---
 name: vash-validator
 description: Review and score VASH artifacts as Senior Validator. Use after vash-creator produces an artifact. Runs adversarial review with no memory of how Junior produced the artifact. Scores 0-100 against VASH checklists. Built custom — no marketplace equivalent for VASH-specific scoring format.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/vash-validator
+  vash-use: run
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # VASH Validator Skill (Senior Role)

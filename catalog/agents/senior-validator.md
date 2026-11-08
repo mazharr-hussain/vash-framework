@@ -1,15 +1,15 @@
 ---
-id: senior-validator
-type: agent
-source: catalog/agents/senior-validator.md
-licence: MIT
-use: fork
-version: 1.0.0
-commit: to-verify
-status: candidate
 name: senior-validator
 description: Reviews and scores VASH artifacts in an isolated context. Use after junior-creator completes. Senior reviews without memory of how Junior produced the artifact — true adversarial challenge.
 tools: read_file, write_file, list_files
+metadata:
+  vash-type: agent
+  vash-source: catalog/agents/senior-validator.md
+  vash-licence: MIT
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # Senior Validator Agent

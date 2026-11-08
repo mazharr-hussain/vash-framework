@@ -1,6 +1,15 @@
 ---
 name: code-reviewer
 description: Review and score VASH artifacts as Senior Validator. Use when an artifact has been produced by Junior Creator and needs adversarial review. Checks completeness, law compliance, quality, and no-code rule. Adapted from alirezarezvani/claude-skills adversarial-reviewer.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/code-reviewer
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
+  vash-upstream: github.com/alirezarezvani/claude-skills
 ---
 
 # Code Reviewer Skill (VASH Senior Validator)

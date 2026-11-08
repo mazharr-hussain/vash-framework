@@ -14,3 +14,4 @@ data/
 .claude/agents/
 .claude/skills/
 .claude/hooks/
+.agents/

@@ -8,23 +8,31 @@ from vash.core.paths import vash_root
 
 ENTRY_FIELDS = ("id", "type", "source", "fork", "licence", "use", "version", "commit", "stacks", "adr", "search_log", "status")
 def _parse_frontmatter(path: Path) -> dict[str, Any] | None:
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---\n"):
+    from vash.loader.skills import split_frontmatter
+    meta, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+    return meta
+
+
+def _standard_entry(meta: dict[str, Any], kind: str) -> dict[str, Any] | None:
+    """Map a standard-format skill or agent (name, license, metadata.vash-*) to a manifest entry."""
+    md = meta.get("metadata")
+    if not isinstance(md, dict) or "name" not in meta:
         return None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None
-    block = text[4:end]
-    data = {}
-    for line in block.split("\n"):
-        if ":" in line:
-            k, v = line.split(":", 1)
-            val = v.strip().strip('"').strip("'")
-            if val.startswith("[") and val.endswith("]"):
-                inner = val[1:-1].strip()
-                val = [x.strip() for x in inner.split(",")] if inner else []
-            data[k.strip()] = val
-    return data
+    entry = {
+        "id": meta["name"],
+        "type": md.get("vash-type", kind),
+        "source": md.get("vash-source", ""),
+        "licence": meta.get("license", md.get("vash-licence", "")),
+        "use": md.get("vash-use", "fork"),
+        "version": md.get("vash-version", ""),
+        "commit": md.get("vash-commit", ""),
+        "status": md.get("vash-status", "candidate"),
+    }
+    for key, field in (("vash-fork", "fork"), ("vash-search-log", "search_log"), ("vash-adr", "adr")):
+        if md.get(key):
+            entry[field] = md[key]
+    return entry
+
 
 def generate_manifest(repo_root: Path) -> dict[str, Any]:
     """Scan the catalog and build the manifest."""
@@ -47,24 +55,33 @@ def generate_manifest(repo_root: Path) -> dict[str, Any]:
         validator = jsonschema.Draft202012Validator(schema)
 
     if catalog.exists():
-        for path in catalog.rglob("*.md"):
-            if path.name == "README.md" or path.name == "SKILL.md":
+        for path in sorted(catalog.rglob("*.md")):
+            if path.name == "README.md":
                 continue
             meta = _parse_frontmatter(path)
-            if meta and "id" in meta:
+            if not meta:
+                continue
+            if path.name == "SKILL.md" or path.parent.name == "agents":
+                meta = _standard_entry(meta, "skill" if path.name == "SKILL.md" else "agent")
+                if meta is None:
+                    warnings.warn(f"Skipping {path}: no metadata block")
+                    continue
+            elif "id" in meta:
                 meta = {k: v for k, v in meta.items() if k in ENTRY_FIELDS}
-                if validator:
-                    try:
-                        draft = {
-                            "schema_version": "1.0",
-                            "licences_allowed": licences,
-                            "entries": [meta]
-                        }
-                        validator.validate(draft)
-                    except jsonschema.ValidationError as e:
-                        warnings.warn(f"Skipping invalid manifest entry {path}: {e.message}")
-                        continue
-                entries.append(meta)
+            else:
+                continue
+            if validator:
+                try:
+                    draft = {
+                        "schema_version": "1.0",
+                        "licences_allowed": licences,
+                        "entries": [meta]
+                    }
+                    validator.validate(draft)
+                except jsonschema.ValidationError as e:
+                    warnings.warn(f"Skipping invalid manifest entry {path}: {e.message}")
+                    continue
+            entries.append(meta)
 
     return {
         "schema_version": "1.0",

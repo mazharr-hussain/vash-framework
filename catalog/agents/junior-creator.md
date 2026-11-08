@@ -1,15 +1,15 @@
 ---
-id: junior-creator
-type: agent
-source: catalog/agents/junior-creator.md
-licence: MIT
-use: fork
-version: 1.0.0
-commit: to-verify
-status: candidate
 name: junior-creator
 description: Generates VASH artifacts in an isolated context. Use when an activity requires creating a new artifact — document, design, decision, or plan. Junior generates without knowledge of Senior review.
 tools: read_file, write_file, list_files
+metadata:
+  vash-type: agent
+  vash-source: catalog/agents/junior-creator.md
+  vash-licence: MIT
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # Junior Creator Agent

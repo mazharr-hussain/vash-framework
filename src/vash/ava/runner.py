@@ -29,7 +29,7 @@ def _load_checklist(name: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 def _read_header(prompt: str) -> dict[str, str]:
-    """Read the type, feature and iteration lines of a prompt.
+    """Read the type, feature, iteration and skills lines of a prompt.
 
     Accepts `type: code` and the template form `**TYPE:** CODE`; the first line of each key wins.
     """
@@ -37,7 +37,7 @@ def _read_header(prompt: str) -> dict[str, str]:
     for line in prompt.split("\n"):
         key, sep, value = line.partition(":")
         key = key.strip().strip("*").strip().lower()
-        if not sep or key not in ("type", "feature", "iteration"):
+        if not sep or key not in ("type", "feature", "iteration", "skills"):
             continue
         value = value.strip().strip("*").strip()
         header.setdefault(key, value.lower() if key == "type" else value)
@@ -69,6 +69,15 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
             f"Task {task_id} has no feature: line",
             "In iterative mode add 'feature: <issue id>' to the prompt header",
         )
+    skill_names = [s.strip() for s in header.get("skills", "").split(",") if s.strip()]
+    if skill_names:
+        # Plain model APIs cannot read skill folders, so the named skills travel inside the prompt.
+        from vash.loader.skills import find_skills, skills_prompt_block
+        missing = [s for s in skill_names if s not in find_skills(repo_root)]
+        if missing:
+            raise VashError(f"Task {task_id} names unknown skills: {', '.join(missing)}",
+                            "Fix the skills: line, or add the skill under skills/ or the catalog")
+        prompt = skills_prompt_block(skill_names, repo_root) + prompt
     checklist = act_type if (vash_root() / "method" / "ava" / "checklists" / f"{act_type}.md").exists() else "code"
 
     artifact_dir = repo_root / "audit" / "artifacts"

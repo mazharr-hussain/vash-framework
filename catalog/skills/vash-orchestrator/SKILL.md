@@ -1,6 +1,14 @@
 ---
 name: vash-orchestrator
 description: Manage the complete VASH AvA loop from start to finish. Use to run a full activity end-to-end including prompt generation, Junior creation, Senior review, loop management, and result saving. Handles parallel activities, stalemate detection, and escalation. Built custom — no marketplace equivalent for VASH-specific AvA orchestration.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/vash-orchestrator
+  vash-use: run
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
 ---
 
 # VASH Orchestrator Skill

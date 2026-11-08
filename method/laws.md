@@ -50,6 +50,11 @@ R12 REUSE POOLING TOOLS: LLM pooling and failover use a vetted open-source tool;
    routing logic. One configured fallback route (local Ollama).
 R13 HARDWARE REALITY: Local AI fits the OCI Always Free A1 allowance; one heavy job at a time.
 R14 FIX-LOOP CAP: At most 3 automatic fix attempts, then escalation to the human.
+R15 REPEATED WORK BECOMES A SKILL: Work done 3 or more times in the same way becomes a skill
+   (`vash skill suggest` finds it in audit/prompts/). Skills use the open Agent Skills format
+   (SKILL.md, agentskills.io) so that every model and coding tool can use them; agents use VASH's
+   neutral agent format (method/templates/agent.md). Generic skills go to the catalog without client
+   names; project-specific skills stay in the project's skills/ folder.
 
 ## PARALLEL RULE
 Activities marked PARALLEL_SAFE: YES can run together.

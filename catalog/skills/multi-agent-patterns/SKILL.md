@@ -1,6 +1,15 @@
 ---
 name: multi-agent-patterns
 description: Orchestrate AvA loops between Junior Creator and Senior Validator agents. Use when managing multi-round AvA debates, when coordinating parallel activities, or when designing agent interaction patterns. Adapted from muratcankoylan/multi-agent-patterns.
+license: MIT
+metadata:
+  vash-type: skill
+  vash-source: catalog/skills/multi-agent-patterns
+  vash-use: fork
+  vash-version: 1.0.0
+  vash-commit: to-verify
+  vash-status: candidate
+  vash-upstream: github.com/muratcankoylan/multi-agent-patterns
 ---
 
 # Multi-Agent Patterns Skill (VASH AvA Orchestrator)
