@@ -128,12 +128,21 @@ def test_g1_05_skipped(fixture_root, tmp_path, monkeypatch):
     assert report.ok
     assert report.findings[0].severity == "skipped"
 
-def test_g1_12_skipped(fixture_root, tmp_path):
+def test_g1_12_skipped(fixture_root, tmp_path, monkeypatch):
+    import sys
+    monkeypatch.setitem(sys.modules, "vash.loader.load", None)
     f = tmp_path / "CLAUDE.md"
     f.write_text("Some text")
     report = run([f], tmp_path, ["G1-12"])
     assert report.ok
     assert report.findings[0].severity == "skipped"
+
+def test_g1_12_in_sync(fixture_root, tmp_repo):
+    from vash.loader.load import load
+    load(tmp_repo)
+    f = tmp_repo / "CLAUDE.md"
+    report = run([f], tmp_repo, ["G1-12"])
+    assert report.ok
 
 def test_g1_04_tools(fixture_root):
     tools_dir = vash_root() / "src" / "vash" / "tools"
