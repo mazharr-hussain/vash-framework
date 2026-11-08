@@ -1,10 +1,10 @@
 ---
-name: prompt-engineer
+name: prompt-engineering
 description: Generate optimal prompts for VASH activities. Use when starting any new activity, when a prompt needs to be created or improved, or when an AvA round fails due to unclear instructions. Adapted from NeoLabHQ/context-engineering-kit.
 license: MIT
 metadata:
   vash-type: skill
-  vash-source: catalog/skills/prompt-engineer
+  vash-source: catalog/skills/prompt-engineering
   vash-use: fork
   vash-version: 1.0.0
   vash-commit: to-verify

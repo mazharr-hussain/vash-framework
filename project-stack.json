@@ -71,8 +71,8 @@
       "licence": "MIT"
     },
     {
-      "id": "prompt-engineer",
-      "source": "catalog/skills/prompt-engineer/SKILL.md",
+      "id": "prompt-engineering",
+      "source": "catalog/skills/prompt-engineering/SKILL.md",
       "commit": "to-verify",
       "licence": "MIT"
     },
