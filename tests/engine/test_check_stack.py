@@ -90,6 +90,9 @@ def test_check_stack_adr_not_accepted(tmp_repo, monkeypatch):
     assert "ADR ADR-001 is not ACCEPTED" in report.problems[0]
 
 def test_check_stack_main(tmp_repo, monkeypatch, capsys):
+    data = json.loads((tmp_repo / "project-stack.json").read_text())
+    data["stack"]["pack"] = "no-such-pack"
+    (tmp_repo / "project-stack.json").write_text(json.dumps(data))
     monkeypatch.setattr("sys.argv", ["check_stack", "--repo", str(tmp_repo)])
     assert main(["--repo", str(tmp_repo)]) == 1
     captured = capsys.readouterr()

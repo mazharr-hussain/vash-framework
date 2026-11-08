@@ -12,6 +12,9 @@ def test_load_command(tmp_repo, capsys):
     assert "CLAUDE.md" in capsys.readouterr().out
 
 def test_check_command(tmp_repo, capsys):
+    data = json.loads((tmp_repo / "project-stack.json").read_text())
+    data["stack"]["pack"] = "no-such-pack"
+    (tmp_repo / "project-stack.json").write_text(json.dumps(data))
     assert check_run(tmp_repo) == 1
     assert "Stack pack" in capsys.readouterr().out
 
