@@ -28,6 +28,21 @@ def _load_checklist(name: str) -> str:
     path = vash_root() / "method" / "ava" / "checklists" / f"{name}.md"
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
+def _read_header(prompt: str) -> dict[str, str]:
+    """Read the type, feature and iteration lines of a prompt.
+
+    Accepts `type: code` and the template form `**TYPE:** CODE`; the first line of each key wins.
+    """
+    header: dict[str, str] = {}
+    for line in prompt.split("\n"):
+        key, sep, value = line.partition(":")
+        key = key.strip().strip("*").strip().lower()
+        if not sep or key not in ("type", "feature", "iteration"):
+            continue
+        value = value.strip().strip("*").strip()
+        header.setdefault(key, value.lower() if key == "type" else value)
+    return header
+
 def _load_template() -> str:
     path = vash_root() / "method" / "templates" / "ava-log.md"
     return path.read_text(encoding="utf-8") if path.exists() else ""
@@ -44,11 +59,17 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
         raise VashError(f"Task {task_id} not found", f"Create audit/prompts/{task_id}_prompt.md")
     prompt = task_file.read_text(encoding="utf-8")
 
-    act_type = "artifact"
-    for line in prompt.split("\n"):
-        if line.startswith("type:"):
-            act_type = line.split(":", 1)[1].strip()
-            break
+    header = _read_header(prompt)
+    act_type = header.get("type", "artifact")
+    feature = header.get("feature", "")
+    iteration = header.get("iteration", "")
+    mode, _days = freeze.delivery
+    if mode == "iterative" and act_type in ("feature", "code") and not feature:
+        raise VashError(
+            f"Task {task_id} has no feature: line",
+            "In iterative mode add 'feature: <issue id>' to the prompt header",
+        )
+    checklist = act_type if (vash_root() / "method" / "ava" / "checklists" / f"{act_type}.md").exists() else "code"
 
     artifact_dir = repo_root / "audit" / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -74,7 +95,7 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
             jr_reply = llm_reply(freeze, "coder", current_prompt, llm)
             artifact_path.write_text(_normalize(jr_reply.text), encoding="utf-8", newline="\n")
         except RouteUnavailable:
-            _write_log(log_dir, task_id, r, 0, thresh, "FAIL", "Route unavailable", log_paths)
+            _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "FAIL", "Route unavailable", log_paths)
             return AvaResult(task_id, r, scores, "FAIL", log_paths)
 
         g1 = gate1_run([artifact_path], repo_root)
@@ -82,14 +103,14 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
             current_prompt += f"\n\nGate 1 failed:\n"
             for f in g1.findings:
                 current_prompt += f"- {f.message}\n"
-            _write_log(log_dir, task_id, r, 0, thresh, "MODIFY", "Gate 1 failed", log_paths)
+            _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "MODIFY", "Gate 1 failed", log_paths)
             continue
 
         try:
-            sr_prompt = f"Review this artifact against the checklist and give a score 0-100.\n\nChecklist:\n{_load_checklist('code')}\n\nArtifact:\n{jr_reply.text}"
+            sr_prompt = f"Review this artifact against the checklist and give a score 0-100.\n\nChecklist:\n{_load_checklist(checklist)}\n\nArtifact:\n{jr_reply.text}"
             sr_reply = llm_reply(freeze, "critic", sr_prompt, llm)
         except RouteUnavailable:
-            _write_log(log_dir, task_id, r, 0, thresh, "FAIL", "Critic route unavailable", log_paths)
+            _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "FAIL", "Critic route unavailable", log_paths)
             return AvaResult(task_id, r, scores, "FAIL", log_paths)
 
         score = 0
@@ -106,7 +127,7 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
             current_verdict = "ESCALATED"
             verdict = "ESCALATED"
 
-        _write_log(log_dir, task_id, r, score, thresh, current_verdict, sr_reply.text, log_paths)
+        _write_log(log_dir, task_id, feature, iteration, r, score, thresh, current_verdict, sr_reply.text, log_paths)
 
         if verdict == "APPROVED":
             break
@@ -115,9 +136,11 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
 
     return AvaResult(task_id, rounds, scores, verdict, log_paths)
 
-def _write_log(log_dir: Path, task_id: str, r: int, score: int, thresh: int, verdict: str, obj: str, log_paths: list) -> None:
+def _write_log(log_dir: Path, task_id: str, feature: str, iteration: str, r: int, score: int, thresh: int, verdict: str, obj: str, log_paths: list) -> None:
     log_content = _load_template()
     log_content = log_content.replace("[ID]", task_id)
+    log_content = log_content.replace("[feature]", feature or "-")
+    log_content = log_content.replace("[iteration]", iteration or "-")
     log_content = log_content.replace("[N]", str(r))
     log_content = log_content.replace("[ISO-8601 UTC]", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     log_content = log_content.replace("[0-100]", str(score))

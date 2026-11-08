@@ -2,6 +2,10 @@
 
 **Timestamp:** [ISO-8601 UTC]
 
+**FEATURE:** [feature]
+
+**ITERATION:** [iteration]
+
 **SCORE:** [0-100]
 
 **THRESHOLD:** [minimum]

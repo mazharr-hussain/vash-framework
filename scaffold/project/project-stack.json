@@ -35,7 +35,10 @@
   "skills": [],
   "tools": [],
   "paths": {
-    "allowed_write": ["src/**", "database/**"]
+    "allowed_write": [
+      "src/**",
+      "database/**"
+    ]
   },
   "models": {
     "routes": {
@@ -59,7 +62,8 @@
   },
   "thresholds": {
     "code": 90,
-    "artifact": 88
+    "artifact": 88,
+    "feature": 88
   },
   "floor": 88
 }

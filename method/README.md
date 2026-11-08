@@ -12,6 +12,7 @@ The VASH method is how every activity in this repository is done and judged.
 - `ava/thresholds.json` — per-artifact-type thresholds; floor 88.
 - `ava/checklists/artifact.md` — design activities; no-code rule.
 - `ava/checklists/code.md` — code activities; Gate 1, tests, SHA pins, licence, allowed paths.
+- `ava/checklists/feature.md` — feature design activities (iteration mode).
 - `ava/checklists/manual_step.md` — human-only steps.
 - `ava/checklists/prompt.md` — locked prompts, before any Junior session.
 - `ava/checklists/ava.md` — the AvA round itself: was it run correctly.
@@ -25,6 +26,7 @@ The VASH method is how every activity in this repository is done and judged.
 - `sdlc/phases.md` — design path: Phases 1-8, human gates, traceability, parallel map.
 - `sdlc/execution-stages.md` — build path: Stages 0-10, actor, mode, gate per stage.
 - `sdlc/freeze-lifecycle.md` — stack proposal, acceptance, freeze, catalog gap, changes, adoption.
+- `sdlc/iteration-mode.md` — agile delivery: inception once, then one feature loop per work item.
 
 **Forms**
 - `templates/brief.md` — project brief.
@@ -51,5 +53,6 @@ The VASH method is how every activity in this repository is done and judged.
 7. `sdlc/phases.md`
 8. `sdlc/execution-stages.md`
 9. `sdlc/freeze-lifecycle.md`
-10. `templates/*` (skim)
-11. `schemas/*` (consult)
+10. `sdlc/iteration-mode.md`
+11. `templates/*` (skim)
+12. `schemas/*` (consult)

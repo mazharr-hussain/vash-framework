@@ -79,3 +79,31 @@ def test_undefined_route(tmp_repo):
     (tmp_repo / "project-stack.json").write_text(json.dumps(data))
     with pytest.raises(FreezeInvalid, match="undefined route 'nope'"):
         load_freeze(tmp_repo)
+
+
+def test_delivery_defaults_to_phased(tmp_repo):
+    from vash.core.freeze import load_freeze
+    assert load_freeze(tmp_repo).delivery == ("phased", None)
+
+
+def test_delivery_iterative_is_valid(tmp_repo):
+    import json
+    from vash.core.freeze import load_freeze
+    path = tmp_repo / "project-stack.json"
+    data = json.loads(path.read_text())
+    data["delivery"] = {"mode": "iterative", "iteration_days": 14}
+    path.write_text(json.dumps(data))
+    assert load_freeze(tmp_repo).delivery == ("iterative", 14)
+
+
+def test_delivery_unknown_mode_is_refused(tmp_repo):
+    import json
+    import pytest
+    from vash.core.exceptions import FreezeInvalid
+    from vash.core.freeze import load_freeze
+    path = tmp_repo / "project-stack.json"
+    data = json.loads(path.read_text())
+    data["delivery"] = {"mode": "waterfall-ish"}
+    path.write_text(json.dumps(data))
+    with pytest.raises(FreezeInvalid):
+        load_freeze(tmp_repo)
