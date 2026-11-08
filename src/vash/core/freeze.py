@@ -148,6 +148,8 @@ def load_stack_pack(repo_root: Path, pack_name: str) -> dict:
     """Load and validate a stack pack manifest."""
     fp = repo_root / "catalog" / "stacks" / pack_name / "stack.json"
     if not fp.exists():
+        fp = vash_root() / "catalog" / "stacks" / pack_name / "stack.json"
+    if not fp.exists():
         raise FreezeFileMissing(f"Missing {fp}", "Create stack.json")
     data = _load_json(fp)
     schema_path = vash_root() / "method" / "schemas" / "stack-pack.schema.json"

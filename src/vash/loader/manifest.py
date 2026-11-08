@@ -6,6 +6,7 @@ from typing import Any
 import jsonschema
 from vash.core.paths import vash_root
 
+ENTRY_FIELDS = ("id", "type", "source", "fork", "licence", "use", "version", "commit", "stacks", "adr", "search_log", "status")
 def _parse_frontmatter(path: Path) -> dict[str, Any] | None:
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
@@ -51,6 +52,7 @@ def generate_manifest(repo_root: Path) -> dict[str, Any]:
                 continue
             meta = _parse_frontmatter(path)
             if meta and "id" in meta:
+                meta = {k: v for k, v in meta.items() if k in ENTRY_FIELDS}
                 if validator:
                     try:
                         draft = {

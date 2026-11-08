@@ -122,7 +122,7 @@ def _check_vendor_names(path: Path, text: str, repo_root: Path) -> list[Finding]
         for cat_dir in catalog_dir.iterdir():
             if cat_dir.is_dir():
                 for entry in cat_dir.iterdir():
-                    if entry.is_file():
+                    if entry.is_file() and entry.suffix == ".md" and entry.stem.lower() != "readme":
                         forbidden.add(entry.stem.lower())
 
     for i, line in enumerate(text.split("\n"), 1):
