@@ -1,12 +1,12 @@
-﻿# Checklist: Artifact Activity
+# Checklist: Artifact Activity
 
 Use this checklist for every activity with TYPE: ARTIFACT before submitting to AvA review.
 
 ## Pre-generation
-- [ ] knowledge/laws.md has been read
+- [ ] method/laws.md has been read
 - [ ] Activity ID, name, and description are understood
 - [ ] Output path is confirmed
-- [ ] Prompt has been saved to untime/prompts/[task_id]_prompt.md
+- [ ] Prompt has been saved to audit/prompts/[task_id]_prompt.md
 
 ## Content quality
 - [ ] Artifact addresses the full activity description
@@ -15,8 +15,8 @@ Use this checklist for every activity with TYPE: ARTIFACT before submitting to A
 - [ ] No summaries — full content only
 
 ## Output compliance
-- [ ] Saved to untime/artifacts/[task_id]_artifact.md
-- [ ] AvA log round started at untime/ava_logs/[task_id]_round1.md
+- [ ] Saved to audit/artifacts/[task_id]_artifact.md
+- [ ] AvA log round started at audit/ava_logs/[task_id]_round1.md
 - [ ] Threshold score defined in activity list is known
 
 ## AvA readiness

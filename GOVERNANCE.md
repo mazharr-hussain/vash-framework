@@ -3,4 +3,4 @@ The owner decides all architectural changes via ADR (Architecture Decision Recor
 Contributors propose changes via GitHub Issues.
 Every change requires an AvA review (Junior produces, Senior reviews).
 
-The owner's OD-1 exception and the strict $0 mandate are defined in `knowledge/laws.md`.
+The owner's OD-1 exception and the strict $0 mandate are defined in `method/laws.md`.
