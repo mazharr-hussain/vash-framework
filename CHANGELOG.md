@@ -13,3 +13,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Added the CLI, loader and AvA runner (Step 6).
 - Added the catalog, stack packs, scaffold and OCI IaC (Step 7).
 - Added VASH's own CI, templates and freeze (Step 8).
+- Packaged method, catalog and scaffold in the wheel; `pip install` works without `VASH_HOME`.
