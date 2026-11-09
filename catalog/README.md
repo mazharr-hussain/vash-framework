@@ -19,7 +19,9 @@ The catalog holds every technology choice VASH can make. A project selects one o
 
 ## Adding an Option
 
-1. Search for the tool (LAW 3). Document the search in `search-log.md`.
+**Vendor first (owner rule):** when the vendor of the platform (Oracle, GitHub, Anthropic, ...) provides an equal or better option, the vendor's option is used. A third-party or personal project is chosen only when the vendor has nothing comparable, and the search log says why.
+
+1. Search for the tool (LAW 3): the vendor's own repositories first, then open-source indexes. Document the search in `search-log.md`.
 2. Check its licence.
 3. Write the catalog entry (with frontmatter).
 4. Write the adapter (if it needs code).

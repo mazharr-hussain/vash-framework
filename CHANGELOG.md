@@ -24,3 +24,5 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Bootstrap: always reinstalls VASH (the version number does not change between fixes, so a plain upgrade kept old code).
 - `vash onboard oci`: no hardcoded object names (prefix: default `vash` after a yes, else typed; `<prefix>-runner`, `<prefix>-vcn` ...), existing VMs listed and reusable (install over SSH, never deleted), SSH key chosen by the owner (new `<prefix>-key` on no, never overwritten).
 - `vash onboard oci`: VMs can be deleted from the inventory (boot volume deleted, block volumes detached and kept, VM first so its IPs do not block its subnet or VCN, name typed to confirm).
+- `vash onboard oci`: compartments that hold resources are emptied with Oracle's compartment cleaner (oci-automation-hub, pinned; dry-run plan, Resource Manager backup, typed DELETE, Cloud Shell sign-in added); the table uses direct listings (no search lag); "Continue with the VASH VM setup now?" after cleanup, and `--cleanup-only`.
+- Catalog: UPL-1.0 allowed; vendor-first rule; LAW 3 search record for the OCI tools.

@@ -41,6 +41,7 @@ class Options:
     compartment_name: str | None = None
     subnet_id: str | None = None
     review: bool = False  # interactive inventory, never with --yes
+    cleanup_only: bool = False
     name_prefix: str | None = None  # display names of new objects: <prefix>-runner, <prefix>-vcn ...
     vm_ip: str | None = None  # an existing VM to install VASH on (no terraform)
     vm_name: str = ""
@@ -368,14 +369,22 @@ class Onboarding:
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
         if self.options.review:
+            from .cleaner import Cleaner
             from .inventory import Inventory, review
-            choice = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
+            cleaner = Cleaner(self.options.workdir.parent / "tools", region, self.echo)
+            choice = review(Inventory(self.oci, self.echo, cleaner), tenancy, self.confirm, self.ask,
                             want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"),
                             want_vm=not self.options.vm_ip and not self.existing_tfvars())
             if choice.vm is not None:
                 self.options.vm_ip, self.options.vm_name = choice.vm.public, choice.vm.name
             elif choice.subnet_id:
                 self.options.subnet_id = choice.subnet_id
+        if self.options.cleanup_only:
+            self.echo("Cleanup finished; no VM setup (--cleanup-only)")
+            return 0
+        if self.options.review and not self.confirm("Continue with the VASH VM setup now?"):
+            self.echo("Stopped after the cleanup; nothing else was changed")
+            return 0
         if self.options.vm_ip:
             return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
@@ -492,7 +501,8 @@ def run_cli(args: Any) -> int:
         admin_cidr=args.admin_cidr,
         runner_repo=args.runner_repo,
         model=args.model,
-        review=not args.yes and not args.no_inventory,
+        review=(not args.yes and not args.no_inventory) or args.cleanup_only,
+        cleanup_only=args.cleanup_only,
         name_prefix=args.name_prefix,
         vm_ip=args.vm_ip,
         ssh_user=args.ssh_user,

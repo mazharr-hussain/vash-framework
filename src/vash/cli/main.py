@@ -51,6 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--runner-repo", help="owner/name: register a self-hosted CI runner for it")
     p_onboard.add_argument("--admin-cidr", help="CIDR allowed to SSH (default: this shell's IP/32)")
     p_onboard.add_argument("--compartment", help="Compartment name; when missing: default vash after a yes, else typed; created only after a yes")
+    p_onboard.add_argument("--cleanup-only", action="store_true", help="Only list and delete existing objects; no VM setup")
     p_onboard.add_argument("--no-inventory", action="store_true", help="Skip the list of existing compartments, VCNs and subnets")
     p_onboard.add_argument("--name-prefix", help="Prefix of new object names, e.g. north; when missing: default vash after a yes, else typed")
     p_onboard.add_argument("--vm-ip", help="Install on this existing VM instead of creating one")

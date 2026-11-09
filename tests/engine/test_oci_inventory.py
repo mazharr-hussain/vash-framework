@@ -21,6 +21,17 @@ class FakeOci:
     def __call__(self, *args):
         self.calls.append(args)
         a = list(args)
+        if a[:3] == ["iam", "compartment", "list"] and a[a.index("--compartment-id") + 1] != TEN:
+            return {"data": []}
+        if a[:3] == ["network", "vcn", "list"]:
+            comp = a[a.index("--compartment-id") + 1]
+            return {"data": [{"id": k, "display-name": v["name"], "lifecycle-state": "AVAILABLE"}
+                             for k, v in self.vcns.items() if v["comp"] == comp]}
+        if a[:3] == ["compute", "instance", "list"]:
+            comp = a[a.index("--compartment-id") + 1]
+            if comp != "ocid1.comp..x" or getattr(self, "terminated", None):
+                return {"data": []}
+            return {"data": [{"id": "ocid1.instance..vm", "display-name": "kyc-vm", "lifecycle-state": "RUNNING"}]}
         if a[:3] == ["iam", "compartment", "list"]:
             return {"data": [{"id": "ocid1.comp..x", "name": "PoC", "lifecycle-state": "ACTIVE",
                               "compartment-id": TEN}]}
@@ -250,3 +261,62 @@ def test_existing_vm_can_be_picked():
     choice = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(vm.no) if "existing VM" in q else "", want_subnet=True)
     assert choice.vm == vm and choice.subnet_id == ""
+
+
+class FakeCleaner:
+    def __init__(self, dry=0, real=0):
+        self.calls = []
+        self.codes = {False: dry, True: real}
+
+    def run(self, compartment_id, backup_id, execute):
+        self.calls.append((compartment_id, backup_id, execute))
+        return self.codes[execute]
+
+
+def _pick_compartment(inv):
+    return next(r for r in inv.rows(TEN) if r.kind == "Compartment")
+
+
+def test_compartment_with_resources_goes_to_the_cleaner_dry_run_first():
+    fake, cleaner = FakeOci(), FakeCleaner()
+    inv = Inventory(fake, lambda m: None, cleaner)
+    comp = _pick_compartment(inv)
+    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert cleaner.calls == [(comp.ocid, TEN, False), (comp.ocid, TEN, True)]
+    assert any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
+
+
+def test_cleaner_stops_after_a_no_to_the_plan():
+    fake, cleaner = FakeOci(), FakeCleaner()
+    inv = Inventory(fake, lambda m: None, cleaner)
+    comp = _pick_compartment(inv)
+    review(inv, TEN, lambda q: "Run that plan" not in q,
+           lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert cleaner.calls == [(comp.ocid, TEN, False)]
+    assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
+
+
+def test_failed_dry_run_deletes_nothing():
+    fake, cleaner = FakeOci(), FakeCleaner(dry=1)
+    inv = Inventory(fake, lambda m: None, cleaner)
+    comp = _pick_compartment(inv)
+    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert [c[2] for c in cleaner.calls] == [False]
+    assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
+
+
+def test_sub_compartment_blocks_the_cleaner():
+    fake, cleaner = FakeOci(), FakeCleaner()
+    real = fake.__call__
+
+    def with_child(*args):
+        a = list(args)
+        if a[:3] == ["iam", "compartment", "list"] and a[a.index("--compartment-id") + 1] == "ocid1.comp..x":
+            return {"data": [{"id": "ocid1.comp..child", "name": "Child"}]}
+        return real(*args)
+    inv = Inventory(with_child, lambda m: None, cleaner)
+    comp = _pick_compartment(inv)
+    _, blockers = inv.dependencies(comp)
+    assert "sub-compartment Child (remove it first)" in blockers
+    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert cleaner.calls == []

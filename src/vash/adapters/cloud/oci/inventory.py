@@ -24,9 +24,10 @@ class Row:
 
 
 class Inventory:
-    def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None]):
+    def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], cleaner: Any = None):
         self.oci = oci
         self.echo = echo
+        self.cleaner = cleaner  # Oracle's compartment cleaner, for compartments that still hold resources
 
     # ---- reading -------------------------------------------------------
     def rows(self, tenancy: str) -> list[Row]:
@@ -35,37 +36,37 @@ class Inventory:
                          "--access-level", "ACCESSIBLE", "--all").get("data", [])
         names = {tenancy: "(root)"}
         names.update({c["id"]: c["name"] for c in comps})
-        vcns = self.oci("search", "resource", "structured-search",
-                        "--query-text", "query vcn resources").get("data", {}).get("items", [])
         rows: list[Row] = []
         for c in comps:
             rows.append(Row(len(rows) + 1, "Compartment", c["name"], c.get("lifecycle-state", ""),
                             names.get(c.get("compartment-id", ""), ""), "", c["id"], c.get("compartment-id", "")))
-        for v in vcns:
-            if v.get("lifecycle-state") == "TERMINATED":
-                continue
-            comp = v.get("compartment-id", "")
-            rows.append(Row(len(rows) + 1, "VCN", v.get("display-name", ""), v.get("lifecycle-state", ""),
-                            names.get(comp, comp), "", v["identifier"], comp))
-            subnets = self.oci("network", "subnet", "list", "--compartment-id", comp,
-                               "--vcn-id", v["identifier"], "--all").get("data", [])
-            for s in subnets:
-                rows.append(Row(len(rows) + 1, "Subnet", s.get("display-name", ""), s.get("lifecycle-state", ""),
-                                v.get("display-name", ""), "no" if s.get("prohibit-public-ip-on-vnic", True) else "yes",
-                                s["id"], s.get("compartment-id", comp), v["identifier"]))
-        vms = self.oci("search", "resource", "structured-search",
-                       "--query-text", "query instance resources").get("data", {}).get("items", [])
-        for vm in vms:
-            state = vm.get("lifecycle-state", "")
-            if state in ("TERMINATED", "TERMINATING"):
-                continue
-            ip = ""
-            if state == "RUNNING":
-                vnics = self.oci("compute", "instance", "list-vnics", "--instance-id", vm["identifier"]).get("data", [])
-                ip = next((v.get("public-ip") for v in vnics if v.get("public-ip")), "") or ""
-            comp = vm.get("compartment-id", "")
-            rows.append(Row(len(rows) + 1, "VM", vm.get("display-name", ""), state,
-                            names.get(comp, comp), ip, vm["identifier"], comp))
+        # Direct listings, not Resource Search: search lags behind deletes by a minute or two.
+        scopes = [tenancy] + [c["id"] for c in comps]
+        for comp in scopes:
+            for v in self.oci("network", "vcn", "list", "--compartment-id", comp, "--all").get("data", []):
+                if v.get("lifecycle-state") in ("TERMINATED", "TERMINATING"):
+                    continue
+                rows.append(Row(len(rows) + 1, "VCN", v.get("display-name", ""), v.get("lifecycle-state", ""),
+                                names.get(comp, comp), "", v["id"], comp))
+                subnets = self.oci("network", "subnet", "list", "--compartment-id", comp,
+                                   "--vcn-id", v["id"], "--all").get("data", [])
+                for s in subnets:
+                    if s.get("lifecycle-state") in ("TERMINATED", "TERMINATING"):
+                        continue
+                    rows.append(Row(len(rows) + 1, "Subnet", s.get("display-name", ""), s.get("lifecycle-state", ""),
+                                    v.get("display-name", ""), "no" if s.get("prohibit-public-ip-on-vnic", True) else "yes",
+                                    s["id"], s.get("compartment-id", comp), v["id"]))
+        for comp in scopes:
+            for vm in self.oci("compute", "instance", "list", "--compartment-id", comp, "--all").get("data", []):
+                state = vm.get("lifecycle-state", "")
+                if state in ("TERMINATED", "TERMINATING"):
+                    continue
+                ip = ""
+                if state == "RUNNING":
+                    vnics = self.oci("compute", "instance", "list-vnics", "--instance-id", vm["id"]).get("data", [])
+                    ip = next((v.get("public-ip") for v in vnics if v.get("public-ip")), "") or ""
+                rows.append(Row(len(rows) + 1, "VM", vm.get("display-name", ""), state,
+                                names.get(comp, comp), ip, vm["id"], comp))
         return rows
 
     def show(self, rows: list[Row]) -> None:
@@ -147,6 +148,9 @@ class Inventory:
                 for item in self._children(kind, comp, r.ocid):
                     blockers.append(f"{kind} {item.get('display-name', item['id'])} (remove it first)")
         elif r.kind == "Compartment":
+            subs = self.oci("iam", "compartment", "list", "--compartment-id", r.ocid,
+                            "--lifecycle-state", "ACTIVE", "--all").get("data", [])
+            blockers += [f"sub-compartment {c['name']} (remove it first)" for c in subs]
             found = self.oci("search", "resource", "structured-search", "--query-text",
                              f"query all resources where compartmentId = '{r.ocid}'").get("data", {}).get("items", [])
             for item in found:
@@ -206,6 +210,25 @@ class Inventory:
         self.echo(f"VCN {r.name} deleted")
 
 
+def clean_compartment(inv: Inventory, r: Row, tenancy: str, confirm: Callable[[str], bool]) -> None:
+    """Dry-run plan first; the real run backs up to the root compartment and asks for DELETE itself."""
+    if not confirm(f"Empty compartment {r.name} with Oracle's compartment cleaner? It first writes a dry-run plan"):
+        inv.echo(f"Compartment {r.name} left as it is")
+        return
+    if inv.cleaner.run(r.ocid, tenancy, execute=False) != 0:
+        inv.echo(f"The cleaner's dry run failed for {r.name}; nothing deleted (see its log above)")
+        return
+    if not confirm(f"Run that plan on {r.name} now? A Resource Manager backup stack is made in the root "
+                   "compartment first, and the cleaner asks you to type DELETE"):
+        inv.echo(f"Compartment {r.name} left as it is")
+        return
+    if inv.cleaner.run(r.ocid, tenancy, execute=True) != 0:
+        inv.echo(f"The cleaner stopped for {r.name}; see its log above")
+        return
+    inv.oci("iam", "compartment", "delete", "--compartment-id", r.ocid, "--force")
+    inv.echo(f"Compartment {r.name}: emptied; deletion started (OCI finishes it in the background)")
+
+
 @dataclass(frozen=True)
 class Choice:
     """What the owner picked from the table: an existing VM, or a subnet for a new one."""
@@ -230,15 +253,21 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
             if r.kind == "VM":
                 ignore |= inv.vm_vnics(r.ocid)
         deletable = []
+        to_clean: list[Row] = []
         for r in chosen:
             also, blockers = inv.dependencies(r, ignore)
             inv.echo(f"{r.no}. {r.kind} {r.name} ({r.ocid})")
             for a in also:
                 label = "kept" if a.endswith("detached and kept") else "also deleted"
                 inv.echo(f"     {label}: {a}")
-            if blockers:
-                for b in blockers:
-                    inv.echo(f"     still in use: {b}")
+            for b in blockers:
+                inv.echo(f"     still in use: {b}")
+            cleanable = (r.kind == "Compartment" and blockers and inv.cleaner is not None
+                         and not any(b.startswith("sub-compartment") for b in blockers))
+            if cleanable:
+                inv.echo("     -> holds resources: Oracle's compartment cleaner can empty it (plan and backup first)")
+                to_clean.append(r)
+            elif blockers:
                 inv.echo("     -> blocked: it stays until what uses it is removed")
             else:
                 inv.echo("     -> nothing uses it")
@@ -254,8 +283,13 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
                 inv.delete(deletable)
                 rows = inv.rows(tenancy)
                 inv.show(rows)
-        elif chosen:
+        elif chosen and not to_clean:
             inv.echo("Nothing can be deleted: every choice is still in use")
+        for r in to_clean:
+            clean_compartment(inv, r, tenancy, confirm)
+        if to_clean:
+            rows = inv.rows(tenancy)
+            inv.show(rows)
     vms = [r for r in rows if r.kind == "VM" and r.state == "RUNNING" and r.public]
     if want_vm and vms:
         answer = ask("S.No of an existing VM to install VASH on (Enter = create a new VM)", "").strip()

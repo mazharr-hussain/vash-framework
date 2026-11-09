@@ -87,3 +87,31 @@ FOUND IN MARKETPLACE: 4 (100%)
 REUSED: 4
 BUILT NEW: 0
 LAW 3 COMPLIANCE: PASS ✅
+
+---
+
+## Search: OCI cleanup, inventory and infrastructure modules (9 Nov 2026)
+
+SEARCHED:
+- github.com/oracle-devrel/oci-automation-hub (Oracle, UPL-1.0)
+- github.com/oracle-devrel/cd3-automation-toolkit (Oracle, UPL-1.0)
+- github.com/AnykeyNL/OCI-SuperDelete (personal project, UPL-1.0)
+
+FOUND:
+- oci-automation-hub `oci-compartment-cleaner-sample`: dry-run plan, Resource Manager backup stack,
+  typed DELETE, about 53 resource types in dependency order, post-delete verification;
+  `network_usage_audit.py` for external users of a compartment's network. Labelled a sample.
+  No Cloud Shell (delegation token) sign-in: VASH adds it in its launcher, without changing the tool.
+- cd3-automation-toolkit: Terraform modules for every OCI service (network incl. LPG, DRG, VLAN, DNS;
+  compute; databases; load balancers; OKE; storage; identity; governance) and export of an existing
+  tenancy to Terraform; Excel templates and Jenkins pipelines. Release v2026.2.2.
+- OCI-SuperDelete: deletes everything in a compartment; no plan, no backup, -force.
+- oci-automation-hub GenAI samples (cloud-ops agent, OKE ops agent, OpenClaw): paid OCI Generative AI.
+
+DECISION:
+- REUSE (run) oci-compartment-cleaner at commit 685ae12a021874609d0125619580356ca904dbeb for emptying
+  compartments (src/vash/adapters/cloud/oci/cleaner.py). Status candidate (vendor sample).
+- REUSE cd3-automation-toolkit for Terraform modules and export: next step.
+- REJECTED OCI-SuperDelete: the vendor's cleaner is equal or better (vendor-first rule).
+- RECORDED, NOT USED (LAW 1): the paid GenAI samples, for a later paid tier.
+- UPL-1.0 added to catalog/licences.json (owner decision, 9 Nov 2026).
