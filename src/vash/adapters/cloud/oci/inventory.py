@@ -7,6 +7,7 @@ typed, and OCI itself refuses to delete a subnet or VCN that is still in use.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -26,6 +27,19 @@ class Row:
     vcn_id: str = ""
 
 
+TERMINATE_POLLS = 40  # 10 minutes at 15 s
+
+# Services that create their own VNICs in a customer subnet (OCI Search resource types).
+VNIC_OWNER_TYPES = {
+    "PrivateEndpoint", "ResourceManagerPrivateEndpoint", "LoadBalancer", "NetworkLoadBalancer",
+    "AutonomousDatabase", "DbSystem", "CloudVmCluster", "VmCluster", "MysqlDbSystem",
+    "PostgresqlDbSystem", "NoSqlTable", "ContainerInstance", "FunctionsApplication", "MountTarget",
+    "Bastion", "ApiGateway", "ClustersCluster", "NodePool", "IntegrationInstance",
+    "AnalyticsInstance", "DataScienceNotebookSession", "GoldenGateDeployment", "OpenSearchCluster",
+    "RedisCluster", "NetworkFirewall", "DrgAttachment", "Instance",
+}
+
+
 def _search_time(value: str) -> str:
     """OCI Search takes 2026-11-04T01:39:02Z, not 2026-11-04T01:39:02.547000+00:00."""
     if not value:
@@ -38,9 +52,11 @@ def _search_time(value: str) -> str:
 
 
 class Inventory:
-    def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], cleaner: Any = None):
+    def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], cleaner: Any = None,
+                 sleep: Callable[[float], None] = time.sleep):
         self.oci = oci
         self.echo = echo
+        self.sleep = sleep
         self.cleaner = cleaner  # Oracle's compartment cleaner, for compartments that still hold resources
 
     # ---- reading -------------------------------------------------------
@@ -137,9 +153,7 @@ class Inventory:
                              ).get("data", {}).get("items", [])
         except VashError:
             return f"VNIC {vnic.get('display-name', vnic_id)} (owner unknown: search failed)"
-        skip = {"Vnic", "PrivateIp", "VnicAttachment", "Subnet", "Vcn", "SecurityList", "RouteTable",
-                "DHCPOptions", "InternetGateway", "BootVolume", "Instance"}
-        candidates = sorted((i for i in found if i.get("resource-type") not in skip
+        candidates = sorted((i for i in found if i.get("resource-type") in VNIC_OWNER_TYPES
                              and i.get("lifecycle-state") not in ("TERMINATED", "DELETED")),
                             key=lambda i: i.get("time-created", ""), reverse=True)
         if candidates:
@@ -214,24 +228,56 @@ class Inventory:
         return also, blockers
 
     # ---- deleting ------------------------------------------------------
-    def delete(self, chosen: list[Row]) -> None:
-        """VMs first, then subnets, then VCNs (with their gateways, tables and lists), then compartments."""
+    def delete(self, chosen: list[Row]) -> list[str]:
+        """VMs first, then subnets, then VCNs (with their gateways, tables and lists), then compartments.
+
+        A failure is reported and the next item still runs; the failures are returned.
+        """
+        failures: list[str] = []
+
+        def attempt(row: Row, action: Callable[[], None]) -> None:
+            try:
+                action()
+            except VashError as exc:
+                failures.append(f"{row.kind} {row.name}: {exc}")
+                self.echo(f"Could not delete {row.kind} {row.name}: {exc}")
+
+        def terminate(r: Row) -> None:
+            # The CLI's --wait-for-state failed on terminate in Cloud Shell, so VASH polls the state itself.
+            self.oci("compute", "instance", "terminate", "--instance-id", r.ocid,
+                     "--preserve-boot-volume", "false", "--force")
+            self.echo(f"VM {r.name}: terminating ...")
+            for _ in range(TERMINATE_POLLS):
+                try:
+                    state = self.oci("compute", "instance", "get", "--instance-id", r.ocid
+                                     ).get("data", {}).get("lifecycle-state", "")
+                except VashError:
+                    state = "TERMINATED"  # no longer found
+                if state == "TERMINATED":
+                    self.echo(f"VM {r.name} terminated")
+                    return
+                self.sleep(15)
+            raise VashError(f"VM {r.name} is still {state} after {TERMINATE_POLLS * 15 // 60} minutes",
+                            "Check it in the Console; run the cleanup again when it is gone")
+
+        def drop_compartment(r: Row) -> None:
+            self.oci("iam", "compartment", "delete", "--compartment-id", r.ocid, "--force")
+            self.echo(f"Compartment {r.name}: deletion started (OCI finishes it in the background)")
+
         for r in chosen:
             if r.kind == "VM":
-                self.oci("compute", "instance", "terminate", "--instance-id", r.ocid,
-                         "--preserve-boot-volume", "false", "--force", "--wait-for-state", "TERMINATED")
-                self.echo(f"VM {r.name} terminated")
+                attempt(r, lambda r=r: terminate(r))
         vcn_ids = {r.ocid for r in chosen if r.kind == "VCN"}
         for r in chosen:
             if r.kind == "Subnet" and r.vcn_id not in vcn_ids:
-                self._delete_subnet(r.ocid, r.name)
+                attempt(r, lambda r=r: self._delete_subnet(r.ocid, r.name))
         for r in chosen:
             if r.kind == "VCN":
-                self._delete_vcn(r)
+                attempt(r, lambda r=r: self._delete_vcn(r))
         for r in chosen:
             if r.kind == "Compartment":
-                self.oci("iam", "compartment", "delete", "--compartment-id", r.ocid, "--force")
-                self.echo(f"Compartment {r.name}: deletion started (OCI finishes it in the background)")
+                attempt(r, lambda r=r: drop_compartment(r))
+        return failures
 
     def _delete_subnet(self, ocid: str, name: str) -> None:
         self.oci("network", "subnet", "delete", "--subnet-id", ocid, "--force", "--wait-for-state", "TERMINATED")
@@ -344,7 +390,9 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
             elif not all(_typed(inv, ask, r.name) for r in vms):
                 inv.echo("A VM name did not match after 3 tries: nothing deleted")
             else:
-                inv.delete(deletable)
+                failures = inv.delete(deletable)
+                if failures:
+                    inv.echo(f"{len(failures)} item(s) were not deleted; the rest went ahead")
                 rows = inv.rows(tenancy)
                 inv.show(rows)
         elif chosen and not to_clean:
