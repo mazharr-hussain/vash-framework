@@ -20,6 +20,8 @@ class FakeOci:
             return {"data": self.comps}
         if a[:3] == ["iam", "compartment", "create"]:
             return {"data": {"id": "ocid1.comp..sec"}}
+        if a[:3] == ["iam", "compartment", "get"]:
+            return {"data": {"lifecycle-state": "ACTIVE"}}
         if a[:4] == ["kms", "management", "vault", "list"]:
             return {"data": self.vaults.get(a[a.index("--compartment-id") + 1], [])}
         if a[:4] == ["kms", "management", "vault", "create"]:

@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from vash.core.exceptions import VashError
+
+from .iam import create_compartment
 
 DEFAULT_SECURITY = "security"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
@@ -35,8 +38,8 @@ class Vault:
 
 class VaultSetup:
     def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], confirm: Callable[[str], bool],
-                 ask: Callable[[str, str], str]):
-        self.oci, self.echo, self.confirm, self.ask = oci, echo, confirm, ask
+                 ask: Callable[[str, str], str], sleep: Callable[[float], None] = time.sleep):
+        self.oci, self.echo, self.confirm, self.ask, self.sleep = oci, echo, confirm, ask, sleep
 
     # ---- reading -------------------------------------------------------
     def compartments(self, tenancy: str) -> dict[str, str]:
@@ -151,11 +154,10 @@ class VaultSetup:
             return name, found[0]["id"]
         if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
             raise VashError(f"No compartment '{name}' for the vault", "Run again and choose an existing vault")
-        created = self.oci("iam", "compartment", "create", "--compartment-id", tenancy, "--name", name,
-                           "--description", "Vaults and keys of every application (created by vash onboard)",
-                           "--wait-for-state", "ACTIVE")
+        comp_id = create_compartment(self.oci, self.echo, tenancy, name,
+                                     "Vaults and keys of every application (created by vash onboard)", self.sleep)
         self.echo(f"Compartment '{name}' created")
-        return name, created["data"]["id"]
+        return name, comp_id
 
     def create_vault(self, tenancy: str) -> Vault:
         comp, comp_id = self.security_compartment(tenancy)
