@@ -35,6 +35,7 @@ class Options:
     """What the user chose on the command line."""
 
     compartment_name: str = "vash"
+    subnet_id: str | None = None
     ocpus: int = 2
     memory_in_gbs: int = 12
     os_name: str = "Canonical Ubuntu"
@@ -45,6 +46,19 @@ class Options:
     model: str = DEFAULT_MODEL
     runner_repo: str | None = None
     wait_minutes: int = 30
+
+
+def _allows_ssh(rule: dict) -> bool:
+    proto = str(rule.get("protocol", ""))
+    if proto == "all":
+        return True
+    if proto != "6":
+        return False
+    tcp = rule.get("tcp-options") or {}
+    ports = tcp.get("destination-port-range")
+    if not ports:
+        return True
+    return int(ports.get("min", 0)) <= 22 <= int(ports.get("max", 0))
 
 
 class Onboarding:
@@ -103,17 +117,37 @@ class Onboarding:
 
     def ensure_compartment(self, tenancy: str) -> str:
         name = self.options.compartment_name
-        found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy,
-                         "--name", name, "--lifecycle-state", "ACTIVE")
+        found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy, "--name", name,
+                         "--lifecycle-state", "ACTIVE", "--compartment-id-in-subtree", "true",
+                         "--access-level", "ACCESSIBLE")
         items = found.get("data", []) if isinstance(found, dict) else []
         if items:
             self.echo(f"Compartment '{name}' exists")
             return items[0]["id"]
+        if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
+            raise VashError(f"No compartment '{name}'", "Pass --compartment <name of an existing compartment>")
         created = self.oci("iam", "compartment", "create", "--compartment-id", tenancy, "--name", name,
                            "--description", "VASH runner (created by vash onboard)",
                            "--wait-for-state", "ACTIVE")
         self.echo(f"Compartment '{name}' created")
         return created["data"]["id"]
+
+    def check_subnet(self, subnet_id: str) -> None:
+        """An existing subnet must be public and let SSH in; VASH never changes it."""
+        subnet = self.oci("network", "subnet", "get", "--subnet-id", subnet_id).get("data", {})
+        if subnet.get("prohibit-public-ip-on-vnic", True):
+            raise VashError(f"Subnet {subnet.get('display-name', subnet_id)} is private",
+                            "Pass --subnet-id of a public subnet")
+        for sl_id in subnet.get("security-list-ids", []):
+            rules = self.oci("network", "security-list", "get", "--security-list-id", sl_id).get("data", {})
+            for rule in rules.get("ingress-security-rules", []):
+                if _allows_ssh(rule):
+                    self.echo(f"Using subnet {subnet.get('display-name', subnet_id)}; no network is created")
+                    return
+        raise VashError(
+            f"Subnet {subnet.get('display-name', subnet_id)} does not allow SSH (TCP 22)",
+            "Add an ingress rule TCP 22 from your IP to its security list, then run again",
+        )
 
     def availability_domains(self, tenancy: str) -> list[str]:
         data = self.oci("iam", "availability-domain", "list", "--compartment-id", tenancy).get("data", [])
@@ -273,9 +307,13 @@ class Onboarding:
         else:
             domains = self.domains_with_quota(tenancy)
             image = self.latest_image(compartment)
+        subnet_id = self.options.subnet_id or previous.get("subnet_id", "")
+        if subnet_id:
+            self.check_subnet(subnet_id)
         key, public_key = self.ssh_public_key()
         cidr = self.admin_cidr()
-        self.echo(f"SSH will be open to {cidr} only")
+        if not subnet_id:
+            self.echo(f"SSH will be open to {cidr} only")
         if not self.confirm(f"Create a {self.options.ocpus}-core {self.options.memory_in_gbs} GB Always Free VM in {region}?"):
             self.echo("Stopped; nothing was created")
             return 1
@@ -285,6 +323,7 @@ class Onboarding:
             "compartment_id": compartment,
             "image_id": image,
             "admin_cidr": cidr,
+            "subnet_id": subnet_id,
             "ssh_public_key": public_key,
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
             "ocpus": self.options.ocpus,
@@ -321,6 +360,8 @@ def run_cli(args: Any) -> int:
     import getpass
 
     options = Options(
+        compartment_name=args.compartment,
+        subnet_id=args.subnet_id,
         ocpus=args.ocpus,
         memory_in_gbs=args.memory,
         os_version=args.os_version,

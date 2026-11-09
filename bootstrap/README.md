@@ -19,7 +19,9 @@ Options (after `bash -s --`):
 
 - `--runner-repo owner/name`: register the VM as a self-hosted runner. The token is asked at a prompt and sent over SSH stdin; it is never written to a file.
 - `--ocpus 4 --memory 24`: a bigger VM (the whole free A1 allowance).
-- `--admin-cidr x.x.x.x/32`: who may SSH in.
+- `--admin-cidr x.x.x.x/32`: who may SSH in (only for the network VASH creates).
+- `--subnet-id <ocid>`: use an existing public subnet instead of creating a network (for example when the free VCN limit is reached). It must allow SSH (TCP 22); VASH checks it and never changes it.
+- `--compartment <name>`: use an existing compartment. Without it, VASH asks before creating `vash`.
 - `--yes`: do not ask before creating.
 - `--down`: remove the VM and its network.
 
