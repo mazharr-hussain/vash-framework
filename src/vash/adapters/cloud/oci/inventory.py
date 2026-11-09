@@ -1,8 +1,8 @@
 """Existing compartments, VCNs and subnets: list them, delete chosen ones, pick a subnet.
 
 Used by `vash onboard oci` before it builds anything. Every delete is asked twice
-(the choice, then the exact list) and OCI itself refuses to delete a subnet or
-VCN that is still in use, so nothing in use can be removed.
+(the choice, then the exact list after a dependency check), a VM also needs its name
+typed, and OCI itself refuses to delete a subnet or VCN that is still in use.
 """
 from __future__ import annotations
 
@@ -97,18 +97,38 @@ class Inventory:
         return chosen, unknown
 
     # ---- dependencies --------------------------------------------------
-    def _users_of_subnet(self, subnet_id: str) -> list[str]:
-        """Everything holding an IP in the subnet (VMs, databases, load balancers...)."""
+    def vm_vnics(self, vm_ocid: str) -> set[str]:
+        data = self.oci("compute", "instance", "list-vnics", "--instance-id", vm_ocid).get("data", [])
+        return {v["id"] for v in data if v.get("id")}
+
+    def _users_of_subnet(self, subnet_id: str, ignore: frozenset[str] = frozenset()) -> list[str]:
+        """Everything holding an IP in the subnet (VMs, databases, load balancers...),
+        except the VNICs of VMs deleted in the same batch."""
         ips = self.oci("network", "private-ip", "list", "--subnet-id", subnet_id, "--all").get("data", [])
         return [f"IP {ip.get('ip-address', '')} ({ip.get('display-name') or ip.get('hostname-label') or ip.get('vnic-id', '')})"
-                for ip in ips]
+                for ip in ips if ip.get("vnic-id") not in ignore]
 
-    def dependencies(self, r: Row) -> tuple[list[str], list[str]]:
-        """(also deleted with it, still using it). Anything in the second list blocks the delete."""
+    def dependencies(self, r: Row, ignore: frozenset[str] = frozenset()) -> tuple[list[str], list[str]]:
+        """(also deleted with it, still using it). Anything in the second list blocks the delete.
+
+        `ignore` holds the VNIC ids of VMs chosen in the same batch: they go first, so their IPs
+        do not block their subnet or VCN.
+        """
         also: list[str] = []
         blockers: list[str] = []
-        if r.kind == "Subnet":
-            blockers += self._users_of_subnet(r.ocid)
+        if r.kind == "VM":
+            vm = self.oci("compute", "instance", "get", "--instance-id", r.ocid).get("data", {})
+            comp = vm.get("compartment-id", r.compartment_id)
+            boots = self.oci("compute", "boot-volume-attachment", "list", "--availability-domain",
+                             vm.get("availability-domain", ""), "--compartment-id", comp,
+                             "--instance-id", r.ocid).get("data", [])
+            also += [f"boot volume {b.get('boot-volume-id', '')} (its disk: all data on it is lost)" for b in boots]
+            vols = self.oci("compute", "volume-attachment", "list", "--compartment-id", comp,
+                            "--instance-id", r.ocid, "--all").get("data", [])
+            also += [f"block volume {v.get('volume-id', '')}: detached and kept" for v in vols
+                     if v.get("lifecycle-state") == "ATTACHED"]
+        elif r.kind == "Subnet":
+            blockers += self._users_of_subnet(r.ocid, ignore)
         elif r.kind == "VCN":
             vcn = self.oci("network", "vcn", "get", "--vcn-id", r.ocid).get("data", {})
             comp = vcn.get("compartment-id", r.compartment_id)
@@ -117,7 +137,7 @@ class Inventory:
             for s in self._children("subnet", comp, r.ocid):
                 name = s.get("display-name", s["id"])
                 also.append(f"subnet {name}")
-                blockers += [f"subnet {name}: {u}" for u in self._users_of_subnet(s["id"])]
+                blockers += [f"subnet {name}: {u}" for u in self._users_of_subnet(s["id"], ignore)]
             for kind in ("internet-gateway", "nat-gateway", "service-gateway", "nsg",
                          "route-table", "security-list", "dhcp-options"):
                 for item in self._children(kind, comp, r.ocid):
@@ -136,9 +156,12 @@ class Inventory:
 
     # ---- deleting ------------------------------------------------------
     def delete(self, chosen: list[Row]) -> None:
-        if any(r.kind == "VM" for r in chosen):
-            raise ValueError("VMs are never deleted by onboarding")
-        """Subnets first, then VCNs (with their gateways, tables and lists), then compartments."""
+        """VMs first, then subnets, then VCNs (with their gateways, tables and lists), then compartments."""
+        for r in chosen:
+            if r.kind == "VM":
+                self.oci("compute", "instance", "terminate", "--instance-id", r.ocid,
+                         "--preserve-boot-volume", "false", "--force", "--wait-for-state", "TERMINATED")
+                self.echo(f"VM {r.name} terminated")
         vcn_ids = {r.ocid for r in chosen if r.kind == "VCN"}
         for r in chosen:
             if r.kind == "Subnet" and r.vcn_id not in vcn_ids:
@@ -200,18 +223,19 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
     if rows and confirm("Do you want to delete any of them?"):
         answer = ask("S.No or OCIDs to delete, comma separated", "")
         chosen, unknown = inv.select(rows, answer)
-        vms = [r for r in chosen if r.kind == "VM"]
-        if vms:
-            inv.echo(f"VMs are never deleted here, skipped: {', '.join(r.name for r in vms)}")
-            chosen = [r for r in chosen if r.kind != "VM"]
         if unknown:
             inv.echo(f"Not in the table, ignored: {', '.join(unknown)}")
+        ignore: frozenset[str] = frozenset()
+        for r in chosen:
+            if r.kind == "VM":
+                ignore |= inv.vm_vnics(r.ocid)
         deletable = []
         for r in chosen:
-            also, blockers = inv.dependencies(r)
+            also, blockers = inv.dependencies(r, ignore)
             inv.echo(f"{r.no}. {r.kind} {r.name} ({r.ocid})")
             for a in also:
-                inv.echo(f"     also deleted: {a}")
+                label = "kept" if a.endswith("detached and kept") else "also deleted"
+                inv.echo(f"     {label}: {a}")
             if blockers:
                 for b in blockers:
                     inv.echo(f"     still in use: {b}")
@@ -221,12 +245,15 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
                 deletable.append(r)
         if deletable:
             names = ", ".join(f"{r.no}. {r.kind} {r.name}" for r in deletable)
-            if confirm(f"Delete these now: {names}? This cannot be undone"):
+            vms = [r for r in deletable if r.kind == "VM"]
+            if not confirm(f"Delete these now: {names}? This cannot be undone"):
+                inv.echo("Nothing deleted")
+            elif any(ask(f"Type the VM name to terminate it ({r.name})", "").strip() != r.name for r in vms):
+                inv.echo("A VM name did not match: nothing deleted")
+            else:
                 inv.delete(deletable)
                 rows = inv.rows(tenancy)
                 inv.show(rows)
-            else:
-                inv.echo("Nothing deleted")
         elif chosen:
             inv.echo("Nothing can be deleted: every choice is still in use")
     vms = [r for r in rows if r.kind == "VM" and r.state == "RUNNING" and r.public]
