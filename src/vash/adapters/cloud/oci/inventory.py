@@ -41,20 +41,29 @@ SUB_PART_TYPES = {"Vnic", "PrivateIp", "VnicAttachment", "BootVolumeAttachment",
 VASH_KINDS = {"Compartment", "VCN", "Subnet", "VM"}
 
 # Identity and access (domains, users, groups, apps, policies): listed only when asked for, never deleted.
-IDENTITY_TYPES = {"Domain", "IdentityDomain", "User", "Group", "DynamicGroup", "App", "IdentityProvider",
+DOMAIN_TYPES = {"Domain", "IdentityDomain"}
+IDENTITY_TYPES = {"User", "Group", "DynamicGroup", "App", "IdentityProvider",
                   "NetworkSource", "AuthenticationPolicy", "Policy"}
 
 
 def kind_group(kind: str) -> str:
-    """vash (VASH deletes it) | identity (listed on request, never deleted) | other."""
-    return "vash" if kind in VASH_KINDS else "identity" if kind in IDENTITY_TYPES else "other"
+    """vash (VASH deletes it) | other | domain / identity (listed on request, never deleted)."""
+    if kind in VASH_KINDS:
+        return "vash"
+    return "domain" if kind in DOMAIN_TYPES else "identity" if kind in IDENTITY_TYPES else "other"
+
+
+# What the owner can add to the table, by number.
+EXTRA_GROUPS = (("1", "other", "other resources (volumes, backups, vaults, databases, ...)"),
+                ("2", "domain", "identity domains (IDCS)"),
+                ("3", "identity", "users, groups, apps and policies"))
 
 
 # Created by Oracle in every tenancy and not removable (or not ours to remove): never shown at all.
 ORACLE_TYPES = {"OsmhSoftwareSource"}
 ORACLE_NAMED = {("TagNamespace", "Oracle-Tags"), ("Policy", "Tenant Admin Policy"),
                 ("TagDefault", "createdby"), ("TagDefault", "createdon"),
-                ("Compartment", "ManagedCompartmentForPaaS"), ("Domain", "Default"), ("IdentityDomain", "Default"),
+                ("Compartment", "ManagedCompartmentForPaaS"),
                 ("Group", "Administrators"), ("Group", "Domain_Administrators"), ("Group", "All Domain Users")}
 
 
@@ -62,6 +71,11 @@ def oracle_provided(kind: str, name: str) -> bool:
     return (kind in ORACLE_TYPES or (kind, name.lower() if kind == "TagDefault" else name) in ORACLE_NAMED
             or (kind == "Policy" and name.startswith("PSM-")))
 
+
+# A vault, its keys and secrets: Oracle's cleaner does not delete them, and OCI deletes a vault only after
+# a waiting period of 7 to 30 days (its keys and secrets go with it). Until then its compartment stays.
+VAULT_PARTS = {"Vault", "Key", "VaultSecret"}
+VAULT_WAIT_DAYS = 7
 
 TERMINATE_POLLS = 40  # 10 minutes at 15 s
 
@@ -97,6 +111,7 @@ class Inventory:
         self.echo = echo
         self.sleep = sleep
         self.cleaner = cleaner  # Oracle's compartment cleaner, for compartments that still hold resources
+        self.vaults: dict[str, list[tuple[str, dict]]] = {}  # compartment -> (region, vault) from dependencies()
         self.hidden: set[str] = set()  # compartments Oracle manages (ManagedCompartmentForPaaS): never shown
 
     def oci(self, *args: str) -> Any:
@@ -162,6 +177,7 @@ class Inventory:
                 rows.append(Row(len(rows) + 1, "Compartment", c["name"], c.get("lifecycle-state", ""),
                                 names.get(c.get("compartment-id", ""), ""), "", c["id"], c.get("compartment-id", ""),
                                 tenancy=label))
+            rows.extend(self._domain_rows([ten["id"]] + [c["id"] for c in comps], names, label, len(rows)))
             regions = self.subscribed_regions(ten["id"])
             if ten["id"] == tenancy:
                 self.regions = regions
@@ -171,8 +187,30 @@ class Inventory:
                                               search=ten["id"] == tenancy))
         self.region = None
         # What VASH can delete first (S.No 1, 2, ...), then other resources, then identity and policies.
-        ordered = [r for g in ("vash", "other", "identity") for r in rows if kind_group(r.kind) == g]
+        seen: set[str] = set()
+        ordered = []
+        for g in ("vash", "other", "domain", "identity"):
+            for r in rows:
+                if kind_group(r.kind) == g and r.ocid not in seen:  # a domain is listed directly and by Search
+                    seen.add(r.ocid)
+                    ordered.append(r)
         return [replace(r, no=i) for i, r in enumerate(ordered, 1)]
+
+    def _domain_rows(self, scopes: list[str], names: dict[str, str], label: str, start: int) -> list[Row]:
+        """Identity domains (IDCS) of each compartment: Resource Search does not always return them."""
+        rows: list[Row] = []
+        for comp in scopes:
+            try:
+                found = self.oci("iam", "domain", "list", "--compartment-id", comp, "--all").get("data", [])
+            except VashError:
+                return rows  # no rights to list domains: they are just not shown
+            for d in found or []:
+                if d.get("lifecycle-state") in ("DELETED", "DELETING"):
+                    continue
+                rows.append(Row(start + len(rows) + 1, "Domain", d.get("display-name") or "",
+                                d.get("lifecycle-state") or "", names.get(comp, comp), "", d.get("id") or "", comp,
+                                region=d.get("home-region") or "", tenancy=label))
+        return rows
 
     def _region_rows(self, tenancy: str, comps: list[dict], names: dict[str, str], region: str,
                      start: int, label: str = "", search: bool = True) -> list[Row]:
@@ -254,8 +292,8 @@ class Inventory:
                 else:
                     what = ", ".join(f"{n} {k}" for k, n in sorted(Counter(r.kind for r in items).items()))
                 self.echo(f"  in {place}: {what}")
-        ident = [r for r in rows if kind_group(r.kind) == "identity"]
-        if ident and "identity" not in include:
+        ident = [r for r in rows if kind_group(r.kind) in ("domain", "identity") and kind_group(r.kind) not in include]
+        if ident:
             counts = ", ".join(f"{n} {k}" for k, n in sorted(Counter(r.kind for r in ident).items()))
             self.echo(f"Identity and policies, not listed: {counts}; VASH never deletes them")
 
@@ -419,11 +457,32 @@ class Inventory:
             subs = self.oci("iam", "compartment", "list", "--compartment-id", r.ocid,
                             "--lifecycle-state", "ACTIVE", "--all").get("data", [])
             blockers += [f"sub-compartment {c['name']} (remove it first)" for c in subs]
+            self.vaults[r.ocid] = []
             for region, items in self.compartment_resources(r.ocid).items():
                 where = f" [{region}]" if region else ""
                 blockers += [f"{i.get('resource-type', '')} {i.get('display-name', i.get('identifier', ''))}{where}"
                              for i in items]
+                self.vaults[r.ocid] += [(region, i) for i in items if i.get("resource-type") == "Vault"]
         return also, blockers
+
+    def vault_state(self, region: str, vault_id: str) -> tuple[str, str]:
+        """(lifecycle state, deletion time) of a vault, read directly (Search can lag)."""
+        self.in_region(region)
+        try:
+            v = self.oci("kms", "management", "vault", "get", "--vault-id", vault_id).get("data", {})
+        except VashError:
+            return "", ""
+        finally:
+            self.region = None
+        return v.get("lifecycle-state") or "", (v.get("time-of-deletion") or "")[:16].replace("T", " ")
+
+    def schedule_vault_deletion(self, region: str, vault_id: str, when: datetime) -> None:
+        self.in_region(region)
+        try:
+            self.oci("kms", "management", "vault", "schedule-deletion", "--vault-id", vault_id,
+                     "--time-of-deletion", when.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        finally:
+            self.region = None
 
     # ---- deleting ------------------------------------------------------
     def delete(self, chosen: list[Row]) -> list[str]:
@@ -520,7 +579,8 @@ def _typed(inv: "Inventory", ask: Callable[[str, str], str], name: str) -> bool:
     return False
 
 
-def clean_compartment(inv: Inventory, r: Row, tenancy: str, confirm: Callable[[str], bool]) -> None:
+def clean_compartment(inv: Inventory, r: Row, tenancy: str, confirm: Callable[[str], bool],
+                      delete_after: bool = True) -> None:
     """Dry-run plan first; the real run backs up to the root compartment and asks for DELETE itself."""
     if not confirm(f"Empty compartment {r.name} with Oracle's compartment cleaner? It first writes a dry-run plan"):
         inv.echo(f"Compartment {r.name} left as it is")
@@ -539,6 +599,9 @@ def clean_compartment(inv: Inventory, r: Row, tenancy: str, confirm: Callable[[s
             inv.echo(f"The cleaner stopped for {r.name}{where}; see its log above")
             return
     inv.region = None
+    if not delete_after:
+        inv.echo(f"Compartment {r.name}: emptied except its vault; it can be deleted once OCI has deleted the vault")
+        return
     inv.oci("iam", "compartment", "delete", "--compartment-id", r.ocid, "--force")
     inv.echo(f"Compartment {r.name}: emptied; deletion started (OCI finishes it in the background)")
 
@@ -587,7 +650,7 @@ def _delete_round(inv: Inventory, rows: list[Row], chosen: list[Row], tenancy: s
     """One pass over the chosen rows: dependency check, reconfirm, delete. True if anything was changed."""
     comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
     for r in [r for r in chosen if r.kind not in VASH_KINDS]:
-        if kind_group(r.kind) == "identity":
+        if kind_group(r.kind) in ("domain", "identity"):
             inv.echo(f"{r.no}. {r.kind} {r.name}: identity and policies are never deleted by VASH; "
                      "change them in the Console (Identity & Security)")
         elif r.compartment_id in comp_no:
@@ -603,6 +666,7 @@ def _delete_round(inv: Inventory, rows: list[Row], chosen: list[Row], tenancy: s
             ignore |= inv.in_region(r.region).vm_vnics(r.ocid)
     deletable = []
     to_clean: list[Row] = []
+    waiting: set[str] = set()  # compartments that wait for OCI to delete their vault
     for r in chosen:
         also, blockers = inv.dependencies(r, ignore)
         inv.echo(f"{r.no}. {r.kind} {r.name} ({r.ocid})")
@@ -611,8 +675,17 @@ def _delete_round(inv: Inventory, rows: list[Row], chosen: list[Row], tenancy: s
             inv.echo(f"     {label}: {a}")
         for b in blockers:
             inv.echo(f"     still in use: {b}")
+        vaults = inv.vaults.get(r.ocid, []) if r.kind == "Compartment" else []
+        if vaults:
+            _handle_vaults(inv, r, vaults, confirm)
+            blockers = [b for b in blockers if b.split(" ", 1)[0] not in VAULT_PARTS]
+            waiting.add(r.ocid)
         cleanable = (r.kind == "Compartment" and blockers and inv.cleaner is not None and not r.tenancy
                      and not any(b.startswith("sub-compartment") for b in blockers))
+        if r.ocid in waiting and not cleanable:
+            if blockers:
+                inv.echo("     -> also blocked by what is listed above; it stays until that is removed")
+            continue
         if cleanable:
             inv.echo("     -> holds resources: Oracle's compartment cleaner can empty it (plan and backup first)")
             to_clean.append(r)
@@ -637,9 +710,67 @@ def _delete_round(inv: Inventory, rows: list[Row], chosen: list[Row], tenancy: s
     elif chosen and not to_clean:
         inv.echo("Nothing can be deleted: every choice is still in use")
     for r in to_clean:
-        clean_compartment(inv, r, tenancy, confirm)
+        clean_compartment(inv, r, tenancy, confirm, delete_after=r.ocid not in waiting)
         changed = True
     return changed
+
+
+def _handle_vaults(inv: Inventory, r: Row, vaults: list[tuple[str, dict]], confirm: Callable[[str], bool]) -> None:
+    """Oracle's cleaner skips vaults, and OCI deletes a vault (with its keys and secrets) only after a waiting
+    period: schedule it (shortest wait) and say from when the compartment can be deleted."""
+    dates: list[str] = []
+    for region, item in vaults:
+        name = item.get("display-name") or item.get("identifier", "")
+        state, when = inv.vault_state(region, item.get("identifier", ""))
+        if state in ("PENDING_DELETION", "SCHEDULING_DELETION"):
+            inv.echo(f"     vault {name}: deletion already scheduled; OCI deletes it on {when or 'its set date'} UTC")
+            dates.append(when)
+            continue
+        if state not in ("ACTIVE", ""):
+            inv.echo(f"     vault {name}: {state}; nothing to do for it now")
+            continue
+        at = datetime.now(timezone.utc) + timedelta(days=VAULT_WAIT_DAYS, hours=1)
+        day = at.strftime("%Y-%m-%d %H:%M")
+        if not confirm(f"Vault {name} in {r.name}: OCI deletes a vault, with its keys and secrets, only after a "
+                       f"waiting period (7 to 30 days). Schedule its deletion for {day} UTC, the shortest wait? "
+                       "Until then it can be cancelled in the Console"):
+            inv.echo(f"     vault {name}: left as it is, so {r.name} cannot be deleted")
+            continue
+        try:
+            inv.schedule_vault_deletion(region, item.get("identifier", ""), at)
+        except VashError as exc:
+            inv.echo(f"     vault {name}: could not schedule its deletion ({exc})")
+            continue
+        inv.echo(f"     vault {name}: deletion scheduled for {day} UTC")
+        dates.append(day)
+    if dates:
+        inv.echo(f"     -> {r.name} can be deleted after {max(d for d in dates if d) if any(dates) else 'that date'}"
+                 " UTC: run the clean-up again then")
+
+
+def _extra_groups(inv: Inventory, rows: list[Row], ask: Callable[[str, str], str]) -> set[str]:
+    """Which hidden groups to add to the table, by number; Enter or 0 adds none."""
+    counts = Counter(kind_group(r.kind) for r in rows)
+    offered = [(no, group, text) for no, group, text in EXTRA_GROUPS if counts[group]]
+    if not offered:
+        return set()
+    inv.echo("You can also list these in the table (identity is only listed, never deleted):")
+    for no, group, text in offered:
+        inv.echo(f"  {no} = {counts[group]} {text}")
+    valid = {no: group for no, group, _ in offered}
+    for attempt in range(3):
+        answer = ask("Which do you want to see? Type the numbers, comma separated (example: 1,3), "
+                     "or press Enter (or 0) for none", "").strip()
+        parts = [p.strip() for p in answer.split(",") if p.strip()]
+        if not parts or parts == ["0"]:
+            return set()
+        if all(p in valid for p in parts):
+            return {valid[p] for p in parts}
+        if attempt < 2:
+            inv.echo(f"'{answer}' is not a valid choice here. Type numbers from: "
+                     f"{', '.join(valid)}; or press Enter (or 0) for none")
+    inv.echo("No valid choice after 3 tries: nothing more is listed")
+    return set()
 
 
 def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
@@ -653,14 +784,7 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
         inv.echo(f"Related {ten['role']} tenancy {ten['name']} ({ten['id']}): listed when this login can reach it")
     rows = inv.rows(tenancy)
     inv.show(rows)
-    include: set[str] = set()
-    other = sum(1 for r in rows if kind_group(r.kind) == "other")
-    if other and confirm(f"Do you want to see the {other} other resources in the table too?"):
-        include.add("other")
-    ident = sum(1 for r in rows if kind_group(r.kind) == "identity")
-    if ident and confirm(f"Do you want to see the {ident} identity resources and policies (domains, users, groups, "
-                         "apps, policies) in the table too? They are only listed, never deleted"):
-        include.add("identity")
+    include = _extra_groups(inv, rows, ask)
     if include:
         inv.show(rows, frozenset(include))
     question = FIRST_PICK
