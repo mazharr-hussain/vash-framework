@@ -187,3 +187,35 @@ def test_down_destroys(home, monkeypatch):
 def test_cli_unknown_cloud_is_not_available_yet(capsys):
     assert main(["onboard", "no-such-cloud"]) == 0
     assert "No onboarding" in capsys.readouterr().out
+
+
+class FipsCloud(FakeCloud):
+    """ssh-keygen refuses ed25519, as in OCI Cloud Shell (FIPS mode)."""
+
+    def __call__(self, args, **kwargs):
+        if args[0] == "ssh-keygen" and "ed25519" in args:
+            self.calls.append((args, kwargs))
+            return done(code=1, stderr="ED25519 keys are not allowed in FIPS mode")
+        return super().__call__(args, **kwargs)
+
+
+def test_fips_mode_falls_back_to_rsa(home, monkeypatch):
+    cloud = FipsCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    assert make(cloud, home).up() == 0
+    keygen = [c[0] for c in cloud.calls if c[0][0] == "ssh-keygen"]
+    assert "rsa" in keygen[-1] and "4096" in keygen[-1]
+    assert (home / ".ssh" / "id_rsa.pub").exists()
+
+
+def test_existing_rsa_key_is_reused(home, monkeypatch):
+    ssh = home / ".ssh"
+    ssh.mkdir()
+    (ssh / "id_rsa").write_text("private")
+    (ssh / "id_rsa.pub").write_text("ssh-rsa AAAA mine")
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home).up()
+    assert not any(c[0][0] == "ssh-keygen" for c in cloud.calls)
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["ssh_public_key"] == "ssh-rsa AAAA mine"

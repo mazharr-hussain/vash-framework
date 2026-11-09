@@ -154,14 +154,23 @@ class Onboarding:
         return data[0]["id"]
 
     def ssh_public_key(self) -> tuple[Path, str]:
-        key = Path.home() / ".ssh" / "id_ed25519"
-        if not key.with_suffix(".pub").exists():
-            key.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            res = self._cmd(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)])
-            if res.returncode != 0:
-                raise VashError(f"ssh-keygen failed: {res.stderr.strip()}", "Create ~/.ssh/id_ed25519 yourself")
-            self.echo(f"SSH key created: {key}")
-        return key, key.with_suffix(".pub").read_text().strip()
+        """Reuse an existing key, else create one: ed25519, or RSA 4096 where FIPS mode forbids ed25519 (Cloud Shell)."""
+        ssh_dir = Path.home() / ".ssh"
+        for name in ("id_ed25519", "id_rsa"):
+            key = ssh_dir / name
+            if key.exists() and key.with_suffix(".pub").exists():
+                return key, key.with_suffix(".pub").read_text().strip()
+        ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        errors = []
+        for name, args in (("id_ed25519", ["-t", "ed25519"]), ("id_rsa", ["-t", "rsa", "-b", "4096"])):
+            key = ssh_dir / name
+            res = self._cmd(["ssh-keygen", "-q", *args, "-N", "", "-f", str(key)])
+            if res.returncode == 0 and key.with_suffix(".pub").exists():
+                self.echo(f"SSH key created: {key}")
+                return key, key.with_suffix(".pub").read_text().strip()
+            errors.append(f"{name}: {res.stderr.strip()}")
+        raise VashError(f"ssh-keygen failed: {'; '.join(errors)}",
+                        "Create a key with: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
 
     def admin_cidr(self) -> str:
         if self.options.admin_cidr:
