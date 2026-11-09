@@ -274,3 +274,25 @@ def test_compartment_search_covers_subtree(home, monkeypatch):
     make(cloud, home, compartment_name="KYC").up()
     listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
     assert "--compartment-id-in-subtree" in listing and "KYC" in listing
+
+
+def test_compartment_name_is_asked_with_default(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    asked = []
+    onboarding = make(cloud, home)
+    onboarding.ask = lambda q, default: asked.append(default) or "kyc-runner"
+    onboarding.up()
+    assert asked == ["vash"]
+    create = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "create"]][0]
+    assert "kyc-runner" in create
+
+
+def test_enter_keeps_default_compartment(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    onboarding = make(cloud, home)
+    onboarding.ask = lambda q, default: ""
+    onboarding.up()
+    listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
+    assert listing[listing.index("--name") + 1] == "vash"

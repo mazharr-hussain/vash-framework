@@ -8,7 +8,7 @@ curl -fsSL https://raw.githubusercontent.com/mazharr-hussain/vash-framework/main
 
 What it does (`vash onboard oci`):
 
-1. Reads the tenancy and region from Cloud Shell, and creates (or reuses) the `vash` compartment.
+1. Reads the tenancy and region from Cloud Shell, asks for the compartment name (default `vash`), and reuses it or, after a yes, creates it.
 2. Checks the free A1 quota in each availability domain and keeps those with 2 cores and 12 GB free.
 3. Picks the latest Ubuntu 24.04 Arm image, creates an SSH key if there is none, and opens SSH to this shell's IP only.
 4. Asks once, then runs terraform on `iac/oci/environments/always-free`; on "Out of host capacity" it tries the next domain.
@@ -21,7 +21,7 @@ Options (after `bash -s --`):
 - `--ocpus 4 --memory 24`: a bigger VM (the whole free A1 allowance).
 - `--admin-cidr x.x.x.x/32`: who may SSH in (only for the network VASH creates).
 - `--subnet-id <ocid>`: use an existing public subnet instead of creating a network (for example when the free VCN limit is reached). It must allow SSH (TCP 22); VASH checks it and never changes it.
-- `--compartment <name>`: use an existing compartment. Without it, VASH asks before creating `vash`.
+- `--compartment <name>`: the compartment to use. Without it, VASH asks for the name (Enter keeps `vash`); a compartment that does not exist is created only after a yes.
 - `--yes`: do not ask before creating.
 - `--down`: remove the VM and its network.
 

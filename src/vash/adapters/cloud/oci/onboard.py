@@ -25,6 +25,7 @@ SHAPE = "VM.Standard.A1.Flex"
 ENVIRONMENT = "always-free"
 DEFAULT_SOURCE = "git+https://github.com/mazharr-hussain/vash-framework.git"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
+DEFAULT_COMPARTMENT = "vash"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -34,7 +35,7 @@ Runner = Callable[..., subprocess.CompletedProcess]
 class Options:
     """What the user chose on the command line."""
 
-    compartment_name: str = "vash"
+    compartment_name: str | None = None
     subnet_id: str | None = None
     ocpus: int = 2
     memory_in_gbs: int = 12
@@ -70,6 +71,7 @@ class Onboarding:
         run: Runner = subprocess.run,
         echo: Callable[[str], None] = print,
         confirm: Callable[[str], bool] | None = None,
+        ask: Callable[[str, str], str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         env: dict[str, str] | None = None,
     ):
@@ -77,6 +79,7 @@ class Onboarding:
         self._run = run
         self.echo = echo
         self.confirm = confirm or (lambda _question: True)
+        self.ask = ask or (lambda _question, default: default)
         self.sleep = sleep
         self.env = dict(os.environ if env is None else env)
 
@@ -115,8 +118,15 @@ class Onboarding:
             raise VashError("Tenancy or region not found", "Run in OCI Cloud Shell, or run `oci setup config` first")
         return tenancy, region
 
+    def compartment_name(self) -> str:
+        """The name from --compartment, else asked (Enter keeps the default)."""
+        if not self.options.compartment_name:
+            answer = self.ask("Compartment for the VASH VM (existing or new)", DEFAULT_COMPARTMENT).strip()
+            self.options.compartment_name = answer or DEFAULT_COMPARTMENT
+        return self.options.compartment_name
+
     def ensure_compartment(self, tenancy: str) -> str:
-        name = self.options.compartment_name
+        name = self.compartment_name()
         found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy, "--name", name,
                          "--lifecycle-state", "ACTIVE", "--compartment-id-in-subtree", "true",
                          "--access-level", "ACCESSIBLE")
@@ -377,10 +387,15 @@ def run_cli(args: Any) -> int:
             return True
         return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
 
+    def ask_text(question: str, default: str) -> str:
+        if args.yes:
+            return default
+        return input(f"{question} [{default}]: ")
+
     def token() -> str:
         return getpass.getpass(f"GitHub runner registration token for {args.runner_repo} (not stored): ").strip()
 
-    onboarding = Onboarding(options, confirm=ask)
+    onboarding = Onboarding(options, confirm=ask, ask=ask_text)
     if args.down:
         return onboarding.down()
     return onboarding.up(runner_token=token if args.runner_repo else None)
