@@ -180,7 +180,7 @@ def test_subnet_in_use_failure_is_reported_and_the_rest_goes_on():
 
 def test_review_asks_twice_before_deleting():
     fake = FakeOci()
-    answers = {"check": True, "other resources": False, "something else": False, "delete any": True, "Delete these now": False}
+    answers = {"check": True, "other resources": False, "identity": False, "something else": False, "delete any": True, "Delete these now": False}
     def confirm(q):
         return next(v for k, v in answers.items() if k in q)
     inv = Inventory(fake, lambda m: None)
@@ -210,7 +210,7 @@ def test_private_subnet_cannot_be_picked():
     fake = FakeOci()
     inv = Inventory(fake, lambda m: None)
     priv = next(r.no for r in inv.rows(TEN) if r.ocid == "ocid1.subnet..priv")
-    answers = {"check": True, "other resources": False, "delete any": False}
+    answers = {"check": True, "other resources": False, "identity": False, "delete any": False}
     picked = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(priv), want_subnet=True)
     assert picked.subnet_id == "" and picked.vm is None
@@ -298,7 +298,7 @@ def test_vm_and_its_subnet_go_together_vm_first():
 def test_existing_vm_can_be_picked():
     inv = Inventory(FakeOci(), lambda m: None)
     vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
-    answers = {"check": True, "other resources": False, "delete any": False}
+    answers = {"check": True, "other resources": False, "identity": False, "delete any": False}
     choice = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(vm.no) if "existing VM" in q else "", want_subnet=True)
     assert choice.vm == vm and choice.subnet_id == ""
@@ -597,8 +597,29 @@ def test_oracle_resources_are_counted_not_listed_and_the_rest_is_summarised():
     out.clear()
     inv.show(rows)
     assert not any("| User" in line for line in out)
-    assert any("in (root): 5 User" in line for line in out)
+    assert any("Identity and policies, not listed: 5 User" in line for line in out)
     assert any("Not listed: 52 resources created by Oracle" in line for line in out)
     out.clear()
-    inv.show(rows, everything=True)
+    inv.show(rows, frozenset({"identity"}))
     assert sum("| User" in line for line in out) == 5
+
+
+def test_identity_and_policies_are_never_deleted():
+    fake = FakeOci()
+    real = fake.__call__
+    def search(*args):
+        if args[:3] == ("search", "resource", "structured-search") and args[args.index("--query-text") + 1] == "query all resources":
+            return {"data": {"items": [{"resource-type": "Policy", "display-name": "github-ci",
+                                        "identifier": "ocid1.policy..g", "compartment-id": TEN}]}}
+        return real(*args)
+    out, echo = lines()
+    inv = Inventory(search, echo)
+    policy = next(r for r in inv.rows(TEN) if r.kind == "Policy")
+    asked = []
+    def confirm(q):
+        asked.append(q)
+        return "something else" not in q
+    review(inv, TEN, confirm, lambda q, d: str(policy.no) if "delete, comma" in q else "", want_subnet=False)
+    assert any("identity resources and policies" in q for q in asked)
+    assert any("never deleted by VASH" in line for line in out)
+    assert not any(c[:2] == ("iam", "policy") for c in fake.calls)

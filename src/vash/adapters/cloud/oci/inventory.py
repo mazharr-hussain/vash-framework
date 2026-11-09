@@ -40,6 +40,16 @@ SUB_PART_TYPES = {"Vnic", "PrivateIp", "VnicAttachment", "BootVolumeAttachment",
                   "VaultSecret"}
 VASH_KINDS = {"Compartment", "VCN", "Subnet", "VM"}
 
+# Identity and access (domains, users, groups, apps, policies): listed only when asked for, never deleted.
+IDENTITY_TYPES = {"Domain", "IdentityDomain", "User", "Group", "DynamicGroup", "App", "IdentityProvider",
+                  "NetworkSource", "AuthenticationPolicy", "Policy"}
+
+
+def kind_group(kind: str) -> str:
+    """vash (VASH deletes it) | identity (listed on request, never deleted) | other."""
+    return "vash" if kind in VASH_KINDS else "identity" if kind in IDENTITY_TYPES else "other"
+
+
 # Created and managed by Oracle in every tenancy: never deleted, so only counted, not listed.
 ORACLE_TYPES = {"OsmhSoftwareSource"}
 ORACLE_NAMED = {("TagNamespace", "Oracle-Tags"), ("Policy", "Tenant Admin Policy"),
@@ -157,8 +167,8 @@ class Inventory:
                 rows.extend(self._region_rows(ten["id"], comps, names, region, len(rows), label,
                                               search=ten["id"] == tenancy))
         self.region = None
-        # What VASH can delete first (S.No 1, 2, ...), then everything else.
-        ordered = [r for r in rows if r.kind in VASH_KINDS] + [r for r in rows if r.kind not in VASH_KINDS]
+        # What VASH can delete first (S.No 1, 2, ...), then other resources, then identity and policies.
+        ordered = [r for g in ("vash", "other", "identity") for r in rows if kind_group(r.kind) == g]
         return [replace(r, no=i) for i, r in enumerate(ordered, 1)]
 
     def _region_rows(self, tenancy: str, comps: list[dict], names: dict[str, str], region: str,
@@ -225,16 +235,13 @@ class Inventory:
                             item.get("identifier", ""), comp)
         return rows
 
-    def show(self, rows: list[Row], everything: bool = False) -> None:
-        """The table of what VASH can delete (compartments, networks, VMs), then a short summary of the
-        rest per compartment. `everything` prints the rest as a table too."""
-        main = [r for r in rows if r.kind in VASH_KINDS]
-        rest = [r for r in rows if r.kind not in VASH_KINDS]
-        self._table(rows if everything else main)
-        if everything:
-            return
-        if rest:
-            self.echo(f"Also found {len(rest)} other resources (policies, users, volumes, backups, ...). "
+    def show(self, rows: list[Row], include: frozenset[str] = frozenset()) -> None:
+        """The table of what VASH can delete (compartments, networks, VMs), plus the groups in `include`
+        ("other", "identity"); the groups not included are summarised under the table."""
+        self._table([r for r in rows if kind_group(r.kind) in {"vash", *include}])
+        rest = [r for r in rows if kind_group(r.kind) == "other"]
+        if rest and "other" not in include:
+            self.echo(f"Also found {len(rest)} other resources (volumes, backups, vaults, databases, ...). "
                       "They go with their compartment when you delete it; those in (root) are removed in the Console:")
             groups: dict[str, list[Row]] = {}
             for r in rest:
@@ -245,6 +252,10 @@ class Inventory:
                 else:
                     what = ", ".join(f"{n} {k}" for k, n in sorted(Counter(r.kind for r in items).items()))
                 self.echo(f"  in {place}: {what}")
+        ident = [r for r in rows if kind_group(r.kind) == "identity"]
+        if ident and "identity" not in include:
+            counts = ", ".join(f"{n} {k}" for k, n in sorted(Counter(r.kind for r in ident).items()))
+            self.echo(f"Identity and policies, not listed: {counts}; VASH never deletes them")
         if self.provided:
             self.echo(f"Not listed: {sum(self.provided.values())} resources created by Oracle in every tenancy "
                       f"({', '.join(f'{n} {k}' for k, n in sorted(self.provided.items()))}); never deleted")
@@ -573,7 +584,10 @@ def _delete_round(inv: Inventory, rows: list[Row], tenancy: str, confirm: Callab
                    "(example: 4,5), or their OCIDs; press Enter for none", rows, many=True)
     comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
     for r in [r for r in chosen if r.kind not in VASH_KINDS]:
-        if r.compartment_id in comp_no:
+        if kind_group(r.kind) == "identity":
+            inv.echo(f"{r.no}. {r.kind} {r.name}: identity and policies are never deleted by VASH; "
+                     "change them in the Console (Identity & Security)")
+        elif r.compartment_id in comp_no:
             inv.echo(f"{r.no}. {r.kind} {r.name}: removed with its compartment by Oracle's cleaner; "
                      f"choose its compartment {r.parent} (S.No {comp_no[r.compartment_id]})")
         else:
@@ -636,14 +650,21 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
         inv.echo(f"Related {ten['role']} tenancy {ten['name']} ({ten['id']}): listed when this login can reach it")
     rows = inv.rows(tenancy)
     inv.show(rows)
-    rest = sum(1 for r in rows if r.kind not in VASH_KINDS)
-    if rest and confirm(f"Do you want to see the {rest} other resources in the table too?"):
-        inv.show(rows, everything=True)
+    include: set[str] = set()
+    other = sum(1 for r in rows if kind_group(r.kind) == "other")
+    if other and confirm(f"Do you want to see the {other} other resources in the table too?"):
+        include.add("other")
+    ident = sum(1 for r in rows if kind_group(r.kind) == "identity")
+    if ident and confirm(f"Do you want to see the {ident} identity resources and policies (domains, users, groups, "
+                         "apps, policies) in the table too? They are only listed, never deleted"):
+        include.add("identity")
+    if include:
+        inv.show(rows, frozenset(include))
     question = "Do you want to delete any of them?"
     while rows and confirm(question):
         if _delete_round(inv, rows, tenancy, confirm, ask):
             rows = inv.rows(tenancy)
-            inv.show(rows)
+            inv.show(rows, frozenset(include))
         question = "Do you want to delete something else from the table?"
     vms = [r for r in rows if r.kind == "VM" and r.state == "RUNNING" and r.public]
     if want_vm and vms:
