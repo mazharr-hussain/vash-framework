@@ -21,6 +21,7 @@ from vash.core.exceptions import AdapterNotInstalled, VashError
 from vash.core.paths import vash_root
 
 from .adapter import Adapter
+from .iam import create_compartment
 
 SHAPE = "VM.Standard.A1.Flex"
 ENVIRONMENT = "always-free"
@@ -150,11 +151,10 @@ class Onboarding:
             return items[0]["id"]
         if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
             raise VashError(f"No compartment '{name}'", "Pass --compartment <name of an existing compartment>")
-        created = self.oci("iam", "compartment", "create", "--compartment-id", tenancy, "--name", name,
-                           "--description", "VASH runner (created by vash onboard)",
-                           "--wait-for-state", "ACTIVE")
+        comp_id = create_compartment(self.oci, self.echo, tenancy, name, "VASH runner (created by vash onboard)",
+                                     self.sleep)
         self.echo(f"Compartment '{name}' created")
-        return created["data"]["id"]
+        return comp_id
 
     def ensure_vault(self, tenancy: str) -> None:
         """The vault and key for VASH's secrets: an existing one the owner picks, or a new one."""
@@ -166,7 +166,7 @@ class Onboarding:
             return
         from .security import VaultSetup
         base = self.prefix or re.sub(r"[^a-z0-9-]+", "-", self.options.vm_name.lower()).strip("-") or DEFAULT_NAME
-        chosen = VaultSetup(self.oci, self.echo, self.confirm, self.ask).choose(tenancy, f"{base}-secrets-key")
+        chosen = VaultSetup(self.oci, self.echo, self.confirm, self.ask, self.sleep).choose(tenancy, f"{base}-secrets-key")
         self._save_state(**chosen)
 
     def check_subnet(self, subnet_id: str) -> None:

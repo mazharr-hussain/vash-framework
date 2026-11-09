@@ -52,6 +52,8 @@ class FakeCloud:
             return {"data": [{"id": c} for c in self.compartments]}
         if args[:3] == ["iam", "compartment", "create"]:
             return {"data": {"id": COMPARTMENT}}
+        if args[:3] == ["iam", "compartment", "get"]:
+            return {"data": {"lifecycle-state": "ACTIVE"}}
         if args[:3] == ["iam", "availability-domain", "list"]:
             return {"data": [{"name": ad} for ad in self.quota]}
         if args[:3] == ["limits", "resource-availability", "get"]:
