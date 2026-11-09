@@ -43,6 +43,7 @@ class Inventory:
         # Direct listings, not Resource Search: search lags behind deletes by a minute or two.
         scopes = [tenancy] + [c["id"] for c in comps]
         for comp in scopes:
+            self.echo(f"Reading {names.get(comp, comp)} ...")
             for v in self.oci("network", "vcn", "list", "--compartment-id", comp, "--all").get("data", []):
                 if v.get("lifecycle-state") in ("TERMINATED", "TERMINATING"):
                     continue
@@ -102,12 +103,49 @@ class Inventory:
         data = self.oci("compute", "instance", "list-vnics", "--instance-id", vm_ocid).get("data", [])
         return {v["id"] for v in data if v.get("id")}
 
+    def vnic_owner(self, vnic_id: str) -> str:
+        """Who holds a VNIC: the VM it is attached to, or the service created with it."""
+        vnic = self.oci("network", "vnic", "get", "--vnic-id", vnic_id).get("data", {})
+        comp = vnic.get("compartment-id", "")
+        attached = self.oci("compute", "vnic-attachment", "list", "--compartment-id", comp,
+                            "--vnic-id", vnic_id, "--all").get("data", []) if comp else []
+        for att in attached:
+            if att.get("lifecycle-state") in ("ATTACHED", "ATTACHING") and att.get("instance-id"):
+                vm = self.oci("compute", "instance", "get", "--instance-id", att["instance-id"]).get("data", {})
+                return f"VM {vm.get('display-name', att['instance-id'])}"
+        created = vnic.get("time-created", "")
+        if not (comp and created):
+            return f"VNIC {vnic.get('display-name', vnic_id)}"
+        # A service VNIC is created a moment after its service: look for what was created just before it.
+        found = self.oci("search", "resource", "structured-search", "--query-text",
+                         f"query all resources where compartmentId = '{comp}' && timeCreated <= '{created}'"
+                         ).get("data", {}).get("items", [])
+        skip = {"Vnic", "PrivateIp", "VnicAttachment", "Subnet", "Vcn", "SecurityList", "RouteTable",
+                "DHCPOptions", "InternetGateway", "BootVolume", "Instance"}
+        candidates = sorted((i for i in found if i.get("resource-type") not in skip
+                             and i.get("lifecycle-state") not in ("TERMINATED", "DELETED")),
+                            key=lambda i: i.get("time-created", ""), reverse=True)
+        if candidates:
+            c = candidates[0]
+            return (f"probably {c.get('resource-type', '')} {c.get('display-name', '')} "
+                    f"(created {c.get('time-created', '')[:16]}, VNIC {vnic.get('display-name', '')})")
+        return f"VNIC {vnic.get('display-name', vnic_id)} (owner not found)"
+
     def _users_of_subnet(self, subnet_id: str, ignore: frozenset[str] = frozenset()) -> list[str]:
-        """Everything holding an IP in the subnet (VMs, databases, load balancers...),
-        except the VNICs of VMs deleted in the same batch."""
+        """Everything holding an IP in the subnet, named by its owner, except the VNICs of VMs
+        deleted in the same batch."""
         ips = self.oci("network", "private-ip", "list", "--subnet-id", subnet_id, "--all").get("data", [])
-        return [f"IP {ip.get('ip-address', '')} ({ip.get('display-name') or ip.get('hostname-label') or ip.get('vnic-id', '')})"
-                for ip in ips if ip.get("vnic-id") not in ignore]
+        owners: dict[str, str] = {}
+        users = []
+        for ip in ips:
+            vnic_id = ip.get("vnic-id")
+            if vnic_id in ignore:
+                continue
+            if vnic_id and vnic_id not in owners:
+                owners[vnic_id] = self.vnic_owner(vnic_id)
+            owner = owners.get(vnic_id, ip.get("display-name") or "")
+            users.append(f"IP {ip.get('ip-address', '')}: {owner}")
+        return users
 
     def dependencies(self, r: Row, ignore: frozenset[str] = frozenset()) -> tuple[list[str], list[str]]:
         """(also deleted with it, still using it). Anything in the second list blocks the delete.
@@ -210,6 +248,15 @@ class Inventory:
         self.echo(f"VCN {r.name} deleted")
 
 
+def _typed(inv: "Inventory", ask: Callable[[str, str], str], name: str) -> bool:
+    for attempt in range(3):
+        if ask(f"Type the VM name to terminate it ({name})", "").strip() == name:
+            return True
+        if attempt < 2:
+            inv.echo(f"That is not '{name}'; try again")
+    return False
+
+
 def clean_compartment(inv: Inventory, r: Row, tenancy: str, confirm: Callable[[str], bool]) -> None:
     """Dry-run plan first; the real run backs up to the root compartment and asks for DELETE itself."""
     if not confirm(f"Empty compartment {r.name} with Oracle's compartment cleaner? It first writes a dry-run plan"):
@@ -277,8 +324,8 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
             vms = [r for r in deletable if r.kind == "VM"]
             if not confirm(f"Delete these now: {names}? This cannot be undone"):
                 inv.echo("Nothing deleted")
-            elif any(ask(f"Type the VM name to terminate it ({r.name})", "").strip() != r.name for r in vms):
-                inv.echo("A VM name did not match: nothing deleted")
+            elif not all(_typed(inv, ask, r.name) for r in vms):
+                inv.echo("A VM name did not match after 3 tries: nothing deleted")
             else:
                 inv.delete(deletable)
                 rows = inv.rows(tenancy)
