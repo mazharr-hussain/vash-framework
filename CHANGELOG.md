@@ -28,3 +28,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Catalog: UPL-1.0 allowed; vendor-first rule; LAW 3 search record for the OCI tools.
 - IaC: network and VM now use Oracle's CD3 Automation Toolkit modules (v2026.2.2); VASH's own network and compute modules are removed. The free-tier database keeps VASH's module (CD3's adb module has no free-tier option).
 - `vash onboard oci`: the dependency check names who holds each IP (the VM, or the service created with the VNIC), a VM name gets 3 tries, and the table shows progress while it reads.
+- Fixed: the owner lookup sends the time in the form OCI Search accepts, and a failed lookup shows "owner unknown" instead of stopping the run.
