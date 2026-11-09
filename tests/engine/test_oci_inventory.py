@@ -1,6 +1,6 @@
 import pytest
 
-from vash.adapters.cloud.oci.inventory import NEXT_PICK, Inventory
+from vash.adapters.cloud.oci.inventory import NEXT_PICK, Inventory, Row, _extra_groups
 from vash.adapters.cloud.oci.inventory import review as full_review
 
 
@@ -516,8 +516,10 @@ def test_second_delete_round_in_the_same_run():
     rounds = iter(["ocid1.subnet..old", "ocid1.vcn..b", ""])
     asked = []
     def pick(q, d):
-        asked.append(q)
-        return next(rounds, "") if "S.No" in q else ""
+        if "S.No" in q:
+            asked.append(q)
+            return next(rounds, "")
+        return ""
     full_review(inv, TEN, yes, pick, want_subnet=False)
     assert "delete" in asked[0] and asked[1].startswith("Anything else")
     assert "ocid1.vcn..b" not in fake.vcns
@@ -634,6 +636,81 @@ def test_identity_and_policies_are_never_deleted():
         asked.append(q)
         return "something else" not in q
     review(inv, TEN, confirm, lambda q, d: str(policy.no) if "delete, comma" in q else "", want_subnet=False)
-    assert any("identity resources and policies" in q for q in asked)
+    assert any("3 = 1 users, groups, apps and policies" in line for line in out)
     assert any("never deleted by VASH" in line for line in out)
     assert not any(c[:2] == ("iam", "policy") for c in fake.calls)
+
+
+def test_extra_groups_are_chosen_by_number_and_0_or_enter_means_none():
+    out, echo = lines()
+    inv = Inventory(FakeOci(), echo)
+    rows = [Row(1, "VCN", "v", "", "", "", "ocid1.vcn..1", ""), Row(2, "Bucket", "b", "", "", "", "ocid1.b..1", ""),
+            Row(3, "Domain", "Default", "", "", "", "ocid1.domain..1", ""),
+            Row(4, "User", "u", "", "", "", "ocid1.user..1", "")]
+    assert _extra_groups(inv, rows, lambda q, d: "") == set()
+    assert _extra_groups(inv, rows, lambda q, d: "0") == set()
+    assert _extra_groups(inv, rows, lambda q, d: "1, 2") == {"other", "domain"}
+    answers = iter(["y", "3"])
+    assert _extra_groups(inv, rows, lambda q, d: next(answers)) == {"identity"}
+    assert any("'y' is not a valid choice" in line for line in out)
+    assert any("2 = 1 identity domains (IDCS)" in line for line in out)
+
+
+def test_identity_domains_are_listed_directly():
+    fake = FakeOci()
+    real = fake.__call__
+    def with_domains(*args):
+        if args[:3] == ("iam", "domain", "list"):
+            if args[args.index("--compartment-id") + 1] != TEN:
+                return {"data": []}
+            return {"data": [{"id": "ocid1.domain..d", "display-name": "Default", "lifecycle-state": "ACTIVE",
+                              "home-region": "me-jeddah-1"}]}
+        return real(*args)
+    rows = Inventory(with_domains, lambda m: None).rows(TEN)
+    domain = next(r for r in rows if r.kind == "Domain")
+    assert domain.name == "Default" and domain.parent == "(root)" and domain.no == len(rows)
+
+
+def _with_vault(fake, state="ACTIVE", extra=()):
+    real = fake.__call__
+    def call(*args):
+        if args[:3] == ("search", "resource", "structured-search") and "compartmentId = 'ocid1.comp..x'" in args[-1]:
+            return {"data": {"items": [
+                {"resource-type": "Vault", "display-name": "OdooVault", "identifier": "ocid1.vault..v",
+                 "lifecycle-state": "ACTIVE"},
+                {"resource-type": "Key", "display-name": "OdooKey", "identifier": "ocid1.key..k",
+                 "lifecycle-state": "ENABLED"}, *extra]}}
+        if args[:4] == ("kms", "management", "vault", "get"):
+            fake.calls.append(args)
+            return {"data": {"lifecycle-state": state, "time-of-deletion": "2026-11-16T11:00:00Z"}}
+        if args[:4] == ("kms", "management", "vault", "schedule-deletion"):
+            fake.calls.append(args)
+            return {"data": {}}
+        return real(*args)
+    return call
+
+
+def test_vault_deletion_is_scheduled_and_the_compartment_waits():
+    fake, cleaner = FakeOci(), FakeCleaner()
+    out, echo = lines()
+    inv = Inventory(_with_vault(fake), echo, cleaner)
+    comp = _pick_compartment(inv)
+    review(inv, TEN, yes, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert any(c[:4] == ("kms", "management", "vault", "schedule-deletion") for c in fake.calls)
+    assert cleaner.calls == []  # only the vault and its key were in it
+    assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
+    assert any("can be deleted after" in line and "run the clean-up again then" in line for line in out)
+
+
+def test_vault_already_scheduled_shows_its_date_and_the_rest_is_cleaned():
+    fake, cleaner = FakeOci(), FakeCleaner()
+    out, echo = lines()
+    bucket = {"resource-type": "Bucket", "display-name": "b", "identifier": "ocid1.bucket..b",
+              "lifecycle-state": "ACTIVE"}
+    inv = Inventory(_with_vault(fake, "PENDING_DELETION", (bucket,)), echo, cleaner)
+    comp = _pick_compartment(inv)
+    review(inv, TEN, yes, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    assert not any(c[:4] == ("kms", "management", "vault", "schedule-deletion") for c in fake.calls)
+    assert any("OCI deletes it on 2026-11-16 11:00 UTC" in line for line in out)
+    assert cleaner.calls == [(comp.ocid, TEN, False), (comp.ocid, TEN, True)]
+    assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
