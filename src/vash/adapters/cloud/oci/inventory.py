@@ -7,7 +7,10 @@ typed, and OCI itself refuses to delete a subnet or VCN that is still in use.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable
+
+from vash.core.exceptions import VashError
 
 
 @dataclass(frozen=True)
@@ -21,6 +24,17 @@ class Row:
     ocid: str
     compartment_id: str
     vcn_id: str = ""
+
+
+def _search_time(value: str) -> str:
+    """OCI Search takes 2026-11-04T01:39:02Z, not 2026-11-04T01:39:02.547000+00:00."""
+    if not value:
+        return ""
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class Inventory:
@@ -113,13 +127,16 @@ class Inventory:
             if att.get("lifecycle-state") in ("ATTACHED", "ATTACHING") and att.get("instance-id"):
                 vm = self.oci("compute", "instance", "get", "--instance-id", att["instance-id"]).get("data", {})
                 return f"VM {vm.get('display-name', att['instance-id'])}"
-        created = vnic.get("time-created", "")
+        created = _search_time(vnic.get("time-created", ""))
         if not (comp and created):
             return f"VNIC {vnic.get('display-name', vnic_id)}"
         # A service VNIC is created a moment after its service: look for what was created just before it.
-        found = self.oci("search", "resource", "structured-search", "--query-text",
-                         f"query all resources where compartmentId = '{comp}' && timeCreated <= '{created}'"
-                         ).get("data", {}).get("items", [])
+        try:
+            found = self.oci("search", "resource", "structured-search", "--query-text",
+                             f"query all resources where compartmentId = '{comp}' && timeCreated <= '{created}'"
+                             ).get("data", {}).get("items", [])
+        except VashError:
+            return f"VNIC {vnic.get('display-name', vnic_id)} (owner unknown: search failed)"
         skip = {"Vnic", "PrivateIp", "VnicAttachment", "Subnet", "Vcn", "SecurityList", "RouteTable",
                 "DHCPOptions", "InternetGateway", "BootVolume", "Instance"}
         candidates = sorted((i for i in found if i.get("resource-type") not in skip

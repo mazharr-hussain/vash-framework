@@ -45,7 +45,7 @@ class FakeOci:
                              "display-name": "kyc-vm"}}
         if a[:3] == ["network", "vnic", "get"]:
             vid = a[a.index("--vnic-id") + 1]
-            return {"data": {"compartment-id": "ocid1.comp..x", "time-created": "2026-11-04T01:39:02Z",
+            return {"data": {"compartment-id": "ocid1.comp..x", "time-created": "2026-11-04T01:39:02.547000+00:00",
                              "display-name": f"name-of-{vid}"}}
         if a[:3] == ["compute", "vnic-attachment", "list"]:
             vid = a[a.index("--vnic-id") + 1]
@@ -342,8 +342,11 @@ def test_sub_compartment_blocks_the_cleaner():
 
 
 def test_service_vnic_owner_is_named():
-    inv = Inventory(FakeOci(), lambda m: None)
+    fake = FakeOci()
+    inv = Inventory(fake, lambda m: None)
     owner = inv.vnic_owner("vnic-service")
+    query = [c[-1] for c in fake.calls if c[:3] == ("search", "resource", "structured-search")][0]
+    assert "timeCreated <= '2026-11-04T01:39:02Z'" in query
     assert owner.startswith("probably PrivateEndpoint odoo-pe")
     assert "name-of-vnic-service" in owner
 
@@ -359,3 +362,17 @@ def test_vm_name_gets_three_tries():
            want_subnet=False)
     assert any(c[:3] == ("compute", "instance", "terminate") for c in fake.calls)
     assert any("try again" in line for line in out)
+
+
+def test_search_time_format_and_failure_does_not_stop():
+    from vash.adapters.cloud.oci.inventory import _search_time
+    assert _search_time("2026-11-04T01:39:02.547000+00:00") == "2026-11-04T01:39:02Z"
+    assert _search_time("") == ""
+    fake = FakeOci()
+    real = fake.__call__
+    def failing_search(*args):
+        if args[:3] == ("search", "resource", "structured-search") and "timeCreated" in args[-1]:
+            raise VashError("oci search failed: CannotParseRequest", "fix")
+        return real(*args)
+    owner = Inventory(failing_search, lambda m: None).vnic_owner("vnic-service")
+    assert "owner unknown" in owner
