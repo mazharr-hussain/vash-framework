@@ -51,6 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--runner-repo", help="owner/name: register a self-hosted CI runner for it")
     p_onboard.add_argument("--admin-cidr", help="CIDR allowed to SSH (default: this shell's IP/32)")
     p_onboard.add_argument("--compartment", help="Compartment name; asked when missing (default vash), created only after a yes")
+    p_onboard.add_argument("--no-inventory", action="store_true", help="Skip the list of existing compartments, VCNs and subnets")
     p_onboard.add_argument("--subnet-id", help="Existing public subnet to use; no network is created")
     p_onboard.add_argument("--ocpus", type=int, default=2)
     p_onboard.add_argument("--memory", type=int, default=12, help="GB of memory")

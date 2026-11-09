@@ -37,6 +37,7 @@ class Options:
 
     compartment_name: str | None = None
     subnet_id: str | None = None
+    review: bool = False  # interactive inventory, never with --yes
     ocpus: int = 2
     memory_in_gbs: int = 12
     os_name: str = "Canonical Ubuntu"
@@ -307,6 +308,12 @@ class Onboarding:
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
+        if self.options.review:
+            from .inventory import Inventory, review
+            picked = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
+                            want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"))
+            if picked:
+                self.options.subnet_id = picked
         compartment = self.ensure_compartment(tenancy)
         previous = self.existing_tfvars()
         if previous:
@@ -378,6 +385,7 @@ def run_cli(args: Any) -> int:
         admin_cidr=args.admin_cidr,
         runner_repo=args.runner_repo,
         model=args.model,
+        review=not args.yes and not args.no_inventory,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)

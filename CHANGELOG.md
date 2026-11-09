@@ -20,3 +20,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Renamed the skill prompt-engineer to prompt-engineering (agents are roles, skills are know-how); the agent keeps prompt-engineer.
 - Fixed `vash onboard oci` in OCI Cloud Shell (FIPS mode): reuses id_ed25519 or id_rsa, and falls back to RSA 4096 when ed25519 is refused.
 - `vash onboard oci`: `--subnet-id` reuses an existing public subnet (no network created, SSH rule checked); the compartment name is asked (default `vash`) or given with `--compartment`, and a new one is created only after a yes.
+- `vash onboard oci`: optional inventory of compartments, VCNs and subnets (numbered table with owner), delete by S.No or OCID after a dependency check (in-use objects blocked) and a final yes, and pick an existing public subnet from the table.
