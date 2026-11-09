@@ -27,6 +27,16 @@ class Row:
     vcn_id: str = ""
 
 
+# Listed by VASH itself (direct listings), so skipped in the Resource Search part of the table.
+CORE_TYPES = {"Compartment", "Vcn", "Subnet", "Instance"}
+# Automatic sub-parts of other resources: shown in dependency checks, not as rows.
+SUB_PART_TYPES = {"Vnic", "PrivateIp", "VnicAttachment", "BootVolumeAttachment", "VolumeAttachment",
+                  "DHCPOptions", "RouteTable", "SecurityList", "InternetGateway", "NatGateway",
+                  "ServiceGateway", "LocalPeeringGateway", "DrgAttachment", "NetworkSecurityGroup",
+                  "BootVolume", "DnsResolver", "DnsView", "CustomerDnsZone", "Tenancy", "Key",
+                  "VaultSecret"}
+VASH_KINDS = {"Compartment", "VCN", "Subnet", "VM"}
+
 TERMINATE_POLLS = 40  # 10 minutes at 15 s
 
 # Services that create their own VNICs in a customer subnet (OCI Search resource types).
@@ -98,6 +108,24 @@ class Inventory:
                     ip = next((v.get("public-ip") for v in vnics if v.get("public-ip")), "") or ""
                 rows.append(Row(len(rows) + 1, "VM", vm.get("display-name", ""), state,
                                 names.get(comp, comp), ip, vm["id"], comp))
+        self.echo("Reading every other resource in the tenancy (Resource Search) ...")
+        try:
+            others = self.oci("search", "resource", "structured-search", "--query-text",
+                              "query all resources", "--limit", "1000").get("data", {}).get("items", [])
+        except VashError as exc:
+            self.echo(f"Resource Search failed, only the core objects are listed: {exc}")
+            others = []
+        for item in sorted(others, key=lambda i: (names.get(i.get("compartment-id", ""), ""),
+                                                  i.get("resource-type", ""), i.get("display-name", ""))):
+            kind = item.get("resource-type", "")
+            if kind in CORE_TYPES or kind in SUB_PART_TYPES:
+                continue
+            if item.get("lifecycle-state") in ("TERMINATED", "TERMINATING", "DELETED", "DELETING"):
+                continue
+            comp = item.get("compartment-id", "")
+            rows.append(Row(len(rows) + 1, kind, item.get("display-name", "") or item.get("identifier", ""),
+                            item.get("lifecycle-state", ""), names.get(comp, comp), "",
+                            item.get("identifier", ""), comp))
         return rows
 
     def show(self, rows: list[Row]) -> None:
@@ -349,7 +377,7 @@ class Choice:
 def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
            ask: Callable[[str, str], str], want_subnet: bool, want_vm: bool = True) -> Choice:
     """The interactive part of onboarding."""
-    if not confirm("Do you want to check the existing compartments, VCNs, subnets and VMs?"):
+    if not confirm("Do you want to check everything in the tenancy (this region)?"):
         return Choice()
     rows = inv.rows(tenancy)
     inv.show(rows)
@@ -358,6 +386,15 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
         chosen, unknown = inv.select(rows, answer)
         if unknown:
             inv.echo(f"Not in the table, ignored: {', '.join(unknown)}")
+        comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
+        for r in [r for r in chosen if r.kind not in VASH_KINDS]:
+            if r.compartment_id in comp_no:
+                inv.echo(f"{r.no}. {r.kind} {r.name}: removed with its compartment by Oracle's cleaner; "
+                         f"choose its compartment {r.parent} (S.No {comp_no[r.compartment_id]})")
+            else:
+                inv.echo(f"{r.no}. {r.kind} {r.name}: in the root compartment, which the cleaner never touches; "
+                         "remove it in the Console")
+        chosen = [r for r in chosen if r.kind in VASH_KINDS]
         ignore: frozenset[str] = frozenset()
         for r in chosen:
             if r.kind == "VM":

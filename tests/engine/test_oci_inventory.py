@@ -21,6 +21,16 @@ class FakeOci:
     def __call__(self, *args):
         self.calls.append(args)
         a = list(args)
+        if a[:3] == ["search", "resource", "structured-search"] and a[a.index("--query-text") + 1] == "query all resources":
+            return {"data": {"items": [
+                {"resource-type": "Bucket", "display-name": "odoo-files", "identifier": "ocid1.bucket..b",
+                 "lifecycle-state": "ACTIVE", "compartment-id": "ocid1.comp..x"},
+                {"resource-type": "Vault", "display-name": "root-vault", "identifier": "ocid1.vault..v",
+                 "lifecycle-state": "ACTIVE", "compartment-id": TEN},
+                {"resource-type": "Vcn", "display-name": "dup", "identifier": "ocid1.vcn..a",
+                 "lifecycle-state": "AVAILABLE", "compartment-id": "ocid1.comp..x"},
+                {"resource-type": "Vnic", "display-name": "nic", "identifier": "ocid1.vnic..n",
+                 "lifecycle-state": "AVAILABLE", "compartment-id": "ocid1.comp..x"}]}}
         if a[:3] == ["iam", "compartment", "list"] and a[a.index("--compartment-id") + 1] != TEN:
             return {"data": []}
         if a[:3] == ["network", "vcn", "list"]:
@@ -394,3 +404,28 @@ def test_terminate_polls_instead_of_cli_wait():
     term = [c for c in fake.calls if c[:3] == ("compute", "instance", "terminate")][0]
     assert "--wait-for-state" not in term
     assert any(c[:3] == ("compute", "instance", "get") for c in fake.calls)
+
+
+def test_table_covers_every_other_resource_once():
+    inv = Inventory(FakeOci(), lambda m: None)
+    rows = inv.rows(TEN)
+    kinds = [r.kind for r in rows]
+    assert "Bucket" in kinds and "Vault" in kinds
+    assert "Vnic" not in kinds
+    assert sum(1 for r in rows if r.ocid == "ocid1.vcn..a") == 1
+
+
+def test_other_resources_point_to_their_compartment_or_the_console():
+    fake = FakeOci()
+    out, echo = lines()
+    inv = Inventory(fake, echo)
+    rows = inv.rows(TEN)
+    bucket = next(r for r in rows if r.kind == "Bucket")
+    vault = next(r for r in rows if r.kind == "Vault")
+    comp = next(r for r in rows if r.kind == "Compartment")
+    answers = {"check": True, "delete any": True}
+    review(inv, TEN, lambda q: next((v for k, v in answers.items() if k in q), False),
+           lambda q, d: f"{bucket.no},{vault.no}" if "delete, comma" in q else "", want_subnet=False)
+    assert any(f"choose its compartment PoC (S.No {comp.no})" in line for line in out)
+    assert any("root-vault: in the root compartment" in line for line in out)
+    assert not any(c[2] == "delete" for c in fake.calls)
