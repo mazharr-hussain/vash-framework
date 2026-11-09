@@ -134,6 +134,10 @@ module "instance" {
   # The CD3 instance module reads scripts/<cloud_init_script> next to this file; onboarding writes it
   # before terraform runs (git-ignored, it is rendered per run).
   cloud_init_script = var.cloud_init_script
+  # Two CD3 defaults break a plain instance (v2026.2.2): plugins_details defaults to null but the module
+  # iterates over it, and boot_tf_policy defaults to "" which makes it look up a backup policy named "".
+  plugins_details = []
+  boot_tf_policy  = null # no boot volume backup policy (backups are paid beyond the free 5)
 }
 
 data "oci_core_vnic_attachments" "runner" {

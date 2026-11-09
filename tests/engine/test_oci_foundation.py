@@ -76,3 +76,11 @@ def test_cd3_modules_are_pinned():
     for module in ("identity/iam-compartment", "security/vault", "security/key"):
         assert f"modules/{module}?ref=v2026.2.2" in main
     assert "enable_delete           = false" in main and 'vault_type     = "DEFAULT"' in main
+
+
+def test_cd3_instance_module_gets_the_values_its_defaults_break_on():
+    main = (Path(__file__).parents[2] / "iac/oci/environments/always-free/main.tf").read_text()
+    instance = main[main.index('module "instance"'):]
+    instance = instance[:instance.index("\n}\n")]
+    assert "plugins_details = []" in instance  # CD3 iterates over it; its default is null
+    assert "boot_tf_policy  = null" in instance  # CD3's default "" looks up a policy named ""
