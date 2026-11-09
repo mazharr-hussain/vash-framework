@@ -445,3 +445,40 @@ def test_vault_is_chosen_once_and_kept_for_reruns(home, monkeypatch):
     assert state["vault_id"] == "ocid1.vault..v" and state["key_id"] == "ocid1.key..k"
     make(FakeCloud(), home, vault=True).up()
     assert picks == ["north-secrets-key"]  # the second run reuses the saved choice
+
+
+class BusyTerraform(FakeTerraform):
+    """Out of capacity for the first `busy` applies, then fine."""
+
+    def __init__(self, busy):
+        super().__init__()
+        self.busy = busy
+
+    def __call__(self, cmd, cwd=None, **kwargs):
+        if Path(cwd).name != "foundation" and cmd[1] == "apply" and self.busy > 0:
+            self.busy -= 1
+            self.calls.append((cmd, Path(cwd)))
+            return done(code=1, stderr="Error: 500-InternalError, Out of host capacity.")
+        return super().__call__(cmd, cwd, **kwargs)
+
+
+def test_no_capacity_retries_every_few_minutes_after_a_yes(home, monkeypatch):
+    tf = BusyTerraform(busy=2)
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    sleeps = []
+    onboarding = make(FakeCloud(), home)
+    onboarding.sleep = sleeps.append
+    assert onboarding.up() == 0
+    assert sleeps.count(300) == 2  # two waits of 5 minutes, then the VM was made
+
+
+def test_no_capacity_and_no_to_retrying_stops_with_the_options(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", BusyTerraform(busy=99))
+    sleeps = []
+    onboarding = make(FakeCloud(), home)
+    onboarding.sleep = sleeps.append
+    onboarding.confirm = lambda q: "Keep trying" not in q
+    with pytest.raises(VashError) as err:
+        onboarding.up()
+    assert 300 not in sleeps
+    assert "no free A1 capacity" in str(err.value) and "Pay As You Go" in err.value.fix

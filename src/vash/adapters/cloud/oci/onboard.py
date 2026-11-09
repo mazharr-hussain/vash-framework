@@ -32,6 +32,8 @@ COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
 CLOUD_INIT_NAME = "vash-runner.sh"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
+CAPACITY_WAIT_MINUTES = 5
+CAPACITY_RETRIES = 36  # 3 hours
 
 Runner = Callable[..., subprocess.CompletedProcess]
 
@@ -320,20 +322,31 @@ class Onboarding:
         path.chmod(0o600)
 
     def create(self, workdir: Path, base: dict[str, Any], domains: list[str]) -> dict[str, Any]:
+        """Every domain in turn; when all are out of A1 capacity, retry every few minutes after a yes."""
         adapter = Adapter({"iac_dir": str(workdir)})
-        last: VashError | None = None
-        for ad in domains:
-            self.write_tfvars(workdir, {**base, "availability_domain": ad})
-            self.echo(f"Creating the VM in {ad} ...")
-            try:
-                return adapter.apply(ENVIRONMENT, approved=True)
-            except VashError as exc:
-                if not any(word in str(exc).lower() for word in CAPACITY_ERRORS):
-                    raise
-                self.echo(f"{ad}: out of host capacity, trying the next domain")
-                last = exc
-        raise VashError(f"Every availability domain is out of A1 capacity: {last}",
-                        "Run `vash onboard oci` again later; free A1 capacity comes and goes")
+        for attempt in range(CAPACITY_RETRIES + 1):
+            for ad in domains:
+                self.write_tfvars(workdir, {**base, "availability_domain": ad})
+                self.echo(f"Creating the VM in {ad} ...")
+                try:
+                    return adapter.apply(ENVIRONMENT, approved=True)
+                except VashError as exc:
+                    if not any(word in str(exc).lower() for word in CAPACITY_ERRORS):
+                        raise
+                    self.echo(f"{ad}: Oracle has no free A1 capacity there right now")
+            if attempt == 0 and not self.confirm(
+                    f"Oracle has no free A1 capacity in {base['region']} right now. Keep trying every "
+                    f"{CAPACITY_WAIT_MINUTES} minutes for up to {CAPACITY_RETRIES * CAPACITY_WAIT_MINUTES // 60} "
+                    "hours? Keep this window open; Ctrl+C stops, and nothing is lost"):
+                break
+            if attempt < CAPACITY_RETRIES:
+                self.echo(f"Try {attempt + 1} of {CAPACITY_RETRIES} failed; trying again in {CAPACITY_WAIT_MINUTES} "
+                          "minutes ...")
+                self.sleep(CAPACITY_WAIT_MINUTES * 60)
+        raise VashError("Oracle has no free A1 capacity in this region right now; the network is kept, no VM was made",
+                        "Run the same command again later (capacity comes and goes during the day), or upgrade the "
+                        "account to Pay As You Go (Console: Billing, Upgrade): Always Free resources stay free, and "
+                        "paid accounts get A1 capacity first")
 
     # ---- the VM --------------------------------------------------------
     def choose_name(self, what: str, question: str, check: "re.Pattern[str]", rule: str) -> str:
