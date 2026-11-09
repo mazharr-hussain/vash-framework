@@ -29,6 +29,7 @@ DEFAULT_MODEL = "qwen2.5-coder:7b"
 DEFAULT_NAME = "vash"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
+CLOUD_INIT_NAME = "vash-runner.sh"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -41,6 +42,7 @@ class Options:
     compartment_name: str | None = None
     subnet_id: str | None = None
     review: bool = False  # interactive inventory, never with --yes
+    cleanup_only: bool = False
     name_prefix: str | None = None  # display names of new objects: <prefix>-runner, <prefix>-vcn ...
     vm_ip: str | None = None  # an existing VM to install VASH on (no terraform)
     vm_name: str = ""
@@ -276,6 +278,13 @@ class Onboarding:
         return (text.replace("@@VASH_SOURCE@@", self.options.vash_source)
                 .replace("@@MODEL@@", self.options.model).replace("@@RUN_USER@@", self.user))
 
+    def write_cloud_init(self, workdir: Path) -> str:
+        """The CD3 instance module reads scripts/<name> beside the environment; it must exist before plan."""
+        scripts = workdir / "environments" / ENVIRONMENT / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / CLOUD_INIT_NAME).write_text(self.user_data(workdir))
+        return CLOUD_INIT_NAME
+
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
 
@@ -368,14 +377,22 @@ class Onboarding:
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
         if self.options.review:
+            from .cleaner import Cleaner
             from .inventory import Inventory, review
-            choice = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
+            cleaner = Cleaner(self.options.workdir.parent / "tools", region, self.echo)
+            choice = review(Inventory(self.oci, self.echo, cleaner), tenancy, self.confirm, self.ask,
                             want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"),
                             want_vm=not self.options.vm_ip and not self.existing_tfvars())
             if choice.vm is not None:
                 self.options.vm_ip, self.options.vm_name = choice.vm.public, choice.vm.name
             elif choice.subnet_id:
                 self.options.subnet_id = choice.subnet_id
+        if self.options.cleanup_only:
+            self.echo("Cleanup finished; no VM setup (--cleanup-only)")
+            return 0
+        if self.options.review and not self.confirm("Continue with the VASH VM setup now?"):
+            self.echo("Stopped after the cleanup; nothing else was changed")
+            return 0
         if self.options.vm_ip:
             return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
@@ -417,7 +434,7 @@ class Onboarding:
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
             "ocpus": self.options.ocpus,
             "memory_in_gbs": self.options.memory_in_gbs,
-            "user_data": self.user_data(workdir),
+            "cloud_init_script": self.write_cloud_init(workdir),
             "name_prefix": self.prefix,
         }
         outputs = self.create(workdir, base, domains)
@@ -492,7 +509,8 @@ def run_cli(args: Any) -> int:
         admin_cidr=args.admin_cidr,
         runner_repo=args.runner_repo,
         model=args.model,
-        review=not args.yes and not args.no_inventory,
+        review=(not args.yes and not args.no_inventory) or args.cleanup_only,
+        cleanup_only=args.cleanup_only,
         name_prefix=args.name_prefix,
         vm_ip=args.vm_ip,
         ssh_user=args.ssh_user,

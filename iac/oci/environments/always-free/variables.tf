@@ -26,9 +26,10 @@ variable "memory_in_gbs" {
   type    = number
   default = 12
 }
-variable "user_data" {
-  type    = string
-  default = ""
+variable "cloud_init_script" {
+  type        = string
+  default     = null
+  description = "File name under scripts/ that the VM runs on first boot."
 }
 variable "create_database" {
   type    = bool

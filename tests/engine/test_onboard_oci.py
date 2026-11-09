@@ -107,8 +107,9 @@ def test_up_creates_vm_and_installs(home, monkeypatch):
     assert tfvars["availability_domain"] == "AD-1"
     assert tfvars["oci_auth"] == "InstancePrincipal"
     assert tfvars["admin_cidr"] == "198.51.100.1/32"
-    assert "@@" not in tfvars["user_data"]
-    assert "qwen2.5-coder:7b" in tfvars["user_data"]
+    assert tfvars["cloud_init_script"] == "vash-runner.sh"
+    script = (home / ".vash/oci/environments/always-free/scripts/vash-runner.sh").read_text()
+    assert "@@" not in script and "qwen2.5-coder:7b" in script
     assert [c[0][1] for c in tf.calls] == ["init", "apply", "output"]
 
 
@@ -378,3 +379,23 @@ def test_yes_to_default_uses_vash_names(home, monkeypatch):
     assert tfvars["name_prefix"] == "vash"
     listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
     assert listing[listing.index("--name") + 1] == "vash"
+
+
+def test_stops_after_cleanup_when_owner_says_no(home, monkeypatch):
+    cloud, tf = FakeCloud(), FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    import vash.adapters.cloud.oci.inventory as inv_mod
+    monkeypatch.setattr(inv_mod, "review", lambda *a, **k: inv_mod.Choice())
+    ob = make(cloud, home, review=True)
+    ob.confirm = lambda q: "Continue with the VASH VM setup" not in q
+    assert ob.up() == 0
+    assert tf.calls == []
+
+
+def test_cleanup_only_never_builds(home, monkeypatch):
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    import vash.adapters.cloud.oci.inventory as inv_mod
+    monkeypatch.setattr(inv_mod, "review", lambda *a, **k: inv_mod.Choice())
+    assert make(FakeCloud(), home, review=True, cleanup_only=True).up() == 0
+    assert tf.calls == []
