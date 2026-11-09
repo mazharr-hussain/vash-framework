@@ -58,6 +58,7 @@ class Options:
     model: str = DEFAULT_MODEL
     runner_repo: str | None = None
     wait_minutes: int = 30
+    vault: bool = False  # choose or create the vault and key for VASH's secrets (asked; never with --yes)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -154,6 +155,19 @@ class Onboarding:
                            "--wait-for-state", "ACTIVE")
         self.echo(f"Compartment '{name}' created")
         return created["data"]["id"]
+
+    def ensure_vault(self, tenancy: str) -> None:
+        """The vault and key for VASH's secrets: an existing one the owner picks, or a new one."""
+        if not self.options.vault:
+            return
+        state = self._state()
+        if state.get("vault_id") and state.get("key_id"):
+            self.echo("Vault and key: the ones chosen at the earlier onboarding")
+            return
+        from .security import VaultSetup
+        base = self.prefix or re.sub(r"[^a-z0-9-]+", "-", self.options.vm_name.lower()).strip("-") or DEFAULT_NAME
+        chosen = VaultSetup(self.oci, self.echo, self.confirm, self.ask).choose(tenancy, f"{base}-secrets-key")
+        self._save_state(**chosen)
 
     def check_subnet(self, subnet_id: str) -> None:
         """An existing subnet must be public and let SSH in; VASH never changes it."""
@@ -397,6 +411,7 @@ class Onboarding:
             self.echo("Stopped after the cleanup; nothing else was changed")
             return 0
         if self.options.vm_ip:
+            self.ensure_vault(tenancy)
             return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
         if previous.get("name_prefix"):
@@ -408,6 +423,7 @@ class Onboarding:
         if not NAME_PREFIX_RE.match(self.prefix):
             raise VashError(f"Invalid name prefix '{self.prefix}'", "Use lowercase letters, digits and hyphens, max 20")
         compartment = self.ensure_compartment(tenancy)
+        self.ensure_vault(tenancy)
         if previous:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
@@ -518,6 +534,7 @@ def run_cli(args: Any) -> int:
         vm_ip=args.vm_ip,
         ssh_user=args.ssh_user,
         ssh_key=args.ssh_key,
+        vault=not args.yes and not args.no_vault and not args.cleanup_only,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)
