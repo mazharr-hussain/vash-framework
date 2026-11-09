@@ -111,7 +111,11 @@ FOUND:
 DECISION:
 - REUSE (run) oci-compartment-cleaner at commit 685ae12a021874609d0125619580356ca904dbeb for emptying
   compartments (src/vash/adapters/cloud/oci/cleaner.py). Status candidate (vendor sample).
-- REUSE cd3-automation-toolkit for Terraform modules and export: next step.
+- REUSE cd3-automation-toolkit Terraform modules (network/vcn, igw, route-table, sec-list, subnet;
+  compute/instance) at release v2026.2.2 in iac/oci/environments/always-free; VASH's own network
+  and compute modules removed. Export: later (KYC adoption).
+- KEPT VASH's own free-tier Autonomous Database module: the CD3 adb module has no is_free_tier
+  option, so it cannot create an Always Free database (LAW 1); the vendor option is not equal here.
 - REJECTED OCI-SuperDelete: the vendor's cleaner is equal or better (vendor-first rule).
 - RECORDED, NOT USED (LAW 1): the paid GenAI samples, for a later paid tier.
 - UPL-1.0 added to catalog/licences.json (owner decision, 9 Nov 2026).

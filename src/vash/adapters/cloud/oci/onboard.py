@@ -29,6 +29,7 @@ DEFAULT_MODEL = "qwen2.5-coder:7b"
 DEFAULT_NAME = "vash"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
+CLOUD_INIT_NAME = "vash-runner.sh"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -277,6 +278,13 @@ class Onboarding:
         return (text.replace("@@VASH_SOURCE@@", self.options.vash_source)
                 .replace("@@MODEL@@", self.options.model).replace("@@RUN_USER@@", self.user))
 
+    def write_cloud_init(self, workdir: Path) -> str:
+        """The CD3 instance module reads scripts/<name> beside the environment; it must exist before plan."""
+        scripts = workdir / "environments" / ENVIRONMENT / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / CLOUD_INIT_NAME).write_text(self.user_data(workdir))
+        return CLOUD_INIT_NAME
+
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
 
@@ -426,7 +434,7 @@ class Onboarding:
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
             "ocpus": self.options.ocpus,
             "memory_in_gbs": self.options.memory_in_gbs,
-            "user_data": self.user_data(workdir),
+            "cloud_init_script": self.write_cloud_init(workdir),
             "name_prefix": self.prefix,
         }
         outputs = self.create(workdir, base, domains)

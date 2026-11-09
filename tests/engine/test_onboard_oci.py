@@ -107,8 +107,9 @@ def test_up_creates_vm_and_installs(home, monkeypatch):
     assert tfvars["availability_domain"] == "AD-1"
     assert tfvars["oci_auth"] == "InstancePrincipal"
     assert tfvars["admin_cidr"] == "198.51.100.1/32"
-    assert "@@" not in tfvars["user_data"]
-    assert "qwen2.5-coder:7b" in tfvars["user_data"]
+    assert tfvars["cloud_init_script"] == "vash-runner.sh"
+    script = (home / ".vash/oci/environments/always-free/scripts/vash-runner.sh").read_text()
+    assert "@@" not in script and "qwen2.5-coder:7b" in script
     assert [c[0][1] for c in tf.calls] == ["init", "apply", "output"]
 
 

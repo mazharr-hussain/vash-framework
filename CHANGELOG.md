@@ -26,3 +26,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - `vash onboard oci`: VMs can be deleted from the inventory (boot volume deleted, block volumes detached and kept, VM first so its IPs do not block its subnet or VCN, name typed to confirm).
 - `vash onboard oci`: compartments that hold resources are emptied with Oracle's compartment cleaner (oci-automation-hub, pinned; dry-run plan, Resource Manager backup, typed DELETE, Cloud Shell sign-in added); the table uses direct listings (no search lag); "Continue with the VASH VM setup now?" after cleanup, and `--cleanup-only`.
 - Catalog: UPL-1.0 allowed; vendor-first rule; LAW 3 search record for the OCI tools.
+- IaC: network and VM now use Oracle's CD3 Automation Toolkit modules (v2026.2.2); VASH's own network and compute modules are removed. The free-tier database keeps VASH's module (CD3's adb module has no free-tier option).
