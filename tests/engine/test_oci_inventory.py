@@ -42,7 +42,8 @@ class FakeOci:
             return {"data": [{"id": "vnic-vm", "public-ip": "203.0.113.9"}]}
         if a[:3] == ["compute", "instance", "get"]:
             return {"data": {"compartment-id": "ocid1.comp..x", "availability-domain": "AD-1",
-                             "display-name": "kyc-vm"}}
+                             "display-name": "kyc-vm",
+                             "lifecycle-state": "TERMINATED" if getattr(self, "terminated", None) else "RUNNING"}}
         if a[:3] == ["network", "vnic", "get"]:
             vid = a[a.index("--vnic-id") + 1]
             return {"data": {"compartment-id": "ocid1.comp..x", "time-created": "2026-11-04T01:39:02.547000+00:00",
@@ -55,6 +56,8 @@ class FakeOci:
         if a[:3] == ["search", "resource", "structured-search"] and "timeCreated" in a[-1]:
             return {"data": {"items": [
                 {"resource-type": "Vnic", "display-name": "x", "time-created": "2026-11-04T01:39:02Z"},
+                {"resource-type": "Compartment", "display-name": "Common", "time-created": "2026-11-04T01:39:00Z",
+                 "lifecycle-state": "ACTIVE"},
                 {"resource-type": "PrivateEndpoint", "display-name": "odoo-pe", "time-created": "2026-11-04T01:38:40Z",
                  "lifecycle-state": "ACTIVE"},
                 {"resource-type": "Bucket", "display-name": "old", "time-created": "2026-10-01T00:00:00Z",
@@ -149,11 +152,15 @@ def test_vcn_delete_removes_children_in_order_and_keeps_defaults():
     assert "ocid1.vcn..b" not in fake.vcns
 
 
-def test_subnet_in_use_stops_with_oci_error():
-    inv = Inventory(FakeOci(in_use={"ocid1.subnet..pub"}), lambda m: None)
+def test_subnet_in_use_failure_is_reported_and_the_rest_goes_on():
+    fake = FakeOci(in_use={"ocid1.subnet..pub"})
+    inv = Inventory(fake, lambda m: None)
     rows = inv.rows(TEN)
-    with pytest.raises(VashError, match="in use"):
-        inv.delete([r for r in rows if r.ocid == "ocid1.subnet..pub"])
+    pub = next(r for r in rows if r.ocid == "ocid1.subnet..pub")
+    old = next(r for r in rows if r.ocid == "ocid1.subnet..old")
+    failures = inv.delete([pub, old])
+    assert len(failures) == 1 and "in use" in failures[0]
+    assert ("network", "subnet", "delete", "--subnet-id", "ocid1.subnet..old") == fake.calls[-1][:5]
 
 
 def test_review_asks_twice_before_deleting():
@@ -376,3 +383,14 @@ def test_search_time_format_and_failure_does_not_stop():
         return real(*args)
     owner = Inventory(failing_search, lambda m: None).vnic_owner("vnic-service")
     assert "owner unknown" in owner
+
+
+def test_terminate_polls_instead_of_cli_wait():
+    fake = FakeOci()
+    slept = []
+    inv = Inventory(fake, lambda m: None, sleep=slept.append)
+    vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
+    assert inv.delete([vm]) == []
+    term = [c for c in fake.calls if c[:3] == ("compute", "instance", "terminate")][0]
+    assert "--wait-for-state" not in term
+    assert any(c[:3] == ("compute", "instance", "get") for c in fake.calls)

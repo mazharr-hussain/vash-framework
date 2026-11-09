@@ -399,3 +399,11 @@ def test_cleanup_only_never_builds(home, monkeypatch):
     monkeypatch.setattr(inv_mod, "review", lambda *a, **k: inv_mod.Choice())
     assert make(FakeCloud(), home, review=True, cleanup_only=True).up() == 0
     assert tf.calls == []
+
+
+def test_oci_error_shows_stdout_when_stderr_is_empty(home):
+    def run(args, **kwargs):
+        return done(stdout='{"code": "Conflict", "message": "boot volume in use"}', code=1)
+    ob = make(run, home)
+    with pytest.raises(VashError, match="boot volume in use"):
+        ob.oci("compute", "instance", "terminate", "--instance-id", "x")

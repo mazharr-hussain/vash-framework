@@ -104,7 +104,8 @@ class Onboarding:
     def oci(self, *args: str) -> Any:
         res = self._cmd(["oci", *args, "--output", "json"])
         if res.returncode != 0:
-            raise VashError(f"oci {' '.join(args[:3])} failed: {res.stderr.strip()}", "Check the OCI policy and the oci CLI setup")
+            detail = (res.stderr.strip() or res.stdout.strip() or f"exit code {res.returncode}")[-1500:]
+            raise VashError(f"oci {' '.join(args[:3])} failed: {detail}", "Check the OCI policy and the oci CLI setup")
         out = res.stdout.strip()
         return json.loads(out) if out else {}
 
@@ -380,7 +381,7 @@ class Onboarding:
             from .cleaner import Cleaner
             from .inventory import Inventory, review
             cleaner = Cleaner(self.options.workdir.parent / "tools", region, self.echo)
-            choice = review(Inventory(self.oci, self.echo, cleaner), tenancy, self.confirm, self.ask,
+            choice = review(Inventory(self.oci, self.echo, cleaner, sleep=self.sleep), tenancy, self.confirm, self.ask,
                             want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"),
                             want_vm=not self.options.vm_ip and not self.existing_tfvars())
             if choice.vm is not None:

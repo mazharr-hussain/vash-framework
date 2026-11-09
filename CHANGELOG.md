@@ -29,3 +29,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - IaC: network and VM now use Oracle's CD3 Automation Toolkit modules (v2026.2.2); VASH's own network and compute modules are removed. The free-tier database keeps VASH's module (CD3's adb module has no free-tier option).
 - `vash onboard oci`: the dependency check names who holds each IP (the VM, or the service created with the VNIC), a VM name gets 3 tries, and the table shows progress while it reads.
 - Fixed: the owner lookup sends the time in the form OCI Search accepts, and a failed lookup shows "owner unknown" instead of stopping the run.
+- `vash onboard oci`: deletes continue after a failure (each failure reported with OCI's own message, stdout included), a VM is terminated and then polled (the CLI's --wait-for-state failed in Cloud Shell), and the IP owner guess only considers services that create VNICs.
