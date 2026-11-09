@@ -74,8 +74,15 @@ class FakeTerraform:
     def __init__(self, capacity_fail=()):
         self.capacity_fail = set(capacity_fail)
         self.calls = []
+        self.foundation = []
 
     def __call__(self, cmd, cwd=None, **kwargs):
+        if Path(cwd).name == "foundation":  # compartments, vaults, keys (CD3 modules): kept apart from the VM's
+            self.foundation.append((cmd, Path(cwd)))
+            if cmd[1] == "output":
+                values = json.loads((Path(cwd) / "terraform.tfvars.json").read_text())
+                return done(json.dumps({"compartment_ids": {"value": {n: COMPARTMENT for n in values["compartments"]}}}))
+            return done()
         self.calls.append((cmd, Path(cwd)))
         if cmd[1] == "apply":
             ad = json.loads((Path(cwd) / "terraform.tfvars.json").read_text())["availability_domain"]
@@ -291,8 +298,9 @@ def test_names_are_typed_by_the_owner(home, monkeypatch):
     onboarding.up()
     tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
     assert tfvars["name_prefix"] == "south"
-    create = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "create"]][0]
-    assert "kyc-runner" in create
+    created = json.loads((home / ".vash/oci/environments/foundation/terraform.tfvars.json").read_text())
+    assert list(created["compartments"]) == ["kyc-runner"]  # created by the CD3 iam-compartment module
+    assert not any(c[0][1:4] == ["iam", "compartment", "create"] for c in cloud.calls)
 
 
 def test_empty_or_bad_name_is_asked_again_then_stops(home, monkeypatch):

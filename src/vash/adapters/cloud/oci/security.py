@@ -4,23 +4,21 @@ VASH lists the vaults (and their keys) that already exist in the tenancy; the ow
 by S.No, or creates a new free virtual vault in a security compartment (default name 'security',
 or a name the owner types). Vaults stay out of application compartments, so deleting an
 application never waits for OCI's vault deletion period (7 to 30 days).
-Every OCI call goes through the oci CLI, like the rest of onboarding.
+Reading uses the oci CLI; compartments, vaults and keys are created with Oracle's CD3 Automation
+Toolkit modules (terraform, see foundation.py).
 """
 from __future__ import annotations
 
-import json
 import re
-import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from vash.core.exceptions import VashError
 
-from .iam import create_compartment
+from .foundation import Foundation
 
 DEFAULT_SECURITY = "security"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
-KEY_SHAPE = json.dumps({"algorithm": "AES", "length": 32})
 VAULT_TYPES = {"DEFAULT": "virtual (free)", "VIRTUAL_PRIVATE": "private (paid)"}
 
 
@@ -38,8 +36,8 @@ class Vault:
 
 class VaultSetup:
     def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], confirm: Callable[[str], bool],
-                 ask: Callable[[str, str], str], sleep: Callable[[float], None] = time.sleep):
-        self.oci, self.echo, self.confirm, self.ask, self.sleep = oci, echo, confirm, ask, sleep
+                 ask: Callable[[str, str], str], build: Foundation):
+        self.oci, self.echo, self.confirm, self.ask, self.build = oci, echo, confirm, ask, build
 
     # ---- reading -------------------------------------------------------
     def compartments(self, tenancy: str) -> dict[str, str]:
@@ -154,8 +152,8 @@ class VaultSetup:
             return name, found[0]["id"]
         if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
             raise VashError(f"No compartment '{name}' for the vault", "Run again and choose an existing vault")
-        comp_id = create_compartment(self.oci, self.echo, tenancy, name,
-                                     "Vaults and keys of every application (created by vash onboard)", self.sleep)
+        self.echo(f"Creating compartment {name} (CD3 iam-compartment module) ...")
+        comp_id = self.build.compartment(name, "Vaults and keys of every application (created by vash onboard)")
         self.echo(f"Compartment '{name}' created")
         return name, comp_id
 
@@ -164,17 +162,15 @@ class VaultSetup:
         name = f"{comp}-vault"
         if not self.confirm(f"Create the free virtual vault '{name}' in compartment {comp}? It takes a few minutes"):
             raise VashError("No vault for VASH's secrets", "Run again and choose an existing vault")
-        self.echo(f"Creating vault {name} ...")
-        data = self.oci("kms", "management", "vault", "create", "--compartment-id", comp_id, "--display-name", name,
-                        "--vault-type", "DEFAULT", "--wait-for-state", "ACTIVE").get("data", {})
+        self.echo(f"Creating vault {name} (CD3 vault module) ...")
+        vault_id, endpoint = self.build.vault(name, comp_id)
         self.echo(f"Vault {name} created")
-        return Vault(0, name, "DEFAULT", comp, comp_id, data.get("id") or "", data.get("management-endpoint") or "")
+        return Vault(0, name, "DEFAULT", comp, comp_id, vault_id, endpoint)
 
     def create_key(self, vault: Vault, name: str) -> str:
         if not self.confirm(f"Create the key '{name}' (AES-256, kept in the vault's HSM) in vault {vault.name}?"):
             raise VashError("No key for VASH's secrets", "Run again and choose an existing key")
-        data = self.oci("kms", "management", "key", "create", "--compartment-id", vault.compartment_id,
-                        "--display-name", name, "--key-shape", KEY_SHAPE, "--protection-mode", "HSM",
-                        "--endpoint", vault.endpoint, "--wait-for-state", "ENABLED").get("data", {})
+        self.echo(f"Creating key {name} (CD3 key module) ...")
+        key_id = self.build.key(name, vault.compartment_id, vault.endpoint)
         self.echo(f"Key {name} created")
-        return data.get("id") or ""
+        return key_id
