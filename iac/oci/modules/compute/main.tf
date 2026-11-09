@@ -11,7 +11,7 @@ resource "oci_core_instance" "runner" {
   compartment_id      = var.compartment_id
   availability_domain = var.availability_domain
   shape               = "VM.Standard.A1.Flex"
-  display_name        = "vash-runner"
+  display_name        = "${var.name_prefix}-runner"
 
   shape_config {
     ocpus         = var.ocpus

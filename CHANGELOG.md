@@ -22,3 +22,4 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - `vash onboard oci`: `--subnet-id` reuses an existing public subnet (no network created, SSH rule checked); the compartment name is asked (default `vash`) or given with `--compartment`, and a new one is created only after a yes.
 - `vash onboard oci`: optional inventory of compartments, VCNs and subnets (numbered table with owner), delete by S.No or OCID after a dependency check (in-use objects blocked) and a final yes, and pick an existing public subnet from the table.
 - Bootstrap: always reinstalls VASH (the version number does not change between fixes, so a plain upgrade kept old code).
+- `vash onboard oci`: no hardcoded object names (prefix: default `vash` after a yes, else typed; `<prefix>-runner`, `<prefix>-vcn` ...), existing VMs listed and reusable (install over SSH, never deleted), SSH key chosen by the owner (new `<prefix>-key` on no, never overwritten).

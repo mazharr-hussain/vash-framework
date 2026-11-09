@@ -92,6 +92,8 @@ def home(tmp_path, monkeypatch):
 
 
 def make(cloud, home, **opts):
+    opts.setdefault("name_prefix", "north")
+    opts.setdefault("compartment_name", "vash")
     options = Options(admin_cidr="198.51.100.1/32", workdir=home / ".vash" / "oci", **opts)
     return Onboarding(options, run=cloud, echo=lambda _m: None, sleep=lambda _s: None, env=ENV)
 
@@ -213,7 +215,7 @@ def test_fips_mode_falls_back_to_rsa(home, monkeypatch):
     assert make(cloud, home).up() == 0
     keygen = [c[0] for c in cloud.calls if c[0][0] == "ssh-keygen"]
     assert "rsa" in keygen[-1] and "4096" in keygen[-1]
-    assert (home / ".ssh" / "id_rsa.pub").exists()
+    assert (home / ".ssh" / "north-key.pub").exists()
 
 
 def test_existing_rsa_key_is_reused(home, monkeypatch):
@@ -276,23 +278,103 @@ def test_compartment_search_covers_subtree(home, monkeypatch):
     assert "--compartment-id-in-subtree" in listing and "KYC" in listing
 
 
-def test_compartment_name_is_asked_with_default(home, monkeypatch):
+def test_names_are_typed_by_the_owner(home, monkeypatch):
     cloud = FakeCloud()
     monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
-    asked = []
-    onboarding = make(cloud, home)
-    onboarding.ask = lambda q, default: asked.append(default) or "kyc-runner"
+    answers = iter(["south", "kyc-runner"])  # prefix, compartment
+    onboarding = make(cloud, home, name_prefix=None, compartment_name=None)
+    onboarding.confirm = lambda q: "default" not in q
+    onboarding.ask = lambda q, default: next(answers)
     onboarding.up()
-    assert asked == ["vash"]
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["name_prefix"] == "south"
     create = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "create"]][0]
     assert "kyc-runner" in create
 
 
-def test_enter_keeps_default_compartment(home, monkeypatch):
+def test_empty_or_bad_name_is_asked_again_then_stops(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    onboarding = make(FakeCloud(), home, name_prefix=None)
+    onboarding.confirm = lambda q: "default" not in q
+    answers = iter(["", "Bad Name", "-x"])
+    onboarding.ask = lambda q, default: next(answers)
+    with pytest.raises(VashError, match="No valid answer"):
+        onboarding.up()
+
+
+def test_existing_key_needs_a_yes_else_new_key(home, monkeypatch):
+    ssh = home / ".ssh"
+    ssh.mkdir()
+    (ssh / "id_rsa").write_text("private")
+    (ssh / "id_rsa.pub").write_text("ssh-rsa AAAA mine")
     cloud = FakeCloud()
     monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
     onboarding = make(cloud, home)
-    onboarding.ask = lambda q, default: ""
+    onboarding.confirm = lambda q: "existing SSH key" not in q
     onboarding.up()
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["ssh_public_key"] != "ssh-rsa AAAA mine"
+    assert (ssh / "north-key.pub").exists() and (ssh / "id_rsa").read_text() == "private"
+
+
+class UbuntuVm(FakeCloud):
+    def __init__(self, os_id="ubuntu"):
+        super().__init__()
+        self.os_id = os_id
+
+    def __call__(self, args, **kwargs):
+        if args[0] == "ssh" and args[-1] == "cat /etc/os-release":
+            self.calls.append((args, kwargs))
+            return done(f'NAME="X"\nID={self.os_id}\n')
+        return super().__call__(args, **kwargs)
+
+
+def _key(home):
+    ssh = home / ".ssh"
+    ssh.mkdir(exist_ok=True)
+    (ssh / "vm_key").write_text("private")
+    return str(ssh / "vm_key")
+
+
+def test_existing_vm_gets_installed_without_terraform(home, monkeypatch):
+    cloud, tf = UbuntuVm(), FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    ob = make(cloud, home, vm_ip="203.0.113.9", vm_name="kyc-vm", ssh_user="ubuntu", ssh_key=_key(home),
+              runner_repo="owner/app")
+    assert ob.up(runner_token=lambda: "TOKEN") == 0
+    assert tf.calls == []
+    assert not any(c[0][0] == "oci" and c[0][2] in ("create",) for c in cloud.calls)
+    start = [c for c in cloud.calls if c[0][0] == "ssh" and "vash-install.sh" in c[0][-1]][0]
+    assert "@@" not in start[1]["input"] and 'RUN_USER="ubuntu"' in start[1]["input"]
+    reg = [c for c in cloud.calls if c[0][0] == "ssh" and "config.sh" in c[0][-1]][0]
+    assert "--name north-runner" in reg[0][-1]
+
+
+def test_existing_vm_must_be_ubuntu_or_debian(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    ob = make(UbuntuVm("ol"), home, vm_ip="203.0.113.9", ssh_user="opc", ssh_key=_key(home))
+    with pytest.raises(VashError, match="supports Ubuntu and Debian"):
+        ob.up()
+
+
+def test_existing_vm_needs_a_yes(home, monkeypatch):
+    cloud = UbuntuVm()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    ob = make(cloud, home, vm_ip="203.0.113.9", ssh_user="ubuntu", ssh_key=_key(home))
+    ob.confirm = lambda q: "Install VASH" not in q
+    assert ob.up() == 1
+    assert not any(c[0][0] == "ssh" and "vash-install.sh" in c[0][-1] for c in cloud.calls)
+
+
+def test_yes_to_default_uses_vash_names(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    asked = []
+    onboarding = make(cloud, home, name_prefix=None, compartment_name=None)
+    onboarding.ask = lambda q, default: asked.append(q) or ""
+    onboarding.up()
+    assert asked == []  # the yes skipped typing
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["name_prefix"] == "vash"
     listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
     assert listing[listing.index("--name") + 1] == "vash"

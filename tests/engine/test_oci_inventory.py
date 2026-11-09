@@ -24,6 +24,11 @@ class FakeOci:
         if a[:3] == ["iam", "compartment", "list"]:
             return {"data": [{"id": "ocid1.comp..x", "name": "PoC", "lifecycle-state": "ACTIVE",
                               "compartment-id": TEN}]}
+        if a[:3] == ["search", "resource", "structured-search"] and "instance" in a[-1]:
+            return {"data": {"items": [{"identifier": "ocid1.instance..vm", "display-name": "kyc-vm",
+                                        "lifecycle-state": "RUNNING", "compartment-id": "ocid1.comp..x"}]}}
+        if a[:3] == ["compute", "instance", "list-vnics"]:
+            return {"data": [{"public-ip": "203.0.113.9"}]}
         if a[:3] == ["search", "resource", "structured-search"] and "compartmentId" not in a[-1]:
             return {"data": {"items": [{"identifier": k, "display-name": v["name"], "lifecycle-state": "AVAILABLE",
                                         "compartment-id": v["comp"]} for k, v in self.vcns.items()]}}
@@ -129,12 +134,12 @@ def test_review_deletes_after_final_yes_and_picks_subnet():
     picked = review(inv, TEN, lambda q: True,
                     lambda q, d: str(old_vcn) if "delete" in q else str(pub), want_subnet=True)
     assert "ocid1.vcn..b" not in fake.vcns
-    assert picked == "ocid1.subnet..pub"
+    assert picked.subnet_id == "ocid1.subnet..pub" and picked.vm is None
 
 
 def test_review_no_check_does_nothing():
     fake = FakeOci()
-    assert review(Inventory(fake, lambda m: None), TEN, lambda q: False, lambda q, d: "", True) == ""
+    assert review(Inventory(fake, lambda m: None), TEN, lambda q: False, lambda q, d: "", True).subnet_id == ""
     assert fake.calls == []
 
 
@@ -145,7 +150,7 @@ def test_private_subnet_cannot_be_picked():
     answers = {"check": True, "delete any": False}
     picked = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(priv), want_subnet=True)
-    assert picked == ""
+    assert picked.subnet_id == "" and picked.vm is None
 
 
 def test_in_use_subnet_is_blocked_and_not_deleted():
@@ -190,3 +195,24 @@ def test_only_free_objects_are_deleted_from_a_mixed_choice():
     deleted = [c[c.index("--subnet-id") + 1] for c in fake.calls if c[:3] == ("network", "subnet", "delete")]
     assert deleted == ["ocid1.subnet..old"]
     assert any("Delete these now" in q and "old subnet" in q and "public subnet" not in q for q in asked)
+
+
+def test_vm_rows_show_public_ip_and_are_never_deleted():
+    fake = FakeOci()
+    out, echo = lines()
+    inv = Inventory(fake, echo)
+    rows = inv.rows(TEN)
+    vm = next(r for r in rows if r.kind == "VM")
+    assert vm.public == "203.0.113.9" and vm.parent == "PoC"
+    review(inv, TEN, lambda q: True, lambda q, d: str(vm.no) if "delete" in q else "", want_subnet=False)
+    assert not any(c[2] == "delete" for c in fake.calls)
+    assert any("never deleted" in line for line in out)
+
+
+def test_existing_vm_can_be_picked():
+    inv = Inventory(FakeOci(), lambda m: None)
+    vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
+    answers = {"check": True, "delete any": False}
+    choice = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
+                    lambda q, d: str(vm.no) if "existing VM" in q else "", want_subnet=True)
+    assert choice.vm == vm and choice.subnet_id == ""

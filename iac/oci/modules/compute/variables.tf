@@ -15,3 +15,6 @@ variable "user_data" {
   type    = string
   default = ""
 }
+variable "name_prefix" {
+  type = string
+}

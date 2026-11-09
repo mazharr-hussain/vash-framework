@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -25,7 +26,9 @@ SHAPE = "VM.Standard.A1.Flex"
 ENVIRONMENT = "always-free"
 DEFAULT_SOURCE = "git+https://github.com/mazharr-hussain/vash-framework.git"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
-DEFAULT_COMPARTMENT = "vash"
+DEFAULT_NAME = "vash"
+COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
+NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -38,6 +41,11 @@ class Options:
     compartment_name: str | None = None
     subnet_id: str | None = None
     review: bool = False  # interactive inventory, never with --yes
+    name_prefix: str | None = None  # display names of new objects: <prefix>-runner, <prefix>-vcn ...
+    vm_ip: str | None = None  # an existing VM to install VASH on (no terraform)
+    vm_name: str = ""
+    ssh_user: str | None = None
+    ssh_key: str | None = None
     ocpus: int = 2
     memory_in_gbs: int = 12
     os_name: str = "Canonical Ubuntu"
@@ -122,8 +130,9 @@ class Onboarding:
     def compartment_name(self) -> str:
         """The name from --compartment, else asked (Enter keeps the default)."""
         if not self.options.compartment_name:
-            answer = self.ask("Compartment for the VASH VM (existing or new)", DEFAULT_COMPARTMENT).strip()
-            self.options.compartment_name = answer or DEFAULT_COMPARTMENT
+            self.options.compartment_name = self.choose_name(
+                "compartment", "Compartment for the VM (an existing name, or a new one to create)",
+                COMPARTMENT_RE, "letters, digits, '.', '-' and '_', at most 100")
         return self.options.compartment_name
 
     def ensure_compartment(self, tenancy: str) -> str:
@@ -198,24 +207,45 @@ class Onboarding:
         self.echo(f"Image: {data[0].get('display-name', data[0]['id'])}")
         return data[0]["id"]
 
+    def _state(self) -> dict[str, Any]:
+        path = self.options.workdir / "onboard.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def _save_state(self, **values: Any) -> None:
+        path = self.options.workdir / "onboard.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({**self._state(), **values}, indent=2) + "\n")
+
     def ssh_public_key(self) -> tuple[Path, str]:
-        """Reuse an existing key, else create one: ed25519, or RSA 4096 where FIPS mode forbids ed25519 (Cloud Shell)."""
+        """The owner chooses: an existing key, or a new one (never overwriting a file).
+
+        A VM built earlier keeps its key: a new key would make terraform replace the VM.
+        """
+        kept = self._state().get("ssh_key")
+        if kept and Path(kept).exists() and Path(kept + ".pub").exists():
+            return Path(kept), Path(kept + ".pub").read_text().strip()
         ssh_dir = Path.home() / ".ssh"
-        for name in ("id_ed25519", "id_rsa"):
-            key = ssh_dir / name
-            if key.exists() and key.with_suffix(".pub").exists():
-                return key, key.with_suffix(".pub").read_text().strip()
+        for key in sorted(ssh_dir.glob("*.pub")) if ssh_dir.is_dir() else []:
+            private = key.with_suffix("")
+            if private.exists() and self.confirm(f"Use the existing SSH key {private}?"):
+                self._save_state(ssh_key=str(private))
+                return private, key.read_text().strip()
         ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        base = f"{self.prefix or 'vash-vm'}-key"
+        key = ssh_dir / base
+        n = 2
+        while key.exists() or Path(str(key) + ".pub").exists():
+            key, n = ssh_dir / f"{base}-{n}", n + 1
         errors = []
-        for name, args in (("id_ed25519", ["-t", "ed25519"]), ("id_rsa", ["-t", "rsa", "-b", "4096"])):
-            key = ssh_dir / name
+        for args in (["-t", "ed25519"], ["-t", "rsa", "-b", "4096"]):
             res = self._cmd(["ssh-keygen", "-q", *args, "-N", "", "-f", str(key)])
-            if res.returncode == 0 and key.with_suffix(".pub").exists():
+            if res.returncode == 0 and Path(str(key) + ".pub").exists():
                 self.echo(f"SSH key created: {key}")
-                return key, key.with_suffix(".pub").read_text().strip()
-            errors.append(f"{name}: {res.stderr.strip()}")
+                self._save_state(ssh_key=str(key))
+                return key, Path(str(key) + ".pub").read_text().strip()
+            errors.append(f"{args[1]}: {res.stderr.strip()}")
         raise VashError(f"ssh-keygen failed: {'; '.join(errors)}",
-                        "Create a key with: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
+                        f"Create a key with: ssh-keygen -t rsa -b 4096 -N '' -f {key}")
 
     def admin_cidr(self) -> str:
         if self.options.admin_cidr:
@@ -243,7 +273,8 @@ class Onboarding:
 
     def user_data(self, workdir: Path) -> str:
         text = (workdir / "cloud-init" / "vash-runner.sh").read_text()
-        return text.replace("@@VASH_SOURCE@@", self.options.vash_source).replace("@@MODEL@@", self.options.model)
+        return (text.replace("@@VASH_SOURCE@@", self.options.vash_source)
+                .replace("@@MODEL@@", self.options.model).replace("@@RUN_USER@@", self.user))
 
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
@@ -274,9 +305,37 @@ class Onboarding:
                         "Run `vash onboard oci` again later; free A1 capacity comes and goes")
 
     # ---- the VM --------------------------------------------------------
+    def choose_name(self, what: str, question: str, check: "re.Pattern[str]", rule: str) -> str:
+        """Default 'vash' after a yes; otherwise the owner types the name."""
+        if self.confirm(f"Use the default {what} '{DEFAULT_NAME}'?"):
+            return DEFAULT_NAME
+        return self.ask_required(question, check, rule)
+
+    def ask_required(self, question: str, check: "re.Pattern[str]", rule: str) -> str:
+        """Typed by the owner; no default. Asked up to 3 times."""
+        for _ in range(3):
+            answer = self.ask(question, "").strip()
+            if answer and check.match(answer):
+                return answer
+            self.echo(f"Please type a name: {rule}")
+        raise VashError(f"No valid answer to: {question}", f"Run again and type a name ({rule}), or pass it as an option")
+
+    @property
+    def user(self) -> str:
+        return self.options.ssh_user or "ubuntu"
+
+    @property
+    def runner_name(self) -> str:
+        base = self.prefix or re.sub(r"[^a-z0-9-]+", "-", self.options.vm_name.lower()).strip("-") or "vm"
+        return f"{base}-runner"
+
+    @property
+    def prefix(self) -> str:
+        return self.options.name_prefix or ""
+
     def ssh(self, key: Path, ip: str, command: str, stdin: str | None = None) -> subprocess.CompletedProcess:
         return self._cmd(["ssh", "-i", str(key), "-o", "StrictHostKeyChecking=accept-new",
-                          "-o", "ConnectTimeout=10", "-o", "BatchMode=yes", f"ubuntu@{ip}", command], stdin=stdin)
+                          "-o", "ConnectTimeout=10", "-o", "BatchMode=yes", f"{self.user}@{ip}", command], stdin=stdin)
 
     def wait_ready(self, key: Path, ip: str) -> str:
         deadline = self.options.wait_minutes * 60
@@ -288,15 +347,15 @@ class Onboarding:
             self.sleep(30)
             waited += 30
         raise VashError(f"The VM did not finish installing in {self.options.wait_minutes} minutes",
-                        f"ssh ubuntu@{ip} and read /var/log/vash-onboard.log")
+                        f"ssh {self.user}@{ip} and read /var/log/vash-onboard.log")
 
     def register_runner(self, key: Path, ip: str, token: str) -> None:
         repo = self.options.runner_repo
         command = (
             "cd ~/actions-runner && "
             f"./config.sh --unattended --replace --url https://github.com/{repo} "
-            "--name vash-runner --labels self-hosted,vash --token \"$(cat)\" && "
-            "sudo ./svc.sh install ubuntu && sudo ./svc.sh start"
+            f"--name {self.runner_name} --labels self-hosted,vash --token \"$(cat)\" && "
+            f"sudo ./svc.sh install {self.user} && sudo ./svc.sh start"
         )
         res = self.ssh(key, ip, command, stdin=token)
         if res.returncode != 0:
@@ -310,12 +369,25 @@ class Onboarding:
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
         if self.options.review:
             from .inventory import Inventory, review
-            picked = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
-                            want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"))
-            if picked:
-                self.options.subnet_id = picked
-        compartment = self.ensure_compartment(tenancy)
+            choice = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
+                            want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"),
+                            want_vm=not self.options.vm_ip and not self.existing_tfvars())
+            if choice.vm is not None:
+                self.options.vm_ip, self.options.vm_name = choice.vm.public, choice.vm.name
+            elif choice.subnet_id:
+                self.options.subnet_id = choice.subnet_id
+        if self.options.vm_ip:
+            return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
+        if previous.get("name_prefix"):
+            self.options.name_prefix = previous["name_prefix"]  # keep the names terraform already manages
+        elif not self.options.name_prefix:
+            self.options.name_prefix = self.choose_name(
+                "name prefix", "Name prefix for the new objects, e.g. north, south or your name (VM: <prefix>-runner, network: <prefix>-vcn)",
+                NAME_PREFIX_RE, "lowercase letters, digits and hyphens, starting with a letter, at most 20")
+        if not NAME_PREFIX_RE.match(self.prefix):
+            raise VashError(f"Invalid name prefix '{self.prefix}'", "Use lowercase letters, digits and hyphens, max 20")
+        compartment = self.ensure_compartment(tenancy)
         if previous:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
@@ -346,6 +418,7 @@ class Onboarding:
             "ocpus": self.options.ocpus,
             "memory_in_gbs": self.options.memory_in_gbs,
             "user_data": self.user_data(workdir),
+            "name_prefix": self.prefix,
         }
         outputs = self.create(workdir, base, domains)
         ip = outputs.get("runner_ip", {}).get("value")
@@ -356,7 +429,41 @@ class Onboarding:
         self.echo(ready)
         if self.options.runner_repo and runner_token is not None:
             self.register_runner(key, ip, runner_token())
-        self.echo(f"Done. Connect with: ssh -i {key} ubuntu@{ip}")
+        self.echo(f"Done. Connect with: ssh -i {key} {self.user}@{ip}")
+        return 0
+
+    def install_on_existing(self, runner_token: Callable[[], str] | None = None) -> int:
+        """Install VASH on a VM that already exists: nothing is created in OCI, no terraform."""
+        ip, name = self.options.vm_ip, self.options.vm_name or self.options.vm_ip
+        if not self.options.ssh_user:
+            self.options.ssh_user = self.ask(f"SSH user on {name}", "ubuntu").strip() or "ubuntu"
+        key_text = self.options.ssh_key or self.ask(f"Private key for {name}", "~/.ssh/id_rsa").strip() or "~/.ssh/id_rsa"
+        key = Path(key_text).expanduser()
+        if not key.exists():
+            raise VashError(f"Key {key} not found", f"Copy the private key of {name} to Cloud Shell, or pass --ssh-key")
+        res = self.ssh(key, ip, "cat /etc/os-release")
+        if res.returncode != 0:
+            raise VashError(f"SSH to {self.user}@{ip} failed: {res.stderr.strip()[-200:]}",
+                            "Check the key, the user, and that the VM's security list allows TCP 22 from this shell")
+        os_id = next((line.split("=", 1)[1].strip('"') for line in res.stdout.splitlines()
+                      if line.startswith("ID=")), "")
+        if os_id not in ("ubuntu", "debian"):
+            raise VashError(f"{name} runs '{os_id or 'unknown'}'; the installer supports Ubuntu and Debian",
+                            "Pick an Ubuntu VM, or create a new one (Enter at the VM question)")
+        if not self.confirm(f"Install VASH, terraform, Ollama and the runner files on {name} ({ip})? This changes that VM"):
+            self.echo("Stopped; nothing was changed")
+            return 1
+        script = self.user_data(self.prepare_workdir())
+        res = self.ssh(key, ip, "cat > /tmp/vash-install.sh && sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 &",
+                       stdin=script)
+        if res.returncode != 0:
+            raise VashError(f"Could not start the installer on {name}: {res.stderr.strip()[-200:]}",
+                            f"ssh {self.user}@{ip} and check that the user may run sudo")
+        self.echo(f"Installing on {name} (about 10-20 minutes) ...")
+        self.echo(self.wait_ready(key, ip))
+        if self.options.runner_repo and runner_token is not None:
+            self.register_runner(key, ip, runner_token())
+        self.echo(f"Done. Connect with: ssh -i {key} {self.user}@{ip}")
         return 0
 
     def down(self) -> int:
@@ -386,6 +493,10 @@ def run_cli(args: Any) -> int:
         runner_repo=args.runner_repo,
         model=args.model,
         review=not args.yes and not args.no_inventory,
+        name_prefix=args.name_prefix,
+        vm_ip=args.vm_ip,
+        ssh_user=args.ssh_user,
+        ssh_key=args.ssh_key,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)
@@ -398,7 +509,7 @@ def run_cli(args: Any) -> int:
     def ask_text(question: str, default: str) -> str:
         if args.yes:
             return default
-        return input(f"{question} [{default}]: ")
+        return input(f"{question} [{default}]: " if default else f"{question}: ")
 
     def token() -> str:
         return getpass.getpass(f"GitHub runner registration token for {args.runner_repo} (not stored): ").strip()
