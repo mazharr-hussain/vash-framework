@@ -57,6 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--vm-ip", help="Install on this existing VM instead of creating one")
     p_onboard.add_argument("--ssh-user", help="SSH user of the existing VM (default ubuntu)")
     p_onboard.add_argument("--ssh-key", help="Private key for the existing VM (default ~/.ssh/id_rsa)")
+    p_onboard.add_argument("--notify-email", help="E-mail told when the VM is made, VASH is ready, or setup fails; '' for none")
     p_onboard.add_argument("--no-vault", action="store_true", help="Skip choosing the vault and key for VASH's secrets")
     p_onboard.add_argument("--subnet-id", help="Existing public subnet to use; no network is created")
     p_onboard.add_argument("--ocpus", type=int, default=2)

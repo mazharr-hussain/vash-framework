@@ -65,6 +65,10 @@ class FakeCloud:
             return {"data": self.subnet}
         if args[:3] == ["network", "security-list", "get"]:
             return {"data": {"ingress-security-rules": self.ingress}}
+        if args[:3] == ["ons", "topic", "list"]:
+            return {"data": [{"topic-id": "ocid1.onstopic..t"}]}
+        if args[:3] == ["ons", "message", "publish"]:
+            return {"data": {}}
         if args[:3] == ["compute", "image", "list"]:
             return {"data": [{"id": i, "display-name": "Ubuntu-24.04-aarch64"} for i in self.images]}
         raise AssertionError(f"unexpected oci call {args}")
@@ -103,6 +107,7 @@ def home(tmp_path, monkeypatch):
 def make(cloud, home, **opts):
     opts.setdefault("name_prefix", "north")
     opts.setdefault("compartment_name", "vash")
+    opts.setdefault("notify_email", "")  # no e-mail question unless a test asks for it
     options = Options(admin_cidr="198.51.100.1/32", workdir=home / ".vash" / "oci", **opts)
     return Onboarding(options, run=cloud, echo=lambda _m: None, sleep=lambda _s: None, env=ENV)
 
@@ -482,3 +487,42 @@ def test_no_capacity_and_no_to_retrying_stops_with_the_options(home, monkeypatch
         onboarding.up()
     assert 300 not in sleeps
     assert "no free A1 capacity" in str(err.value) and "Pay As You Go" in err.value.fix
+
+
+def published(cloud):
+    return [c[0] for c in cloud.calls if c[0][1:4] == ["ons", "message", "publish"]]
+
+
+def test_email_is_asked_once_kept_for_reruns_and_told_when_ready(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    cloud = FakeCloud()
+    onboarding = make(cloud, home, notify_email=None)
+    answers = iter(["not-an-email", "owner@example.com"])
+    onboarding.ask = lambda q, d: next(answers) if "E-mail address" in q else d
+    assert onboarding.up() == 0
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["notify_email"] == "owner@example.com"
+    ready = published(cloud)
+    assert len(ready) == 1 and "VASH is ready" in ready[0][ready[0].index("--title") + 1]
+    again = make(FakeCloud(), home, notify_email=None)
+    again.ask = lambda q, d: (_ for _ in ()).throw(AssertionError(q)) if "E-mail" in q else d
+    again.up()  # the saved address is used, not asked again
+
+
+def test_failure_is_emailed_too(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", BusyTerraform(busy=99))
+    cloud = FakeCloud()
+    onboarding = make(cloud, home, notify_email="owner@example.com")
+    onboarding.confirm = lambda q: "Keep trying" not in q
+    with pytest.raises(VashError):
+        onboarding.up()
+    sent = published(cloud)
+    assert len(sent) == 1 and "VASH setup stopped" in sent[0][sent[0].index("--title") + 1]
+    assert "Pay As You Go" in sent[0][sent[0].index("--body") + 1]
+
+
+def test_no_email_sends_nothing(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    cloud = FakeCloud()
+    assert make(cloud, home).up() == 0
+    assert published(cloud) == []

@@ -15,6 +15,7 @@ What it does (`vash onboard oci`):
 2. Checks the free A1 quota in each availability domain and keeps those with 2 cores and 12 GB free.
 3. Picks the latest Ubuntu 24.04 Arm image, creates an SSH key if there is none, and opens SSH to this shell's IP only.
 4. Asks once, then runs terraform on `iac/oci/environments/always-free`; on "Out of host capacity" it tries the next domain. When every domain is out of free A1 capacity, it asks "Keep trying every 5 minutes for up to 3 hours?" (keep the window open; Ctrl+C stops, nothing is lost); on n it stops and keeps the network. A smaller VM (`--ocpus 1 --memory 6`) can be resized later with `--ocpus/--memory`. Pay As You Go accounts get A1 capacity first, and Always Free resources stay free there.
+   E-mail: onboarding asks once for an address (or `--notify-email`; Enter = none) and keeps it for later runs. OCI first mails a link that must be clicked. You are then told when the VM has been launched (an OCI Events rule, sent even if Cloud Shell has closed), when VASH is ready on it, and when the setup stops with an error (the error and what to do). Built with CD3's `managementservices/notification` and `event` modules; OCI Notifications and Events are in Always Free.
 5. The VM installs on first boot: Python, git, terraform, VASH, Ollama with `qwen2.5-coder:7b`, and the GitHub Actions runner files.
 6. Waits until the VM reports ready, then prints the SSH command.
 
