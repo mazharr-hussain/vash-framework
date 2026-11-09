@@ -120,6 +120,8 @@ def test_table_lists_compartments_vcns_and_subnets_with_owner():
     assert [(r.no, r.kind) for r in rows][:3] == [(1, "Compartment"), (2, "VCN"), (3, "Subnet")]
     sub = next(r for r in rows if r.ocid == "ocid1.subnet..pub")
     assert sub.parent == "PoC_VCN" and sub.public == "yes"
+    assert any(line.startswith("Reading ") for line in out)
+    out.clear()
     inv.show(rows)
     assert "S.No" in out[1] and "Belongs to" in out[1]
 
