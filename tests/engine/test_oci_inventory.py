@@ -180,7 +180,7 @@ def test_subnet_in_use_failure_is_reported_and_the_rest_goes_on():
 
 def test_review_asks_twice_before_deleting():
     fake = FakeOci()
-    answers = {"check": True, "something else": False, "delete any": True, "Delete these now": False}
+    answers = {"check": True, "other resources": False, "something else": False, "delete any": True, "Delete these now": False}
     def confirm(q):
         return next(v for k, v in answers.items() if k in q)
     inv = Inventory(fake, lambda m: None)
@@ -210,7 +210,7 @@ def test_private_subnet_cannot_be_picked():
     fake = FakeOci()
     inv = Inventory(fake, lambda m: None)
     priv = next(r.no for r in inv.rows(TEN) if r.ocid == "ocid1.subnet..priv")
-    answers = {"check": True, "delete any": False}
+    answers = {"check": True, "other resources": False, "delete any": False}
     picked = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(priv), want_subnet=True)
     assert picked.subnet_id == "" and picked.vm is None
@@ -298,7 +298,7 @@ def test_vm_and_its_subnet_go_together_vm_first():
 def test_existing_vm_can_be_picked():
     inv = Inventory(FakeOci(), lambda m: None)
     vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
-    answers = {"check": True, "delete any": False}
+    answers = {"check": True, "other resources": False, "delete any": False}
     choice = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
                     lambda q, d: str(vm.no) if "existing VM" in q else "", want_subnet=True)
     assert choice.vm == vm and choice.subnet_id == ""
@@ -570,3 +570,35 @@ def test_null_fields_from_search_do_not_break_the_table():
     inv.show(rows)
     policy = next(r for r in rows if r.kind == "Policy")
     assert policy.name == "ocid1.policy..p" and policy.state == ""
+
+
+def test_oracle_resources_are_counted_not_listed_and_the_rest_is_summarised():
+    fake = FakeOci()
+    real = fake.__call__
+    items = [{"resource-type": "OsmhSoftwareSource", "display-name": f"ol9_{i}", "identifier": f"ocid1.osmh..{i}",
+              "lifecycle-state": "ACTIVE", "compartment-id": TEN} for i in range(50)]
+    items += [{"resource-type": "Policy", "display-name": "PSM-root-policy", "identifier": "ocid1.policy..psm",
+               "lifecycle-state": "ACTIVE", "compartment-id": TEN},
+              {"resource-type": "TagNamespace", "display-name": "Oracle-Tags", "identifier": "ocid1.tagns..o",
+               "compartment-id": TEN}]
+    items += [{"resource-type": "User", "display-name": f"user{i}", "identifier": f"ocid1.user..{i}",
+               "compartment-id": TEN} for i in range(5)]
+    def search(*args):
+        if args[:3] == ("search", "resource", "structured-search") and args[args.index("--query-text") + 1] == "query all resources":
+            return {"data": {"items": items}}
+        return real(*args)
+    out, echo = lines()
+    inv = Inventory(search, echo)
+    rows = inv.rows(TEN)
+    assert not any(r.kind in ("OsmhSoftwareSource", "TagNamespace") or r.name.startswith("PSM-") for r in rows)
+    kinds = [r.kind for r in rows]
+    assert kinds.index("User") > max(i for i, k in enumerate(kinds) if k in ("Compartment", "VCN", "Subnet", "VM"))
+    assert [r.no for r in rows] == list(range(1, len(rows) + 1))
+    out.clear()
+    inv.show(rows)
+    assert not any("| User" in line for line in out)
+    assert any("in (root): 5 User" in line for line in out)
+    assert any("Not listed: 52 resources created by Oracle" in line for line in out)
+    out.clear()
+    inv.show(rows, everything=True)
+    assert sum("| User" in line for line in out) == 5
