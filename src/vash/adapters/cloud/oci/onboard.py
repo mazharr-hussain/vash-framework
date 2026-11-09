@@ -525,7 +525,15 @@ def run_cli(args: Any) -> int:
     def ask(question: str) -> bool:
         if args.yes:
             return True
-        return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+        for _ in range(3):
+            answer = input(f"{question} [y/N] ").strip().lower()
+            if answer in ("y", "yes"):
+                return True
+            if answer in ("", "n", "no"):
+                return False
+            print(f"'{answer}' is not an answer to this question: type y for yes, or n (or Enter) for no")
+        print("No y or n after 3 tries: taken as no")
+        return False
 
     def ask_text(question: str, default: str) -> str:
         if args.yes:

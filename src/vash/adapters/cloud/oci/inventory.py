@@ -576,11 +576,15 @@ def _pick(inv: Inventory, ask: Callable[[str, str], str], question: str, allowed
     return []
 
 
-def _delete_round(inv: Inventory, rows: list[Row], tenancy: str, confirm: Callable[[str], bool],
-                  ask: Callable[[str, str], str]) -> bool:
-    """One pass: choose, dependency check, reconfirm, delete. True if anything was changed."""
-    chosen = _pick(inv, ask, "Which rows do you want to delete? Type the S.No to delete, comma separated "
-                   "(example: 4,5), or their OCIDs; press Enter for none", rows, many=True)
+FIRST_PICK = ("Which rows do you want to delete? Type the S.No to delete, comma separated (example: 1,2), "
+              "or press Enter to delete nothing")
+NEXT_PICK = "Anything else to remove from the table? Type its S.No (example: 3), or press Enter to finish"
+MAX_ROUNDS = 20
+
+
+def _delete_round(inv: Inventory, rows: list[Row], chosen: list[Row], tenancy: str,
+                  confirm: Callable[[str], bool], ask: Callable[[str, str], str]) -> bool:
+    """One pass over the chosen rows: dependency check, reconfirm, delete. True if anything was changed."""
     comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
     for r in [r for r in chosen if r.kind not in VASH_KINDS]:
         if kind_group(r.kind) == "identity":
@@ -659,12 +663,15 @@ def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
         include.add("identity")
     if include:
         inv.show(rows, frozenset(include))
-    question = "Do you want to delete any of them?"
-    while rows and confirm(question):
-        if _delete_round(inv, rows, tenancy, confirm, ask):
+    question = FIRST_PICK
+    for _ in range(MAX_ROUNDS):
+        chosen = _pick(inv, ask, question, rows, many=True) if rows else []
+        if not chosen:
+            break
+        if _delete_round(inv, rows, chosen, tenancy, confirm, ask):
             rows = inv.rows(tenancy)
             inv.show(rows, frozenset(include))
-        question = "Do you want to delete something else from the table?"
+        question = NEXT_PICK
     vms = [r for r in rows if r.kind == "VM" and r.state == "RUNNING" and r.public]
     if want_vm and vms:
         chosen = _pick(inv, ask, f"Install VASH on an existing VM? Type its S.No ({_choices(vms)}), "

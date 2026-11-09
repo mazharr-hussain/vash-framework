@@ -1,6 +1,12 @@
 import pytest
 
-from vash.adapters.cloud.oci.inventory import Inventory, review
+from vash.adapters.cloud.oci.inventory import NEXT_PICK, Inventory
+from vash.adapters.cloud.oci.inventory import review as full_review
+
+
+def review(inv, tenancy, confirm, ask, *args, **kw):
+    """One delete round: the follow-up "Anything else" question is answered with Enter."""
+    return full_review(inv, tenancy, confirm, lambda q, d: "" if q == NEXT_PICK else ask(q, d), *args, **kw)
 from vash.core.exceptions import VashError
 
 TEN = "ocid1.tenancy..t"
@@ -212,7 +218,7 @@ def test_private_subnet_cannot_be_picked():
     priv = next(r.no for r in inv.rows(TEN) if r.ocid == "ocid1.subnet..priv")
     answers = {"check": True, "other resources": False, "identity": False, "delete any": False}
     picked = review(inv, TEN, lambda q: next(v for k, v in answers.items() if k in q),
-                    lambda q, d: str(priv), want_subnet=True)
+                    lambda q, d: "" if "delete" in q else str(priv), want_subnet=True)
     assert picked.subnet_id == "" and picked.vm is None
 
 
@@ -507,11 +513,13 @@ def test_second_delete_round_in_the_same_run():
     fake = FakeOci()
     inv = Inventory(fake, lambda m: None)
     rows = inv.rows(TEN)
-    rounds = iter(["ocid1.subnet..old", "ocid1.vcn..b"])
-    more = iter([True, True, False])
-    def confirm(q):
-        return next(more) if ("delete any" in q or "something else" in q) else True
-    review(inv, TEN, confirm, lambda q, d: next(rounds) if "delete, comma" in q else "", want_subnet=False)
+    rounds = iter(["ocid1.subnet..old", "ocid1.vcn..b", ""])
+    asked = []
+    def pick(q, d):
+        asked.append(q)
+        return next(rounds, "") if "S.No" in q else ""
+    full_review(inv, TEN, yes, pick, want_subnet=False)
+    assert "delete" in asked[0] and asked[1].startswith("Anything else")
     assert "ocid1.vcn..b" not in fake.vcns
     assert any(c[:3] == ("network", "subnet", "delete") for c in fake.calls)
 
