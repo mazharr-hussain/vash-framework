@@ -30,8 +30,11 @@ DEFAULT_MODEL = "qwen2.5-coder:7b"
 DEFAULT_NAME = "vash"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CLOUD_INIT_NAME = "vash-runner.sh"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
+CAPACITY_WAIT_MINUTES = 5
+CAPACITY_RETRIES = 36  # 3 hours
 
 Runner = Callable[..., subprocess.CompletedProcess]
 
@@ -60,6 +63,7 @@ class Options:
     runner_repo: str | None = None
     wait_minutes: int = 30
     vault: bool = False  # choose or create the vault and key for VASH's secrets (asked; never with --yes)
+    notify_email: str | None = None  # e-mailed when the VM is made, when VASH is ready, or when setup fails
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -175,6 +179,40 @@ class Onboarding:
         base = self.prefix or re.sub(r"[^a-z0-9-]+", "-", self.options.vm_name.lower()).strip("-") or DEFAULT_NAME
         chosen = VaultSetup(self.oci, self.echo, self.confirm, self.ask, self.foundation(tenancy)).choose(tenancy, f"{base}-secrets-key")
         self._save_state(**chosen)
+
+    def notify_address(self, previous: dict[str, Any]) -> str:
+        """--notify-email, else the one given at an earlier run, else asked (Enter = no e-mails)."""
+        if self.options.notify_email is not None:
+            email = self.options.notify_email.strip()
+        elif "notify_email" in previous:
+            return previous["notify_email"]
+        else:
+            email = ""
+            for _ in range(3):
+                answer = self.ask("E-mail address to tell when the VM is made, when VASH is ready or when the setup "
+                                  "fails (OCI Notifications, free); press Enter for no e-mails", "").strip()
+                if not answer or EMAIL_RE.match(answer):
+                    email = answer
+                    break
+                self.echo(f"'{answer}' is not an e-mail address; type one like name@example.com, or press Enter")
+        if email and not EMAIL_RE.match(email):
+            raise VashError(f"'{email}' is not an e-mail address", "Pass --notify-email name@example.com")
+        if email:
+            self.echo(f"OCI will e-mail {email} a link first: click it to confirm, or no e-mails arrive")
+        return email
+
+    def notify(self, compartment: str, title: str, body: str) -> None:
+        """Publish to the VM's notification topic (OCI Notifications); never stops onboarding."""
+        if not self.existing_tfvars().get("notify_email"):
+            return
+        try:
+            topics = self.oci("ons", "topic", "list", "--compartment-id", compartment,
+                              "--name", f"{self.prefix}-notifications").get("data", [])
+            if topics:
+                self.oci("ons", "message", "publish", "--topic-id", topics[0]["topic-id"], "--title", title,
+                         "--body", body)
+        except VashError as exc:
+            self.echo(f"Could not send the e-mail ({exc})")
 
     def check_subnet(self, subnet_id: str) -> None:
         """An existing subnet must be public and let SSH in; VASH never changes it."""
@@ -320,20 +358,31 @@ class Onboarding:
         path.chmod(0o600)
 
     def create(self, workdir: Path, base: dict[str, Any], domains: list[str]) -> dict[str, Any]:
+        """Every domain in turn; when all are out of A1 capacity, retry every few minutes after a yes."""
         adapter = Adapter({"iac_dir": str(workdir)})
-        last: VashError | None = None
-        for ad in domains:
-            self.write_tfvars(workdir, {**base, "availability_domain": ad})
-            self.echo(f"Creating the VM in {ad} ...")
-            try:
-                return adapter.apply(ENVIRONMENT, approved=True)
-            except VashError as exc:
-                if not any(word in str(exc).lower() for word in CAPACITY_ERRORS):
-                    raise
-                self.echo(f"{ad}: out of host capacity, trying the next domain")
-                last = exc
-        raise VashError(f"Every availability domain is out of A1 capacity: {last}",
-                        "Run `vash onboard oci` again later; free A1 capacity comes and goes")
+        for attempt in range(CAPACITY_RETRIES + 1):
+            for ad in domains:
+                self.write_tfvars(workdir, {**base, "availability_domain": ad})
+                self.echo(f"Creating the VM in {ad} ...")
+                try:
+                    return adapter.apply(ENVIRONMENT, approved=True)
+                except VashError as exc:
+                    if not any(word in str(exc).lower() for word in CAPACITY_ERRORS):
+                        raise
+                    self.echo(f"{ad}: Oracle has no free A1 capacity there right now")
+            if attempt == 0 and not self.confirm(
+                    f"Oracle has no free A1 capacity in {base['region']} right now. Keep trying every "
+                    f"{CAPACITY_WAIT_MINUTES} minutes for up to {CAPACITY_RETRIES * CAPACITY_WAIT_MINUTES // 60} "
+                    "hours? Keep this window open; Ctrl+C stops, and nothing is lost"):
+                break
+            if attempt < CAPACITY_RETRIES:
+                self.echo(f"Try {attempt + 1} of {CAPACITY_RETRIES} failed; trying again in {CAPACITY_WAIT_MINUTES} "
+                          "minutes ...")
+                self.sleep(CAPACITY_WAIT_MINUTES * 60)
+        raise VashError("Oracle has no free A1 capacity in this region right now; the network is kept, no VM was made",
+                        "Run the same command again later (capacity comes and goes during the day), or upgrade the "
+                        "account to Pay As You Go (Console: Billing, Upgrade): Always Free resources stay free, and "
+                        "paid accounts get A1 capacity first")
 
     # ---- the VM --------------------------------------------------------
     def choose_name(self, what: str, question: str, check: "re.Pattern[str]", rule: str) -> str:
@@ -462,14 +511,22 @@ class Onboarding:
             "memory_in_gbs": self.options.memory_in_gbs,
             "cloud_init_script": self.write_cloud_init(workdir),
             "name_prefix": self.prefix,
+            "notify_email": self.notify_address(previous),
         }
-        outputs = self.create(workdir, base, domains)
-        ip = outputs.get("runner_ip", {}).get("value")
-        if not ip:
-            raise VashError("The VM has no public IP", f"Check the instance in compartment '{self.options.compartment_name}'")
-        self.echo(f"VM is up at {ip}; installing VASH, terraform and Ollama (about 10-20 minutes) ...")
-        ready = self.wait_ready(key, ip)
+        try:
+            outputs = self.create(workdir, base, domains)
+            ip = outputs.get("runner_ip", {}).get("value")
+            if not ip:
+                raise VashError("The VM has no public IP",
+                                f"Check the instance in compartment '{self.options.compartment_name}'")
+            self.echo(f"VM is up at {ip}; installing VASH, terraform and Ollama (about 10-20 minutes) ...")
+            ready = self.wait_ready(key, ip)
+        except VashError as exc:
+            self.notify(compartment, f"VASH setup stopped in {region}", f"{exc.message}\n\nWhat to do: {exc.fix}")
+            raise
         self.echo(ready)
+        self.notify(compartment, f"VASH is ready on {self.runner_name} ({ip})",
+                    f"{ready}\n\nConnect with: ssh -i {key} {self.user}@{ip}")
         if self.options.runner_repo and runner_token is not None:
             self.register_runner(key, ip, runner_token())
         self.echo(f"Done. Connect with: ssh -i {key} {self.user}@{ip}")
@@ -534,6 +591,7 @@ def run_cli(args: Any) -> int:
         os_version=args.os_version,
         admin_cidr=args.admin_cidr,
         runner_repo=args.runner_repo,
+        notify_email=args.notify_email,
         model=args.model,
         review=(not args.yes and not args.no_inventory) or args.cleanup_only,
         cleanup_only=args.cleanup_only,

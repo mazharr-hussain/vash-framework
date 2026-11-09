@@ -39,3 +39,22 @@ run "with_free_database" {
     create_database = true
   }
 }
+
+run "email_when_the_vm_is_made" {
+  command = plan
+  variables {
+    notify_email = "owner@example.com"
+  }
+  assert {
+    condition     = length(module.notification) == 1 && length(module.vm_created_event) == 1
+    error_message = "An e-mail address must plan the topic and the event rule."
+  }
+}
+
+run "no_email_by_default" {
+  command = plan
+  assert {
+    condition     = length(module.notification) == 0 && length(module.vm_created_event) == 0
+    error_message = "Without an e-mail address nothing is sent."
+  }
+}

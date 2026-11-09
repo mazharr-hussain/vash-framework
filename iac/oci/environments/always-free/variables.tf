@@ -44,3 +44,8 @@ variable "name_prefix" {
   type        = string
   description = "Prefix of every display name this environment creates."
 }
+variable "notify_email" {
+  type        = string
+  default     = ""
+  description = "E-mail address told when the VM is launched; empty sends nothing."
+}

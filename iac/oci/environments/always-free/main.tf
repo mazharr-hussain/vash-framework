@@ -158,3 +158,43 @@ module "database" {
   admin_password = var.admin_password
   name_prefix    = var.name_prefix
 }
+
+# E-mail when the VM is made: an Events rule on "launch instance end" in this compartment sends to a
+# Notifications topic with the owner's e-mail subscribed (CD3 managementservices modules; both services
+# are in Always Free). OCI first e-mails a link that must be clicked to confirm the subscription.
+locals {
+  notify = var.notify_email != ""
+}
+
+module "notification" {
+  count          = local.notify ? 1 : 0
+  source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/managementservices/notification?ref=v2026.2.2"
+  compartment_id = var.compartment_id
+  topic_name     = "${var.name_prefix}-notifications"
+  description    = "VASH: e-mails about the runner VM"
+  subscriptions  = [{ protocol = "EMAIL", endpoint = var.notify_email }]
+}
+
+module "vm_created_event" {
+  count          = local.notify ? 1 : 0
+  source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/managementservices/event?ref=v2026.2.2"
+  compartment_id = var.compartment_id
+  event_name     = "${var.name_prefix}-vm-created"
+  description    = "VASH: e-mail when a VM in this compartment has been launched"
+  is_enabled     = true
+  condition      = jsonencode({ eventType = ["com.oraclecloud.computeapi.launchinstance.end"] })
+  topic_name     = {}
+  key_name       = "vm"
+  actions = {
+    vm = {
+      actions = [{
+        action_type = "ONS"
+        is_enabled  = true
+        description = ""
+        function_id = null
+        stream_id   = null
+        topic_id    = module.notification[0].topic_tf_id
+      }]
+    }
+  }
+}
