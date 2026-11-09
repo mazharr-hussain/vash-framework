@@ -41,7 +41,24 @@ class FakeOci:
         if a[:3] == ["compute", "instance", "list-vnics"]:
             return {"data": [{"id": "vnic-vm", "public-ip": "203.0.113.9"}]}
         if a[:3] == ["compute", "instance", "get"]:
-            return {"data": {"compartment-id": "ocid1.comp..x", "availability-domain": "AD-1"}}
+            return {"data": {"compartment-id": "ocid1.comp..x", "availability-domain": "AD-1",
+                             "display-name": "kyc-vm"}}
+        if a[:3] == ["network", "vnic", "get"]:
+            vid = a[a.index("--vnic-id") + 1]
+            return {"data": {"compartment-id": "ocid1.comp..x", "time-created": "2026-11-04T01:39:02Z",
+                             "display-name": f"name-of-{vid}"}}
+        if a[:3] == ["compute", "vnic-attachment", "list"]:
+            vid = a[a.index("--vnic-id") + 1]
+            if vid == "vnic-vm":
+                return {"data": [{"instance-id": "ocid1.instance..vm", "lifecycle-state": "ATTACHED"}]}
+            return {"data": []}
+        if a[:3] == ["search", "resource", "structured-search"] and "timeCreated" in a[-1]:
+            return {"data": {"items": [
+                {"resource-type": "Vnic", "display-name": "x", "time-created": "2026-11-04T01:39:02Z"},
+                {"resource-type": "PrivateEndpoint", "display-name": "odoo-pe", "time-created": "2026-11-04T01:38:40Z",
+                 "lifecycle-state": "ACTIVE"},
+                {"resource-type": "Bucket", "display-name": "old", "time-created": "2026-10-01T00:00:00Z",
+                 "lifecycle-state": "ACTIVE"}]}}
         if a[:3] == ["compute", "boot-volume-attachment", "list"]:
             return {"data": [{"boot-volume-id": "ocid1.bootvolume..b"}]}
         if a[:3] == ["compute", "volume-attachment", "list"]:
@@ -182,7 +199,7 @@ def test_in_use_subnet_is_blocked_and_not_deleted():
     no = next(r.no for r in inv.rows(TEN) if r.ocid == "ocid1.subnet..pub")
     review(inv, TEN, lambda q: True, lambda q, d: str(no) if "delete" in q else "", want_subnet=False)
     assert not any(c[2] == "delete" for c in fake.calls)
-    assert any("still in use: IP 10.0.0.5 (kyc-vm)" in line for line in out)
+    assert any("still in use: IP 10.0.0.5: VM kyc-vm" in line for line in out)
     assert any("every choice is still in use" in line for line in out)
 
 
@@ -193,7 +210,7 @@ def test_vcn_dependencies_listed_and_in_use_child_blocks():
     also, blockers = inv.dependencies(vcn)
     assert "subnet public subnet" in also and "internet-gateway igw-1" in also
     assert "route-table rt-extra" in also and not any("rt-default" in a for a in also)
-    assert blockers == ["subnet private subnet: IP 10.0.0.5 (kyc-vm)"]
+    assert blockers == ["subnet private subnet: IP 10.0.0.5: VM kyc-vm"]
 
 
 def test_non_empty_compartment_is_blocked():
@@ -320,3 +337,23 @@ def test_sub_compartment_blocks_the_cleaner():
     assert "sub-compartment Child (remove it first)" in blockers
     review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
     assert cleaner.calls == []
+
+
+def test_service_vnic_owner_is_named():
+    inv = Inventory(FakeOci(), lambda m: None)
+    owner = inv.vnic_owner("vnic-service")
+    assert owner.startswith("probably PrivateEndpoint odoo-pe")
+    assert "name-of-vnic-service" in owner
+
+
+def test_vm_name_gets_three_tries():
+    fake = FakeOci()
+    out, echo = lines()
+    inv = Inventory(fake, echo)
+    vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
+    typed = iter(["intance1", "kyc-vm"])
+    review(inv, TEN, lambda q: True,
+           lambda q, d: str(vm.no) if "delete, comma" in q else (next(typed) if "Type the VM" in q else ""),
+           want_subnet=False)
+    assert any(c[:3] == ("compute", "instance", "terminate") for c in fake.calls)
+    assert any("try again" in line for line in out)
