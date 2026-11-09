@@ -84,3 +84,5 @@ def test_cd3_instance_module_gets_the_values_its_defaults_break_on():
     instance = instance[:instance.index("\n}\n")]
     assert "plugins_details = []" in instance  # CD3 iterates over it; its default is null
     assert "boot_tf_policy  = null" in instance  # CD3's default "" looks up a policy named ""
+    assert "launch_options  = null" in instance  # CD3 reads element(launch_options, 0) of its default []
+    assert "nsg_ids         = null" in instance  # CD3 turns its default [] into ["INVALID NSG Name"]

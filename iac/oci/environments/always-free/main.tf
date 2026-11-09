@@ -139,6 +139,7 @@ module "instance" {
   plugins_details = []
   boot_tf_policy  = null # no boot volume backup policy (backups are paid beyond the free 5)
   launch_options  = null # the module reads element(launch_options, 0), which fails on its default []
+  nsg_ids         = null # on its default [] the module sends the NSG "INVALID NSG Name" to OCI
 }
 
 data "oci_core_vnic_attachments" "runner" {
