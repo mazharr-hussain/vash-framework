@@ -47,10 +47,11 @@ class Cleaner:
         self._check([sys.executable, "-m", "pip", "install", "-q", SDK_REQUIREMENT], "install the OCI Python SDK")
         return repo / SAMPLE_DIR
 
-    def command(self, compartment_id: str, backup_compartment_id: str, execute: bool) -> list[str]:
+    def command(self, compartment_id: str, backup_compartment_id: str, execute: bool,
+                region: str | None = None) -> list[str]:
         sample = self.ensure()
         args = [sys.executable, "-m", "vash.adapters.cloud.oci.cleaner_launch", str(sample),
-                "--compartment-id", compartment_id, "--region", self.region, "--auth", "config",
+                "--compartment-id", compartment_id, "--region", region or self.region, "--auth", "config",
                 "--output-dir", str(self.tools_dir / "cleaner-runs")]
         if execute:
             args += ["--execute", "--rm-backup-stack-compartment-id", backup_compartment_id,
@@ -59,6 +60,6 @@ class Cleaner:
             args += ["--dry-run-only"]
         return args
 
-    def run(self, compartment_id: str, backup_compartment_id: str, execute: bool) -> int:
+    def run(self, compartment_id: str, backup_compartment_id: str, execute: bool, region: str | None = None) -> int:
         """Runs in the terminal, so the tool's own DELETE question reaches the owner."""
-        return self._run(self.command(compartment_id, backup_compartment_id, execute), check=False).returncode
+        return self._run(self.command(compartment_id, backup_compartment_id, execute, region), check=False).returncode

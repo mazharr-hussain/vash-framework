@@ -304,7 +304,7 @@ class FakeCleaner:
         self.calls = []
         self.codes = {False: dry, True: real}
 
-    def run(self, compartment_id, backup_id, execute):
+    def run(self, compartment_id, backup_id, execute, region=None):
         self.calls.append((compartment_id, backup_id, execute))
         return self.codes[execute]
 
@@ -429,3 +429,56 @@ def test_other_resources_point_to_their_compartment_or_the_console():
     assert any(f"choose its compartment PoC (S.No {comp.no})" in line for line in out)
     assert any("root-vault: in the root compartment" in line for line in out)
     assert not any(c[2] == "delete" for c in fake.calls)
+
+
+class TwoRegionOci:
+    """Minimal OCI: one VM in each of two regions, a related child tenancy, and one it cannot reach."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        a = list(args)
+        region = a[a.index("--region") + 1] if "--region" in a else None
+        if a[:3] == ["iam", "region-subscription", "list"]:
+            return {"data": [{"region-name": "me-jeddah-1", "is-home-region": True, "status": "READY"},
+                             {"region-name": "eu-frankfurt-1", "status": "READY"}]}
+        if a[:3] == ["organizations", "organization", "list"]:
+            return {"data": {"items": [{"id": "org1", "parent-tenancy-id": TEN}]}}
+        if a[:3] == ["organizations", "organization-tenancy", "list"]:
+            return {"data": {"items": [{"tenancy-id": "ocid1.tenancy..child", "name": "child-a", "lifecycle-state": "ACTIVE"},
+                                       {"tenancy-id": "ocid1.tenancy..locked", "name": "child-b", "lifecycle-state": "ACTIVE"}]}}
+        if a[:3] == ["iam", "compartment", "list"]:
+            if a[a.index("--compartment-id") + 1] == "ocid1.tenancy..locked":
+                raise VashError("NotAuthorizedOrNotFound", "fix")
+            return {"data": []}
+        if a[:3] == ["compute", "instance", "list"]:
+            comp = a[a.index("--compartment-id") + 1]
+            return {"data": [{"id": f"vm-{comp[-5:]}-{region}", "display-name": f"vm-{region}", "lifecycle-state": "STOPPED"}]}
+        if a[:3] == ["compute", "instance", "get"]:
+            return {"data": {"lifecycle-state": "TERMINATED"}}
+        if a[2] == "list" or a[:2] == ["search", "resource"]:
+            return {"data": {"items": []}} if a[0] == "search" else {"data": []}
+        return {"data": {}}
+
+
+def test_all_regions_and_reachable_related_tenancies_are_listed():
+    fake = TwoRegionOci()
+    out, echo = lines()
+    inv = Inventory(fake, echo, sleep=lambda s: None)
+    review(inv, TEN, lambda q: "check" in q, lambda q, d: "", want_subnet=False)
+    rows_regions = {(r.tenancy, r.region) for r in inv.rows(TEN) if r.kind == "VM"}
+    assert ("", "me-jeddah-1") in rows_regions and ("", "eu-frankfurt-1") in rows_regions
+    assert ("child-a", "me-jeddah-1") in rows_regions
+    assert any("No access to child tenancy child-b" in line for line in out)
+    assert not any(c[0] == "search" and "--region" in c and "child" in str(c) for c in fake.calls)
+
+
+def test_delete_goes_to_the_row_region():
+    fake = TwoRegionOci()
+    inv = Inventory(fake, lambda m: None, sleep=lambda s: None)
+    vm = next(r for r in inv.rows(TEN) if r.kind == "VM" and r.region == "eu-frankfurt-1" and not r.tenancy)
+    inv.delete([vm])
+    term = [c for c in fake.calls if c[:3] == ("compute", "instance", "terminate")][0]
+    assert term[-2:] == ("--region", "eu-frankfurt-1")
