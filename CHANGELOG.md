@@ -27,6 +27,7 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - `vash onboard oci`: compartments that hold resources are emptied with Oracle's compartment cleaner (oci-automation-hub, pinned; dry-run plan, Resource Manager backup, typed DELETE, Cloud Shell sign-in added); the table uses direct listings (no search lag); "Continue with the VASH VM setup now?" after cleanup, and `--cleanup-only`.
 - Catalog: UPL-1.0 allowed; vendor-first rule; LAW 3 search record for the OCI tools.
 - IaC: network and VM now use Oracle's CD3 Automation Toolkit modules (v2026.2.2); VASH's own network and compute modules are removed. The free-tier database keeps VASH's module (CD3's adb module has no free-tier option).
+- `vash onboard oci`: vault for VASH's secrets: existing vaults and keys are listed and picked by S.No, or a free virtual vault and an HSM key are created in a security compartment (default `security`, or a typed name); `--no-vault` skips it.
 - `vash onboard oci`: the dependency check names who holds each IP (the VM, or the service created with the VNIC), a VM name gets 3 tries, and the table shows progress while it reads.
 - Fixed: the owner lookup sends the time in the form OCI Search accepts, and a failed lookup shows "owner unknown" instead of stopping the run.
 - `vash onboard oci`: deletes continue after a failure (each failure reported with OCI's own message, stdout included), a VM is terminated and then polled (the CLI's --wait-for-state failed in Cloud Shell), and the IP owner guess only considers services that create VNICs.

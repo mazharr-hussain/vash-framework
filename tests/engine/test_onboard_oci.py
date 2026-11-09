@@ -418,3 +418,20 @@ def test_cleanup_only_asks_for_no_vm_or_subnet(home, monkeypatch):
     monkeypatch.setattr(inv_mod, "review", fake_review)
     assert make(FakeCloud(), home, review=True, cleanup_only=True).up() == 0
     assert seen == {"want_subnet": False, "want_vm": False}
+
+
+def test_vault_is_chosen_once_and_kept_for_reruns(home, monkeypatch):
+    from vash.adapters.cloud.oci import security
+    picks = []
+    def choose(self, tenancy, key_name):
+        picks.append(key_name)
+        return {"vault_id": "ocid1.vault..v", "vault_endpoint": "https://v", "key_id": "ocid1.key..k",
+                "vault_compartment_id": "ocid1.comp..sec"}
+    monkeypatch.setattr(security.VaultSetup, "choose", choose)
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    assert make(FakeCloud(), home, vault=True).up() == 0
+    assert picks == ["north-secrets-key"]
+    state = json.loads((home / ".vash/oci/onboard.json").read_text())
+    assert state["vault_id"] == "ocid1.vault..v" and state["key_id"] == "ocid1.key..k"
+    make(FakeCloud(), home, vault=True).up()
+    assert picks == ["north-secrets-key"]  # the second run reuses the saved choice
