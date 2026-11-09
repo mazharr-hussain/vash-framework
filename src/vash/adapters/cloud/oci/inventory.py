@@ -152,7 +152,9 @@ class Inventory:
         where = (f" in {region}" if region else "") + (f" ({label})" if label else "")
 
         def add(*fields: Any, **extra: Any) -> None:
-            rows.append(Row(start + len(rows) + 1, *fields, region=region, tenancy=label, **extra))
+            # OCI returns null for some fields (a policy or tag has no lifecycle state): print them empty.
+            clean = [str(f) if f is not None else "" for f in fields]
+            rows.append(Row(start + len(rows) + 1, *clean, region=region, tenancy=label, **extra))
 
         # Direct listings, not Resource Search: search lags behind deletes by a minute or two.
         scopes = [tenancy] + [c["id"] for c in comps]
@@ -191,23 +193,24 @@ class Inventory:
         except VashError as exc:
             self.echo(f"Resource Search failed, only the core objects are listed: {exc}")
             others = []
-        for item in sorted(others, key=lambda i: (names.get(i.get("compartment-id", ""), ""),
-                                                  i.get("resource-type", ""), i.get("display-name", ""))):
+        for item in sorted(others, key=lambda i: (names.get(i.get("compartment-id") or "", ""),
+                                                  i.get("resource-type") or "", i.get("display-name") or "")):
             kind = item.get("resource-type", "")
             if kind in CORE_TYPES or kind in SUB_PART_TYPES:
                 continue
             if item.get("lifecycle-state") in ("TERMINATED", "TERMINATING", "DELETED", "DELETING"):
                 continue
-            comp = item.get("compartment-id", "")
-            add(kind, item.get("display-name", "") or item.get("identifier", ""),
+            comp = item.get("compartment-id") or ""
+            add(kind, item.get("display-name") or item.get("identifier", ""),
                             item.get("lifecycle-state", ""), names.get(comp, comp), "",
                             item.get("identifier", ""), comp)
         return rows
 
     def show(self, rows: list[Row]) -> None:
         headers = ("S.No", "Tenancy", "Type", "Name", "State", "Region", "Belongs to", "Public", "OCID")
-        table = [headers] + [(str(r.no), r.tenancy or "this", r.kind, r.name, r.state, r.region or "-", r.parent,
-                              r.public, r.ocid) for r in rows]
+        table = [headers] + [tuple(str(c) if c is not None else "" for c in
+                                   (r.no, r.tenancy or "this", r.kind, r.name, r.state, r.region or "-", r.parent,
+                                    r.public, r.ocid)) for r in rows]
         widths = [max(len(row[i]) for row in table) for i in range(len(headers))]
         line = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
         self.echo(line)

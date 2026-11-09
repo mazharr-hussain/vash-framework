@@ -551,3 +551,22 @@ def test_vnic_owner_searched_tenancy_wide_when_not_in_its_compartment():
     assert owner.startswith("probably MountTarget fs-mt")
     wide = [c[-1] for c in fake.calls if c[:3] == ("search", "resource", "structured-search")][-1]
     assert "timeCreated >= '2026-11-04T01:29:02Z'" in wide
+
+
+def test_null_fields_from_search_do_not_break_the_table():
+    fake = FakeOci()
+    real = fake.__call__
+    def with_nulls(*args):
+        if args[:3] == ("search", "resource", "structured-search") and args[args.index("--query-text") + 1] == "query all resources":
+            return {"data": {"items": [
+                {"resource-type": "Policy", "display-name": None, "identifier": "ocid1.policy..p",
+                 "lifecycle-state": None, "compartment-id": None},
+                {"resource-type": "TagNamespace", "display-name": "tags", "identifier": "ocid1.tagns..t",
+                 "lifecycle-state": "ACTIVE", "compartment-id": TEN}]}}
+        return real(*args)
+    out, echo = lines()
+    inv = Inventory(with_nulls, echo)
+    rows = inv.rows(TEN)
+    inv.show(rows)
+    policy = next(r for r in rows if r.kind == "Policy")
+    assert policy.name == "ocid1.policy..p" and policy.state == ""
