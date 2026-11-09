@@ -138,6 +138,7 @@ module "instance" {
   # iterates over it, and boot_tf_policy defaults to "" which makes it look up a backup policy named "".
   plugins_details = []
   boot_tf_policy  = null # no boot volume backup policy (backups are paid beyond the free 5)
+  launch_options  = null # the module reads element(launch_options, 0), which fails on its default []
 }
 
 data "oci_core_vnic_attachments" "runner" {
