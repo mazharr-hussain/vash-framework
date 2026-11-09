@@ -3,6 +3,11 @@ variable "compartment_id" { type = string }
 variable "availability_domain" { type = string }
 variable "image_id" { type = string }
 variable "admin_cidr" { type = string }
+variable "subnet_id" {
+  type        = string
+  default     = ""
+  description = "Existing subnet to use; empty creates the VASH network."
+}
 variable "ssh_public_key" { type = string }
 variable "oci_auth" {
   type        = string

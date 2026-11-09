@@ -14,6 +14,7 @@ provider "oci" {
 }
 
 module "networking" {
+  count          = var.subnet_id == "" ? 1 : 0
   source         = "../../modules/networking"
   compartment_id = var.compartment_id
   admin_cidr     = var.admin_cidr
@@ -24,7 +25,7 @@ module "compute" {
   compartment_id      = var.compartment_id
   availability_domain = var.availability_domain
   image_id            = var.image_id
-  subnet_id           = module.networking.subnet_id
+  subnet_id           = var.subnet_id != "" ? var.subnet_id : module.networking[0].subnet_id
   ssh_public_key      = var.ssh_public_key
   ocpus               = var.ocpus
   memory_in_gbs       = var.memory_in_gbs

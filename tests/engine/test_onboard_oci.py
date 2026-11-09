@@ -27,6 +27,10 @@ class FakeCloud:
         self.images = list(images)
         self.ready = ready
         self.calls = []
+        self.subnet = {"display-name": "public subnet-PoC", "prohibit-public-ip-on-vnic": False,
+                       "security-list-ids": ["ocid1.securitylist..a"]}
+        self.ingress = [{"protocol": "6", "source": "0.0.0.0/0",
+                         "tcp-options": {"destination-port-range": {"min": 22, "max": 22}}}]
 
     def __call__(self, args, **kwargs):
         self.calls.append((args, kwargs))
@@ -55,6 +59,10 @@ class FakeCloud:
             cores, memory = self.quota[ad]
             limit = args[args.index("--limit-name") + 1]
             return {"data": {"available": cores if "core" in limit else memory}}
+        if args[:3] == ["network", "subnet", "get"]:
+            return {"data": self.subnet}
+        if args[:3] == ["network", "security-list", "get"]:
+            return {"data": {"ingress-security-rules": self.ingress}}
         if args[:3] == ["compute", "image", "list"]:
             return {"data": [{"id": i, "display-name": "Ubuntu-24.04-aarch64"} for i in self.images]}
         raise AssertionError(f"unexpected oci call {args}")
@@ -138,7 +146,7 @@ def test_rerun_keeps_domain_and_image(home, monkeypatch):
 def test_declined_confirmation_creates_nothing(home, monkeypatch):
     tf = FakeTerraform()
     monkeypatch.setattr(tf_module.subprocess, "run", tf)
-    onboarding = make(FakeCloud(), home)
+    onboarding = make(FakeCloud(compartments=["ocid1.compartment..c"]), home)
     onboarding.confirm = lambda _q: False
     assert onboarding.up() == 1
     assert tf.calls == []
@@ -187,3 +195,104 @@ def test_down_destroys(home, monkeypatch):
 def test_cli_unknown_cloud_is_not_available_yet(capsys):
     assert main(["onboard", "no-such-cloud"]) == 0
     assert "No onboarding" in capsys.readouterr().out
+
+
+class FipsCloud(FakeCloud):
+    """ssh-keygen refuses ed25519, as in OCI Cloud Shell (FIPS mode)."""
+
+    def __call__(self, args, **kwargs):
+        if args[0] == "ssh-keygen" and "ed25519" in args:
+            self.calls.append((args, kwargs))
+            return done(code=1, stderr="ED25519 keys are not allowed in FIPS mode")
+        return super().__call__(args, **kwargs)
+
+
+def test_fips_mode_falls_back_to_rsa(home, monkeypatch):
+    cloud = FipsCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    assert make(cloud, home).up() == 0
+    keygen = [c[0] for c in cloud.calls if c[0][0] == "ssh-keygen"]
+    assert "rsa" in keygen[-1] and "4096" in keygen[-1]
+    assert (home / ".ssh" / "id_rsa.pub").exists()
+
+
+def test_existing_rsa_key_is_reused(home, monkeypatch):
+    ssh = home / ".ssh"
+    ssh.mkdir()
+    (ssh / "id_rsa").write_text("private")
+    (ssh / "id_rsa.pub").write_text("ssh-rsa AAAA mine")
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home).up()
+    assert not any(c[0][0] == "ssh-keygen" for c in cloud.calls)
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["ssh_public_key"] == "ssh-rsa AAAA mine"
+
+
+SUBNET = "ocid1.subnet.oc1.me-jeddah-1..pub"
+
+
+def test_existing_subnet_creates_no_network(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    assert make(cloud, home, subnet_id=SUBNET).up() == 0
+    tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+    assert tfvars["subnet_id"] == SUBNET
+
+
+def test_private_subnet_is_refused(home, monkeypatch):
+    cloud = FakeCloud()
+    cloud.subnet["prohibit-public-ip-on-vnic"] = True
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    with pytest.raises(VashError, match="is private"):
+        make(cloud, home, subnet_id=SUBNET).up()
+    assert tf.calls == []
+
+
+def test_subnet_without_ssh_rule_is_refused(home, monkeypatch):
+    cloud = FakeCloud()
+    cloud.ingress = [{"protocol": "6", "tcp-options": {"destination-port-range": {"min": 443, "max": 443}}}]
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    with pytest.raises(VashError, match="does not allow SSH"):
+        make(cloud, home, subnet_id=SUBNET).up()
+
+
+def test_new_compartment_needs_a_yes(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    onboarding = make(cloud, home)
+    onboarding.confirm = lambda q: "Compartment" not in q
+    with pytest.raises(VashError, match="No compartment"):
+        onboarding.up()
+    assert not any(c[0][1:4] == ["iam", "compartment", "create"] for c in cloud.calls)
+
+
+def test_compartment_search_covers_subtree(home, monkeypatch):
+    cloud = FakeCloud(compartments=["ocid1.compartment..kyc"])
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home, compartment_name="KYC").up()
+    listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
+    assert "--compartment-id-in-subtree" in listing and "KYC" in listing
+
+
+def test_compartment_name_is_asked_with_default(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    asked = []
+    onboarding = make(cloud, home)
+    onboarding.ask = lambda q, default: asked.append(default) or "kyc-runner"
+    onboarding.up()
+    assert asked == ["vash"]
+    create = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "create"]][0]
+    assert "kyc-runner" in create
+
+
+def test_enter_keeps_default_compartment(home, monkeypatch):
+    cloud = FakeCloud()
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    onboarding = make(cloud, home)
+    onboarding.ask = lambda q, default: ""
+    onboarding.up()
+    listing = [c[0] for c in cloud.calls if c[0][1:4] == ["iam", "compartment", "list"]][0]
+    assert listing[listing.index("--name") + 1] == "vash"

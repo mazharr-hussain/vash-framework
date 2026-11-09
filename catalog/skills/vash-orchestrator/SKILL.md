@@ -29,7 +29,7 @@ Uses multi-agent-patterns skill for loop structure.
 
 ```
 STEP 1: PROMPT
-Invoke: prompt-engineer skill
+Invoke: prompt-engineering skill
 Input: activity ID
 Output: locked prompt saved to audit/prompts/
 

@@ -17,3 +17,7 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 - Added `vash onboard oci`: one Cloud Shell command creates the Always Free runner VM and installs VASH, terraform and Ollama.
 - Added iteration mode (agile delivery): optional `delivery` block in the freeze, FEATURE activities with their checklist, and `feature:`/`iteration:` traced in every AvA log.
 - Added portable skills and agents: `vash skill new|validate|suggest`, `vash agent new`, project skills/ and agents/, AGENTS.md and .agents/skills/ for every coding tool, skills in prompts for plain model APIs, Gate 1 rule G1-13 (official skills-ref validator) and rule R15.
+- Renamed the skill prompt-engineer to prompt-engineering (agents are roles, skills are know-how); the agent keeps prompt-engineer.
+- Fixed `vash onboard oci` in OCI Cloud Shell (FIPS mode): reuses id_ed25519 or id_rsa, and falls back to RSA 4096 when ed25519 is refused.
+- `vash onboard oci`: `--subnet-id` reuses an existing public subnet (no network created, SSH rule checked); the compartment name is asked (default `vash`) or given with `--compartment`, and a new one is created only after a yes.
+- `vash onboard oci`: optional inventory of compartments, VCNs and subnets (numbered table with owner), delete by S.No or OCID after a dependency check (in-use objects blocked) and a final yes, and pick an existing public subnet from the table.

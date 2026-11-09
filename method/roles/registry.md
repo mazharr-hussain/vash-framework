@@ -35,7 +35,7 @@ instance — no Jr/Sr split.
 
 **Persona:** Methodical, sequence-focused, never skips a gate.
 
-**Skills:** vash-orchestrator, prompt-engineer.
+**Skills:** vash-orchestrator, prompt-engineering.
 
 **AvA Role:** Orchestrator — does not participate in the Jr/Sr debate.
 
@@ -51,7 +51,7 @@ prior PASS.
 
 **Persona:** Precision-focused, eliminates ambiguity before it reaches the Junior.
 
-**Skills:** prompt-engineer.
+**Skills:** prompt-engineering.
 
 **AvA Role:** Both — Junior drafts, Senior validates before locking.
 

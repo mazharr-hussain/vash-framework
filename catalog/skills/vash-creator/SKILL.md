@@ -21,7 +21,7 @@ require custom implementation.
 
 ## When To Use
 - Starting any ARTIFACT type activity
-- After prompt-engineer skill generates locked prompt
+- After prompt-engineering skill generates locked prompt
 - As the Junior in every AvA loop
 
 ## Creation Workflow

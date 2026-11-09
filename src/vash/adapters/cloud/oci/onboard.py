@@ -25,6 +25,7 @@ SHAPE = "VM.Standard.A1.Flex"
 ENVIRONMENT = "always-free"
 DEFAULT_SOURCE = "git+https://github.com/mazharr-hussain/vash-framework.git"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
+DEFAULT_COMPARTMENT = "vash"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -34,7 +35,9 @@ Runner = Callable[..., subprocess.CompletedProcess]
 class Options:
     """What the user chose on the command line."""
 
-    compartment_name: str = "vash"
+    compartment_name: str | None = None
+    subnet_id: str | None = None
+    review: bool = False  # interactive inventory, never with --yes
     ocpus: int = 2
     memory_in_gbs: int = 12
     os_name: str = "Canonical Ubuntu"
@@ -47,6 +50,19 @@ class Options:
     wait_minutes: int = 30
 
 
+def _allows_ssh(rule: dict) -> bool:
+    proto = str(rule.get("protocol", ""))
+    if proto == "all":
+        return True
+    if proto != "6":
+        return False
+    tcp = rule.get("tcp-options") or {}
+    ports = tcp.get("destination-port-range")
+    if not ports:
+        return True
+    return int(ports.get("min", 0)) <= 22 <= int(ports.get("max", 0))
+
+
 class Onboarding:
     """The onboarding steps; each one prints what it found."""
 
@@ -56,6 +72,7 @@ class Onboarding:
         run: Runner = subprocess.run,
         echo: Callable[[str], None] = print,
         confirm: Callable[[str], bool] | None = None,
+        ask: Callable[[str, str], str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         env: dict[str, str] | None = None,
     ):
@@ -63,6 +80,7 @@ class Onboarding:
         self._run = run
         self.echo = echo
         self.confirm = confirm or (lambda _question: True)
+        self.ask = ask or (lambda _question, default: default)
         self.sleep = sleep
         self.env = dict(os.environ if env is None else env)
 
@@ -101,19 +119,46 @@ class Onboarding:
             raise VashError("Tenancy or region not found", "Run in OCI Cloud Shell, or run `oci setup config` first")
         return tenancy, region
 
+    def compartment_name(self) -> str:
+        """The name from --compartment, else asked (Enter keeps the default)."""
+        if not self.options.compartment_name:
+            answer = self.ask("Compartment for the VASH VM (existing or new)", DEFAULT_COMPARTMENT).strip()
+            self.options.compartment_name = answer or DEFAULT_COMPARTMENT
+        return self.options.compartment_name
+
     def ensure_compartment(self, tenancy: str) -> str:
-        name = self.options.compartment_name
-        found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy,
-                         "--name", name, "--lifecycle-state", "ACTIVE")
+        name = self.compartment_name()
+        found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy, "--name", name,
+                         "--lifecycle-state", "ACTIVE", "--compartment-id-in-subtree", "true",
+                         "--access-level", "ACCESSIBLE")
         items = found.get("data", []) if isinstance(found, dict) else []
         if items:
             self.echo(f"Compartment '{name}' exists")
             return items[0]["id"]
+        if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
+            raise VashError(f"No compartment '{name}'", "Pass --compartment <name of an existing compartment>")
         created = self.oci("iam", "compartment", "create", "--compartment-id", tenancy, "--name", name,
                            "--description", "VASH runner (created by vash onboard)",
                            "--wait-for-state", "ACTIVE")
         self.echo(f"Compartment '{name}' created")
         return created["data"]["id"]
+
+    def check_subnet(self, subnet_id: str) -> None:
+        """An existing subnet must be public and let SSH in; VASH never changes it."""
+        subnet = self.oci("network", "subnet", "get", "--subnet-id", subnet_id).get("data", {})
+        if subnet.get("prohibit-public-ip-on-vnic", True):
+            raise VashError(f"Subnet {subnet.get('display-name', subnet_id)} is private",
+                            "Pass --subnet-id of a public subnet")
+        for sl_id in subnet.get("security-list-ids", []):
+            rules = self.oci("network", "security-list", "get", "--security-list-id", sl_id).get("data", {})
+            for rule in rules.get("ingress-security-rules", []):
+                if _allows_ssh(rule):
+                    self.echo(f"Using subnet {subnet.get('display-name', subnet_id)}; no network is created")
+                    return
+        raise VashError(
+            f"Subnet {subnet.get('display-name', subnet_id)} does not allow SSH (TCP 22)",
+            "Add an ingress rule TCP 22 from your IP to its security list, then run again",
+        )
 
     def availability_domains(self, tenancy: str) -> list[str]:
         data = self.oci("iam", "availability-domain", "list", "--compartment-id", tenancy).get("data", [])
@@ -154,14 +199,23 @@ class Onboarding:
         return data[0]["id"]
 
     def ssh_public_key(self) -> tuple[Path, str]:
-        key = Path.home() / ".ssh" / "id_ed25519"
-        if not key.with_suffix(".pub").exists():
-            key.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            res = self._cmd(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)])
-            if res.returncode != 0:
-                raise VashError(f"ssh-keygen failed: {res.stderr.strip()}", "Create ~/.ssh/id_ed25519 yourself")
-            self.echo(f"SSH key created: {key}")
-        return key, key.with_suffix(".pub").read_text().strip()
+        """Reuse an existing key, else create one: ed25519, or RSA 4096 where FIPS mode forbids ed25519 (Cloud Shell)."""
+        ssh_dir = Path.home() / ".ssh"
+        for name in ("id_ed25519", "id_rsa"):
+            key = ssh_dir / name
+            if key.exists() and key.with_suffix(".pub").exists():
+                return key, key.with_suffix(".pub").read_text().strip()
+        ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        errors = []
+        for name, args in (("id_ed25519", ["-t", "ed25519"]), ("id_rsa", ["-t", "rsa", "-b", "4096"])):
+            key = ssh_dir / name
+            res = self._cmd(["ssh-keygen", "-q", *args, "-N", "", "-f", str(key)])
+            if res.returncode == 0 and key.with_suffix(".pub").exists():
+                self.echo(f"SSH key created: {key}")
+                return key, key.with_suffix(".pub").read_text().strip()
+            errors.append(f"{name}: {res.stderr.strip()}")
+        raise VashError(f"ssh-keygen failed: {'; '.join(errors)}",
+                        "Create a key with: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
 
     def admin_cidr(self) -> str:
         if self.options.admin_cidr:
@@ -254,6 +308,12 @@ class Onboarding:
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
+        if self.options.review:
+            from .inventory import Inventory, review
+            picked = review(Inventory(self.oci, self.echo), tenancy, self.confirm, self.ask,
+                            want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"))
+            if picked:
+                self.options.subnet_id = picked
         compartment = self.ensure_compartment(tenancy)
         previous = self.existing_tfvars()
         if previous:
@@ -264,9 +324,13 @@ class Onboarding:
         else:
             domains = self.domains_with_quota(tenancy)
             image = self.latest_image(compartment)
+        subnet_id = self.options.subnet_id or previous.get("subnet_id", "")
+        if subnet_id:
+            self.check_subnet(subnet_id)
         key, public_key = self.ssh_public_key()
         cidr = self.admin_cidr()
-        self.echo(f"SSH will be open to {cidr} only")
+        if not subnet_id:
+            self.echo(f"SSH will be open to {cidr} only")
         if not self.confirm(f"Create a {self.options.ocpus}-core {self.options.memory_in_gbs} GB Always Free VM in {region}?"):
             self.echo("Stopped; nothing was created")
             return 1
@@ -276,6 +340,7 @@ class Onboarding:
             "compartment_id": compartment,
             "image_id": image,
             "admin_cidr": cidr,
+            "subnet_id": subnet_id,
             "ssh_public_key": public_key,
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
             "ocpus": self.options.ocpus,
@@ -312,12 +377,15 @@ def run_cli(args: Any) -> int:
     import getpass
 
     options = Options(
+        compartment_name=args.compartment,
+        subnet_id=args.subnet_id,
         ocpus=args.ocpus,
         memory_in_gbs=args.memory,
         os_version=args.os_version,
         admin_cidr=args.admin_cidr,
         runner_repo=args.runner_repo,
         model=args.model,
+        review=not args.yes and not args.no_inventory,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)
@@ -327,10 +395,15 @@ def run_cli(args: Any) -> int:
             return True
         return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
 
+    def ask_text(question: str, default: str) -> str:
+        if args.yes:
+            return default
+        return input(f"{question} [{default}]: ")
+
     def token() -> str:
         return getpass.getpass(f"GitHub runner registration token for {args.runner_repo} (not stored): ").strip()
 
-    onboarding = Onboarding(options, confirm=ask)
+    onboarding = Onboarding(options, confirm=ask, ask=ask_text)
     if args.down:
         return onboarding.down()
     return onboarding.up(runner_token=token if args.runner_repo else None)
