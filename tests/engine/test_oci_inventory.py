@@ -121,6 +121,11 @@ class FakeOci:
         return {}
 
 
+def yes(question):
+    """Yes to everything, except another delete round."""
+    return "something else" not in question
+
+
 def lines():
     out = []
     return out, out.append
@@ -175,7 +180,7 @@ def test_subnet_in_use_failure_is_reported_and_the_rest_goes_on():
 
 def test_review_asks_twice_before_deleting():
     fake = FakeOci()
-    answers = {"check": True, "delete any": True, "Delete these now": False}
+    answers = {"check": True, "something else": False, "delete any": True, "Delete these now": False}
     def confirm(q):
         return next(v for k, v in answers.items() if k in q)
     inv = Inventory(fake, lambda m: None)
@@ -189,7 +194,7 @@ def test_review_deletes_after_final_yes_and_picks_subnet():
     rows = inv.rows(TEN)
     old_vcn = next(r.no for r in rows if r.ocid == "ocid1.vcn..b")
     pub = next(r.no for r in rows if r.ocid == "ocid1.subnet..pub")
-    picked = review(inv, TEN, lambda q: True,
+    picked = review(inv, TEN, yes,
                     lambda q, d: str(old_vcn) if "delete" in q else str(pub), want_subnet=True)
     assert "ocid1.vcn..b" not in fake.vcns
     assert picked.subnet_id == "ocid1.subnet..pub" and picked.vm is None
@@ -216,7 +221,7 @@ def test_in_use_subnet_is_blocked_and_not_deleted():
     out, echo = lines()
     inv = Inventory(fake, echo)
     no = next(r.no for r in inv.rows(TEN) if r.ocid == "ocid1.subnet..pub")
-    review(inv, TEN, lambda q: True, lambda q, d: str(no) if "delete" in q else "", want_subnet=False)
+    review(inv, TEN, yes, lambda q, d: str(no) if "delete" in q else "", want_subnet=False)
     assert not any(c[2] == "delete" for c in fake.calls)
     assert any("still in use: IP 10.0.0.5: VM kyc-vm" in line for line in out)
     assert any("every choice is still in use" in line for line in out)
@@ -248,7 +253,7 @@ def test_only_free_objects_are_deleted_from_a_mixed_choice():
     asked = []
     def confirm(q):
         asked.append(q)
-        return True
+        return "something else" not in q
     review(inv, TEN, confirm, lambda q, d: f"{pub},{old}" if "delete" in q else "", want_subnet=False)
     deleted = [c[c.index("--subnet-id") + 1] for c in fake.calls if c[:3] == ("network", "subnet", "delete")]
     assert deleted == ["ocid1.subnet..old"]
@@ -270,7 +275,7 @@ def test_vm_needs_its_name_typed():
     inv = Inventory(fake, lambda m: None)
     vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
     answers = {"delete, comma": str(vm.no), "Type the VM name": "wrong-name"}
-    review(inv, TEN, lambda q: True, lambda q, d: next((v for k, v in answers.items() if k in q), ""),
+    review(inv, TEN, yes, lambda q, d: next((v for k, v in answers.items() if k in q), ""),
            want_subnet=False)
     assert not any(c[:3] == ("compute", "instance", "terminate") for c in fake.calls)
 
@@ -283,7 +288,7 @@ def test_vm_and_its_subnet_go_together_vm_first():
     vm = next(r for r in rows if r.kind == "VM")
     sub = next(r for r in rows if r.ocid == "ocid1.subnet..pub")
     answers = {"delete, comma": f"{sub.no},{vm.no}", "Type the VM name": "kyc-vm"}
-    review(inv, TEN, lambda q: True, lambda q, d: next((v for k, v in answers.items() if k in q), ""),
+    review(inv, TEN, yes, lambda q, d: next((v for k, v in answers.items() if k in q), ""),
            want_subnet=False)
     ops = [c[:3] for c in fake.calls if c[2] in ("terminate", "delete")]
     assert ops == [("compute", "instance", "terminate"), ("network", "subnet", "delete")]
@@ -317,7 +322,7 @@ def test_compartment_with_resources_goes_to_the_cleaner_dry_run_first():
     fake, cleaner = FakeOci(), FakeCleaner()
     inv = Inventory(fake, lambda m: None, cleaner)
     comp = _pick_compartment(inv)
-    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    review(inv, TEN, yes, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
     assert cleaner.calls == [(comp.ocid, TEN, False), (comp.ocid, TEN, True)]
     assert any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
 
@@ -326,7 +331,7 @@ def test_cleaner_stops_after_a_no_to_the_plan():
     fake, cleaner = FakeOci(), FakeCleaner()
     inv = Inventory(fake, lambda m: None, cleaner)
     comp = _pick_compartment(inv)
-    review(inv, TEN, lambda q: "Run that plan" not in q,
+    review(inv, TEN, lambda q: "Run that plan" not in q and "something else" not in q,
            lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
     assert cleaner.calls == [(comp.ocid, TEN, False)]
     assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
@@ -336,7 +341,7 @@ def test_failed_dry_run_deletes_nothing():
     fake, cleaner = FakeOci(), FakeCleaner(dry=1)
     inv = Inventory(fake, lambda m: None, cleaner)
     comp = _pick_compartment(inv)
-    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    review(inv, TEN, yes, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
     assert [c[2] for c in cleaner.calls] == [False]
     assert not any(c[:3] == ("iam", "compartment", "delete") for c in fake.calls)
 
@@ -354,7 +359,7 @@ def test_sub_compartment_blocks_the_cleaner():
     comp = _pick_compartment(inv)
     _, blockers = inv.dependencies(comp)
     assert "sub-compartment Child (remove it first)" in blockers
-    review(inv, TEN, lambda q: True, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
+    review(inv, TEN, yes, lambda q, d: str(comp.no) if "delete, comma" in q else "", want_subnet=False)
     assert cleaner.calls == []
 
 
@@ -374,7 +379,7 @@ def test_vm_name_gets_three_tries():
     inv = Inventory(fake, echo)
     vm = next(r for r in inv.rows(TEN) if r.kind == "VM")
     typed = iter(["intance1", "kyc-vm"])
-    review(inv, TEN, lambda q: True,
+    review(inv, TEN, yes,
            lambda q, d: str(vm.no) if "delete, comma" in q else (next(typed) if "Type the VM" in q else ""),
            want_subnet=False)
     assert any(c[:3] == ("compute", "instance", "terminate") for c in fake.calls)
@@ -482,3 +487,67 @@ def test_delete_goes_to_the_row_region():
     inv.delete([vm])
     term = [c for c in fake.calls if c[:3] == ("compute", "instance", "terminate")][0]
     assert term[-2:] == ("--region", "eu-frankfurt-1")
+
+
+def test_wrong_choice_is_explained_and_asked_again():
+    out, echo = lines()
+    inv = Inventory(FakeOci(), echo)
+    rows = inv.rows(TEN)
+    vcn = next(r.no for r in rows if r.ocid == "ocid1.vcn..a")
+    pub = next(r.no for r in rows if r.ocid == "ocid1.subnet..pub")
+    answers = iter([f"{vcn},{pub}", str(pub)])
+    picked = review(inv, TEN, lambda q: "check" in q, lambda q, d: next(answers) if "public subnet" in q else "",
+                    want_subnet=True, want_vm=False)
+    assert picked.subnet_id == "ocid1.subnet..pub"
+    assert any(f"'{vcn}' is not a valid choice" in line and f"{pub} = Subnet public subnet" in line
+               for line in out)
+
+
+def test_second_delete_round_in_the_same_run():
+    fake = FakeOci()
+    inv = Inventory(fake, lambda m: None)
+    rows = inv.rows(TEN)
+    rounds = iter(["ocid1.subnet..old", "ocid1.vcn..b"])
+    more = iter([True, True, False])
+    def confirm(q):
+        return next(more) if ("delete any" in q or "something else" in q) else True
+    review(inv, TEN, confirm, lambda q, d: next(rounds) if "delete, comma" in q else "", want_subnet=False)
+    assert "ocid1.vcn..b" not in fake.vcns
+    assert any(c[:3] == ("network", "subnet", "delete") for c in fake.calls)
+
+
+def test_unpeered_lpg_goes_with_its_vcn_and_a_peered_one_blocks():
+    fake = FakeOci()
+    real = fake.__call__
+    status = {"value": "NEW"}
+    def with_lpg(*args):
+        if args[:3] == ("network", "local-peering-gateway", "list"):
+            fake.calls.append(args)
+            return {"data": [{"id": "lpg-1", "display-name": "lpg", "peering-status": status["value"]}]}
+        return real(*args)
+    inv = Inventory(with_lpg, lambda m: None)
+    vcn = next(r for r in inv.rows(TEN) if r.ocid == "ocid1.vcn..b")
+    also, blockers = inv.dependencies(vcn)
+    assert "local-peering-gateway lpg (not peered)" in also and blockers == []
+    assert inv.delete([vcn]) == []
+    assert any(c[:3] == ("network", "local-peering-gateway", "delete") for c in fake.calls)
+    status["value"] = "PEERED"
+    _, blockers = inv.dependencies(vcn)
+    assert blockers == ["local-peering-gateway lpg: peered with another VCN (remove the peering first)"]
+
+
+def test_vnic_owner_searched_tenancy_wide_when_not_in_its_compartment():
+    fake = FakeOci()
+    real = fake.__call__
+    def by_scope(*args):
+        if args[:3] == ("search", "resource", "structured-search") and "timeCreated" in args[-1]:
+            fake.calls.append(args)
+            if "compartmentId" in args[-1]:
+                return {"data": {"items": []}}
+            return {"data": {"items": [{"resource-type": "MountTarget", "display-name": "fs-mt",
+                                        "time-created": "2026-11-04T01:38:00Z", "lifecycle-state": "ACTIVE"}]}}
+        return real(*args)
+    owner = Inventory(by_scope, lambda m: None).vnic_owner("vnic-service")
+    assert owner.startswith("probably MountTarget fs-mt")
+    wide = [c[-1] for c in fake.calls if c[:3] == ("search", "resource", "structured-search")][-1]
+    assert "timeCreated >= '2026-11-04T01:29:02Z'" in wide

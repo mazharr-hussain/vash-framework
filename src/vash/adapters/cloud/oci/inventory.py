@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from vash.core.exceptions import VashError
@@ -272,14 +272,31 @@ class Inventory:
                              ).get("data", {}).get("items", [])
         except VashError:
             return f"VNIC {vnic.get('display-name', vnic_id)} (owner unknown: search failed)"
-        candidates = sorted((i for i in found if i.get("resource-type") in VNIC_OWNER_TYPES
-                             and i.get("lifecycle-state") not in ("TERMINATED", "DELETED")),
-                            key=lambda i: i.get("time-created", ""), reverse=True)
+        candidates = self._owner_candidates(found)
+        if not candidates:
+            # The service may sit in another compartment than its VNIC: search the whole tenancy,
+            # in the 10 minutes before the VNIC was created.
+            since = _search_time((datetime.fromisoformat(created.replace("Z", "+00:00"))
+                                  - timedelta(minutes=10)).isoformat())
+            try:
+                found = self.oci("search", "resource", "structured-search", "--query-text",
+                                 f"query all resources where timeCreated >= '{since}' && timeCreated <= '{created}'"
+                                 ).get("data", {}).get("items", [])
+            except VashError:
+                found = []
+            candidates = self._owner_candidates(found)
         if candidates:
             c = candidates[0]
             return (f"probably {c.get('resource-type', '')} {c.get('display-name', '')} "
                     f"(created {c.get('time-created', '')[:16]}, VNIC {vnic.get('display-name', '')})")
-        return f"VNIC {vnic.get('display-name', vnic_id)} (owner not found)"
+        return (f"VNIC {vnic.get('display-name', vnic_id)} (owner not found; in the Console open the subnet, "
+                "IP administration, to see what holds it)")
+
+    @staticmethod
+    def _owner_candidates(items: list[dict]) -> list[dict]:
+        return sorted((i for i in items if i.get("resource-type") in VNIC_OWNER_TYPES
+                       and i.get("lifecycle-state") not in ("TERMINATED", "DELETED")),
+                      key=lambda i: i.get("time-created", ""), reverse=True)
 
     def _users_of_subnet(self, subnet_id: str, ignore: frozenset[str] = frozenset()) -> list[str]:
         """Everything holding an IP in the subnet, named by its owner, except the VNICs of VMs
@@ -333,9 +350,14 @@ class Inventory:
                 for item in self._children(kind, comp, r.ocid):
                     if item["id"] not in defaults:
                         also.append(f"{kind} {item.get('display-name', item['id'])}")
-            for kind in ("local-peering-gateway", "drg-attachment"):
-                for item in self._children(kind, comp, r.ocid):
-                    blockers.append(f"{kind} {item.get('display-name', item['id'])} (remove it first)")
+            for item in self._children("local-peering-gateway", comp, r.ocid):
+                name = item.get("display-name", item["id"])
+                if item.get("peering-status") == "PEERED":
+                    blockers.append(f"local-peering-gateway {name}: peered with another VCN (remove the peering first)")
+                else:
+                    also.append(f"local-peering-gateway {name} (not peered)")
+            for item in self._children("drg-attachment", comp, r.ocid):
+                blockers.append(f"drg-attachment {item.get('display-name', item['id'])} (remove it first)")
         elif r.kind == "Compartment":
             self.region = None
             subs = self.oci("iam", "compartment", "list", "--compartment-id", r.ocid,
@@ -421,7 +443,8 @@ class Inventory:
                 self.oci("network", "route-table", "delete", "--rt-id", rt["id"], "--force",
                          "--wait-for-state", "TERMINATED")
         for kind, flag in (("internet-gateway", "--ig-id"), ("nat-gateway", "--nat-gateway-id"),
-                           ("service-gateway", "--service-gateway-id"), ("nsg", "--nsg-id")):
+                           ("service-gateway", "--service-gateway-id"), ("nsg", "--nsg-id"),
+                           ("local-peering-gateway", "--local-peering-gateway-id")):
             for item in self._children(kind, comp, r.ocid):
                 self.oci("network", kind, "delete", flag, item["id"], "--force", "--wait-for-state", "TERMINATED")
         for kind, flag in (("security-list", "--security-list-id"), ("dhcp-options", "--dhcp-id")):
@@ -471,92 +494,119 @@ class Choice:
     subnet_id: str = ""
 
 
+def _choices(rows: list[Row]) -> str:
+    return ", ".join(f"{r.no} = {r.kind} {r.name}" for r in rows)
+
+
+def _pick(inv: Inventory, ask: Callable[[str, str], str], question: str, allowed: list[Row],
+          many: bool) -> list[Row]:
+    """Ask for S.No(s) from `allowed`; a wrong answer is explained and asked again (3 tries).
+    Enter means none."""
+    for attempt in range(3):
+        answer = ask(question, "").strip()
+        if not answer:
+            return []
+        chosen, unknown = inv.select(allowed, answer)
+        if not many and len(chosen) > 1:
+            unknown, chosen = [answer], []
+        if chosen and not unknown:
+            return chosen
+        wrong = ", ".join(unknown) or answer
+        what = "one S.No" if not many else "S.No numbers from the table"
+        if attempt < 2:
+            inv.echo(f"'{wrong}' is not a valid choice here. Type {what} from: {_choices(allowed)}; "
+                     "or press Enter to skip")
+    inv.echo("No valid choice after 3 tries: skipped")
+    return []
+
+
+def _delete_round(inv: Inventory, rows: list[Row], tenancy: str, confirm: Callable[[str], bool],
+                  ask: Callable[[str, str], str]) -> bool:
+    """One pass: choose, dependency check, reconfirm, delete. True if anything was changed."""
+    chosen = _pick(inv, ask, "Which rows do you want to delete? Type the S.No to delete, comma separated "
+                   "(example: 4,5), or their OCIDs; press Enter for none", rows, many=True)
+    comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
+    for r in [r for r in chosen if r.kind not in VASH_KINDS]:
+        if r.compartment_id in comp_no:
+            inv.echo(f"{r.no}. {r.kind} {r.name}: removed with its compartment by Oracle's cleaner; "
+                     f"choose its compartment {r.parent} (S.No {comp_no[r.compartment_id]})")
+        else:
+            inv.echo(f"{r.no}. {r.kind} {r.name}: in the root compartment, which the cleaner never touches; "
+                     "remove it in the Console")
+    chosen = [r for r in chosen if r.kind in VASH_KINDS]
+    ignore: frozenset[str] = frozenset()
+    for r in chosen:
+        if r.kind == "VM":
+            ignore |= inv.in_region(r.region).vm_vnics(r.ocid)
+    deletable = []
+    to_clean: list[Row] = []
+    for r in chosen:
+        also, blockers = inv.dependencies(r, ignore)
+        inv.echo(f"{r.no}. {r.kind} {r.name} ({r.ocid})")
+        for a in also:
+            label = "kept" if a.endswith("detached and kept") else "also deleted"
+            inv.echo(f"     {label}: {a}")
+        for b in blockers:
+            inv.echo(f"     still in use: {b}")
+        cleanable = (r.kind == "Compartment" and blockers and inv.cleaner is not None and not r.tenancy
+                     and not any(b.startswith("sub-compartment") for b in blockers))
+        if cleanable:
+            inv.echo("     -> holds resources: Oracle's compartment cleaner can empty it (plan and backup first)")
+            to_clean.append(r)
+        elif blockers:
+            inv.echo("     -> blocked: it stays until what uses it (listed above) is removed")
+        else:
+            inv.echo("     -> nothing uses it")
+            deletable.append(r)
+    changed = False
+    if deletable:
+        names = ", ".join(f"{r.no}. {r.kind} {r.name}" for r in deletable)
+        vms = [r for r in deletable if r.kind == "VM"]
+        if not confirm(f"Delete these now: {names}? This cannot be undone"):
+            inv.echo("Nothing deleted")
+        elif not all(_typed(inv, ask, r.name) for r in vms):
+            inv.echo("A VM name did not match after 3 tries: nothing deleted")
+        else:
+            failures = inv.delete(deletable)
+            if failures:
+                inv.echo(f"{len(failures)} item(s) were not deleted; the rest went ahead")
+            changed = True
+    elif chosen and not to_clean:
+        inv.echo("Nothing can be deleted: every choice is still in use")
+    for r in to_clean:
+        clean_compartment(inv, r, tenancy, confirm)
+        changed = True
+    return changed
+
+
 def review(inv: Inventory, tenancy: str, confirm: Callable[[str], bool],
            ask: Callable[[str, str], str], want_subnet: bool, want_vm: bool = True) -> Choice:
     """The interactive part of onboarding."""
-    if not confirm("Do you want to check everything in the tenancy (all subscribed regions)?"):
+    if not confirm("Do you want to check everything in the tenancy (all subscribed regions), to delete what you no "
+                   "longer need?"):
         return Choice()
     inv.related = inv.related_tenancies(tenancy)
     for ten in inv.related:
         inv.echo(f"Related {ten['role']} tenancy {ten['name']} ({ten['id']}): listed when this login can reach it")
     rows = inv.rows(tenancy)
     inv.show(rows)
-    if rows and confirm("Do you want to delete any of them?"):
-        answer = ask("S.No or OCIDs to delete, comma separated", "")
-        chosen, unknown = inv.select(rows, answer)
-        if unknown:
-            inv.echo(f"Not in the table, ignored: {', '.join(unknown)}")
-        comp_no = {r.ocid: r.no for r in rows if r.kind == "Compartment"}
-        for r in [r for r in chosen if r.kind not in VASH_KINDS]:
-            if r.compartment_id in comp_no:
-                inv.echo(f"{r.no}. {r.kind} {r.name}: removed with its compartment by Oracle's cleaner; "
-                         f"choose its compartment {r.parent} (S.No {comp_no[r.compartment_id]})")
-            else:
-                inv.echo(f"{r.no}. {r.kind} {r.name}: in the root compartment, which the cleaner never touches; "
-                         "remove it in the Console")
-        chosen = [r for r in chosen if r.kind in VASH_KINDS]
-        ignore: frozenset[str] = frozenset()
-        for r in chosen:
-            if r.kind == "VM":
-                ignore |= inv.in_region(r.region).vm_vnics(r.ocid)
-        deletable = []
-        to_clean: list[Row] = []
-        for r in chosen:
-            also, blockers = inv.dependencies(r, ignore)
-            inv.echo(f"{r.no}. {r.kind} {r.name} ({r.ocid})")
-            for a in also:
-                label = "kept" if a.endswith("detached and kept") else "also deleted"
-                inv.echo(f"     {label}: {a}")
-            for b in blockers:
-                inv.echo(f"     still in use: {b}")
-            cleanable = (r.kind == "Compartment" and blockers and inv.cleaner is not None and not r.tenancy
-                         and not any(b.startswith("sub-compartment") for b in blockers))
-            if cleanable:
-                inv.echo("     -> holds resources: Oracle's compartment cleaner can empty it (plan and backup first)")
-                to_clean.append(r)
-            elif blockers:
-                inv.echo("     -> blocked: it stays until what uses it is removed")
-            else:
-                inv.echo("     -> nothing uses it")
-                deletable.append(r)
-        if deletable:
-            names = ", ".join(f"{r.no}. {r.kind} {r.name}" for r in deletable)
-            vms = [r for r in deletable if r.kind == "VM"]
-            if not confirm(f"Delete these now: {names}? This cannot be undone"):
-                inv.echo("Nothing deleted")
-            elif not all(_typed(inv, ask, r.name) for r in vms):
-                inv.echo("A VM name did not match after 3 tries: nothing deleted")
-            else:
-                failures = inv.delete(deletable)
-                if failures:
-                    inv.echo(f"{len(failures)} item(s) were not deleted; the rest went ahead")
-                rows = inv.rows(tenancy)
-                inv.show(rows)
-        elif chosen and not to_clean:
-            inv.echo("Nothing can be deleted: every choice is still in use")
-        for r in to_clean:
-            clean_compartment(inv, r, tenancy, confirm)
-        if to_clean:
+    question = "Do you want to delete any of them?"
+    while rows and confirm(question):
+        if _delete_round(inv, rows, tenancy, confirm, ask):
             rows = inv.rows(tenancy)
             inv.show(rows)
+        question = "Do you want to delete something else from the table?"
     vms = [r for r in rows if r.kind == "VM" and r.state == "RUNNING" and r.public]
     if want_vm and vms:
-        answer = ask("S.No of an existing VM to install VASH on (Enter = create a new VM)", "").strip()
-        if answer:
-            chosen, _ = inv.select(vms, answer)
-            if chosen:
-                return Choice(vm=chosen[0])
-            inv.echo(f"{answer} is not a running VM with a public IP in the table; a new VM will be created")
+        chosen = _pick(inv, ask, f"Install VASH on an existing VM? Type its S.No ({_choices(vms)}), "
+                       "or press Enter to create a new VM", vms, many=False)
+        if chosen:
+            return Choice(vm=chosen[0])
     if not want_subnet:
         return Choice()
     public = [r for r in rows if r.kind == "Subnet" and r.public == "yes" and r.state == "AVAILABLE"]
     if not public:
         return Choice()
-    answer = ask("S.No of a public subnet for the VASH VM (Enter = create a new network)", "").strip()
-    if not answer:
-        return Choice()
-    chosen, _ = inv.select(public, answer)
-    if not chosen:
-        inv.echo(f"{answer} is not a public subnet in the table; a new network will be created")
-        return Choice()
-    return Choice(subnet_id=chosen[0].ocid)
+    chosen = _pick(inv, ask, f"The new VASH VM needs a public subnet. Use one that exists? Type its S.No "
+                   f"({_choices(public)}), or press Enter to create a new network", public, many=False)
+    return Choice(subnet_id=chosen[0].ocid) if chosen else Choice()
