@@ -114,6 +114,10 @@ DECISION:
 - REUSE cd3-automation-toolkit Terraform modules (network/vcn, igw, route-table, sec-list, subnet;
   compute/instance) at release v2026.2.2 in iac/oci/environments/always-free; VASH's own network
   and compute modules removed. Export: later (KYC adoption).
+- REUSE cd3-automation-toolkit modules identity/iam-compartment, security/vault and security/key at
+  release v2026.2.2 in iac/oci/environments/foundation (src/vash/adapters/cloud/oci/foundation.py):
+  every compartment, vault and key onboarding creates (owner rule, 9 Nov 2026: everything CD3 has
+  is built with CD3). The oci CLI is kept only for reading (lists, states) and for deletes.
 - KEPT VASH's own free-tier Autonomous Database module: the CD3 adb module has no is_free_tier
   option, so it cannot create an Always Free database (LAW 1); the vendor option is not equal here.
 - REJECTED OCI-SuperDelete: the vendor's cleaner is equal or better (vendor-first rule).
