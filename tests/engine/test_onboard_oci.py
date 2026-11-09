@@ -407,3 +407,14 @@ def test_oci_error_shows_stdout_when_stderr_is_empty(home):
     ob = make(run, home)
     with pytest.raises(VashError, match="boot volume in use"):
         ob.oci("compute", "instance", "terminate", "--instance-id", "x")
+
+
+def test_cleanup_only_asks_for_no_vm_or_subnet(home, monkeypatch):
+    import vash.adapters.cloud.oci.inventory as inv_mod
+    seen = {}
+    def fake_review(*a, **k):
+        seen.update(k)
+        return inv_mod.Choice()
+    monkeypatch.setattr(inv_mod, "review", fake_review)
+    assert make(FakeCloud(), home, review=True, cleanup_only=True).up() == 0
+    assert seen == {"want_subnet": False, "want_vm": False}

@@ -382,8 +382,10 @@ class Onboarding:
             from .inventory import Inventory, review
             cleaner = Cleaner(self.options.workdir.parent / "tools", region, self.echo)
             choice = review(Inventory(self.oci, self.echo, cleaner, sleep=self.sleep), tenancy, self.confirm, self.ask,
-                            want_subnet=not self.options.subnet_id and not self.existing_tfvars().get("subnet_id"),
-                            want_vm=not self.options.vm_ip and not self.existing_tfvars())
+                            want_subnet=(not self.options.cleanup_only and not self.options.subnet_id
+                                         and not self.existing_tfvars().get("subnet_id")),
+                            want_vm=not self.options.cleanup_only and not self.options.vm_ip
+                            and not self.existing_tfvars())
             if choice.vm is not None:
                 self.options.vm_ip, self.options.vm_name = choice.vm.public, choice.vm.name
             elif choice.subnet_id:
