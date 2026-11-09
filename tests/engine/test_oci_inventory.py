@@ -581,15 +581,21 @@ def test_oracle_resources_are_counted_not_listed_and_the_rest_is_summarised():
                "lifecycle-state": "ACTIVE", "compartment-id": TEN},
               {"resource-type": "TagNamespace", "display-name": "Oracle-Tags", "identifier": "ocid1.tagns..o",
                "compartment-id": TEN}]
+    items += [{"resource-type": "Vault", "display-name": "paas-vault", "identifier": "ocid1.vault..p",
+               "compartment-id": "ocid1.comp..paas"}]
     items += [{"resource-type": "User", "display-name": f"user{i}", "identifier": f"ocid1.user..{i}",
                "compartment-id": TEN} for i in range(5)]
     def search(*args):
         if args[:3] == ("search", "resource", "structured-search") and args[args.index("--query-text") + 1] == "query all resources":
             return {"data": {"items": items}}
+        if args[:3] == ("iam", "compartment", "list"):
+            return {"data": real(*args)["data"] + [{"id": "ocid1.comp..paas", "name": "ManagedCompartmentForPaaS",
+                                                    "lifecycle-state": "ACTIVE", "compartment-id": TEN}]}
         return real(*args)
     out, echo = lines()
     inv = Inventory(search, echo)
     rows = inv.rows(TEN)
+    assert not any(r.name in ("paas-vault", "ManagedCompartmentForPaaS") for r in rows)
     assert not any(r.kind in ("OsmhSoftwareSource", "TagNamespace") or r.name.startswith("PSM-") for r in rows)
     kinds = [r.kind for r in rows]
     assert kinds.index("User") > max(i for i, k in enumerate(kinds) if k in ("Compartment", "VCN", "Subnet", "VM"))
@@ -598,7 +604,7 @@ def test_oracle_resources_are_counted_not_listed_and_the_rest_is_summarised():
     inv.show(rows)
     assert not any("| User" in line for line in out)
     assert any("Identity and policies, not listed: 5 User" in line for line in out)
-    assert any("Not listed: 52 resources created by Oracle" in line for line in out)
+    assert not any("Osmh" in line or "Oracle-Tags" in line or "PSM-" in line for line in out)
     out.clear()
     inv.show(rows, frozenset({"identity"}))
     assert sum("| User" in line for line in out) == 5

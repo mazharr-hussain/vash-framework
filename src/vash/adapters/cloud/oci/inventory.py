@@ -50,10 +50,12 @@ def kind_group(kind: str) -> str:
     return "vash" if kind in VASH_KINDS else "identity" if kind in IDENTITY_TYPES else "other"
 
 
-# Created and managed by Oracle in every tenancy: never deleted, so only counted, not listed.
+# Created by Oracle in every tenancy and not removable (or not ours to remove): never shown at all.
 ORACLE_TYPES = {"OsmhSoftwareSource"}
 ORACLE_NAMED = {("TagNamespace", "Oracle-Tags"), ("Policy", "Tenant Admin Policy"),
-                ("TagDefault", "createdby"), ("TagDefault", "createdon")}
+                ("TagDefault", "createdby"), ("TagDefault", "createdon"),
+                ("Compartment", "ManagedCompartmentForPaaS"), ("Domain", "Default"), ("IdentityDomain", "Default"),
+                ("Group", "Administrators"), ("Group", "Domain_Administrators"), ("Group", "All Domain Users")}
 
 
 def oracle_provided(kind: str, name: str) -> bool:
@@ -95,7 +97,7 @@ class Inventory:
         self.echo = echo
         self.sleep = sleep
         self.cleaner = cleaner  # Oracle's compartment cleaner, for compartments that still hold resources
-        self.provided: Counter[str] = Counter()  # Oracle's own resources, counted by type
+        self.hidden: set[str] = set()  # compartments Oracle manages (ManagedCompartmentForPaaS): never shown
 
     def oci(self, *args: str) -> Any:
         if self.region:
@@ -141,7 +143,6 @@ class Inventory:
     def rows(self, tenancy: str) -> list[Row]:
         """Every tenancy this login reaches (this one, then related ones), every subscribed region."""
         rows: list[Row] = []
-        self.provided = Counter()
         tenancies = [{"role": "this", "name": "this tenancy", "id": tenancy}] + self.related
         for ten in tenancies:
             self.region = None
@@ -155,6 +156,8 @@ class Inventory:
             label = "" if ten["id"] == tenancy else ten["name"] or ten["id"]
             names = {ten["id"]: "(root)" if not label else f"(root of {label})"}
             names.update({c["id"]: c["name"] for c in comps})
+            self.hidden |= {c["id"] for c in comps if oracle_provided("Compartment", c["name"])}
+            comps = [c for c in comps if c["id"] not in self.hidden]
             for c in comps:
                 rows.append(Row(len(rows) + 1, "Compartment", c["name"], c.get("lifecycle-state", ""),
                                 names.get(c.get("compartment-id", ""), ""), "", c["id"], c.get("compartment-id", ""),
@@ -227,8 +230,7 @@ class Inventory:
             if item.get("lifecycle-state") in ("TERMINATED", "TERMINATING", "DELETED", "DELETING"):
                 continue
             comp = item.get("compartment-id") or ""
-            if oracle_provided(kind, item.get("display-name") or ""):
-                self.provided[kind] += 1
+            if oracle_provided(kind, item.get("display-name") or "") or comp in self.hidden:
                 continue
             add(kind, item.get("display-name") or item.get("identifier", ""),
                             item.get("lifecycle-state", ""), names.get(comp, comp), "",
@@ -256,9 +258,6 @@ class Inventory:
         if ident and "identity" not in include:
             counts = ", ".join(f"{n} {k}" for k, n in sorted(Counter(r.kind for r in ident).items()))
             self.echo(f"Identity and policies, not listed: {counts}; VASH never deletes them")
-        if self.provided:
-            self.echo(f"Not listed: {sum(self.provided.values())} resources created by Oracle in every tenancy "
-                      f"({', '.join(f'{n} {k}' for k, n in sorted(self.provided.items()))}); never deleted")
 
     def _table(self, rows: list[Row]) -> None:
         headers = ("S.No", "Tenancy", "Type", "Name", "State", "Region", "Belongs to", "Public", "OCID")
