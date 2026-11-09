@@ -1,6 +1,6 @@
 #!/bin/bash
 # First-boot install for the VASH runner VM (Ubuntu 24.04, arm64).
-# Rendered by `vash onboard`: @@VASH_SOURCE@@ and @@MODEL@@ are filled in before upload.
+# Rendered by `vash onboard`: @@VASH_SOURCE@@, @@MODEL@@ and @@RUN_USER@@ are filled in before upload.
 # Re-running is safe; progress goes to /var/log/vash-onboard.log.
 set -euo pipefail
 exec >>/var/log/vash-onboard.log 2>&1
@@ -8,7 +8,7 @@ echo "== vash onboard start $(date -u +%FT%TZ)"
 
 VASH_SOURCE="@@VASH_SOURCE@@"
 MODEL="@@MODEL@@"
-RUN_USER=ubuntu
+RUN_USER="@@RUN_USER@@"
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y

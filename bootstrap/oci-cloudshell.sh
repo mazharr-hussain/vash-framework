@@ -21,7 +21,8 @@ VENV="$HOME/.vash/venv"
 if [ -n "$PY" ]; then
   [ -x "$VENV/bin/vash" ] || "$PY" -m venv "$VENV"
   "$VENV/bin/pip" install -q --upgrade pip
-  "$VENV/bin/pip" install -q --upgrade "$SOURCE"
+  # --force-reinstall: the version number stays 3.0.0 between fixes, so a plain upgrade would keep old code.
+  "$VENV/bin/pip" install -q --upgrade --force-reinstall "$SOURCE"
 else
   # No Python 3.11+ here: uv fetches a standalone Python into the home folder (no root needed).
   if ! command -v uv >/dev/null; then
@@ -29,7 +30,7 @@ else
     export PATH="$HOME/.local/bin:$PATH"
   fi
   [ -x "$VENV/bin/vash" ] || uv venv --python 3.12 "$VENV"
-  uv pip install -q --python "$VENV/bin/python" --upgrade "$SOURCE"
+  uv pip install -q --python "$VENV/bin/python" --reinstall-package vash "$SOURCE"
 fi
 
 # Run with the terminal as stdin, so the confirmations work under `curl | bash`.

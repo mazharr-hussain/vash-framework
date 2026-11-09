@@ -39,3 +39,7 @@ variable "admin_password" {
   default   = ""
   sensitive = true
 }
+variable "name_prefix" {
+  type        = string
+  description = "Prefix of every display name this environment creates."
+}

@@ -18,6 +18,7 @@ module "networking" {
   source         = "../../modules/networking"
   compartment_id = var.compartment_id
   admin_cidr     = var.admin_cidr
+  name_prefix    = var.name_prefix
 }
 
 module "compute" {
@@ -30,6 +31,7 @@ module "compute" {
   ocpus               = var.ocpus
   memory_in_gbs       = var.memory_in_gbs
   user_data           = var.user_data
+  name_prefix         = var.name_prefix
 }
 
 module "database" {
@@ -37,4 +39,5 @@ module "database" {
   source         = "../../modules/database"
   compartment_id = var.compartment_id
   admin_password = var.admin_password
+  name_prefix    = var.name_prefix
 }

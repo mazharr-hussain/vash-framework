@@ -10,20 +10,20 @@ terraform {
 resource "oci_core_vcn" "vcn" {
   compartment_id = var.compartment_id
   cidr_block     = "10.0.0.0/16"
-  display_name   = "vash-vcn"
+  display_name   = "${var.name_prefix}-vcn"
 }
 
 resource "oci_core_internet_gateway" "igw" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.vcn.id
-  display_name   = "vash-igw"
+  display_name   = "${var.name_prefix}-igw"
   enabled        = true
 }
 
 resource "oci_core_route_table" "rt" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.vcn.id
-  display_name   = "vash-rt"
+  display_name   = "${var.name_prefix}-rt"
 
   route_rules {
     destination       = "0.0.0.0/0"
@@ -35,7 +35,7 @@ resource "oci_core_route_table" "rt" {
 resource "oci_core_security_list" "sl" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.vcn.id
-  display_name   = "vash-sl"
+  display_name   = "${var.name_prefix}-sl"
 
   egress_security_rules {
     destination = "0.0.0.0/0"
@@ -56,7 +56,7 @@ resource "oci_core_subnet" "subnet" {
   compartment_id    = var.compartment_id
   vcn_id            = oci_core_vcn.vcn.id
   cidr_block        = "10.0.0.0/24"
-  display_name      = "vash-subnet"
+  display_name      = "${var.name_prefix}-subnet"
   route_table_id    = oci_core_route_table.rt.id
   security_list_ids = [oci_core_security_list.sl.id]
 }

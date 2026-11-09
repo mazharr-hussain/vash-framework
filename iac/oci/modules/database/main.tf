@@ -9,8 +9,8 @@ terraform {
 
 resource "oci_database_autonomous_database" "db" {
   compartment_id           = var.compartment_id
-  db_name                  = "vashdb"
-  display_name             = "vash-db"
+  db_name                  = substr(replace("${var.name_prefix}db", "-", ""), 0, 14)
+  display_name             = "${var.name_prefix}-db"
   cpu_core_count           = 1
   data_storage_size_in_tbs = 1
   db_workload              = "OLTP"
