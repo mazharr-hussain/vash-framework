@@ -46,3 +46,45 @@ module "key" {
   length              = 32 # AES-256
   protection_mode     = "HSM"
 }
+
+# Free-tier guardrails (asked in onboarding): a quota policy that zeroes paid families and allows only the
+# Always Free amounts (OCI refuses anything beyond it), and a monthly budget that e-mails at the first spend
+# and when spend is forecast (it only warns; OCI has no hard spending cap).
+module "quota" {
+  count             = length(var.quota_statements) > 0 ? 1 : 0
+  source            = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/governance/quota-policy?ref=v2026.2.2"
+  tenancy_ocid      = var.tenancy_ocid
+  quota_name        = "vash-free-tier"
+  quota_description = "VASH: only Always Free amounts can be created"
+  quota_statements  = var.quota_statements
+  freeform_tags     = {}
+}
+
+module "budget" {
+  count             = var.budget_email != "" ? 1 : 0
+  source            = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/costmanagement/budget?ref=v2026.2.2"
+  compartment_id    = var.tenancy_ocid
+  amount            = var.budget_amount
+  reset_period      = "MONTHLY"
+  display_name      = "vash-free-tier"
+  description       = "VASH: e-mail as soon as anything costs money"
+  target_type       = "COMPARTMENT"
+  targets           = [var.tenancy_ocid]
+  budget_start_date = null
+  budget_end_date   = null
+  freeform_tags     = {}
+}
+
+module "budget_alert" {
+  for_each       = var.budget_email != "" ? { actual = "ACTUAL", forecast = "FORECAST" } : {}
+  source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/costmanagement/budget-alert-rule?ref=v2026.2.2"
+  budget_id      = module.budget[0].budget_tf_id
+  type           = each.value
+  threshold_type = "PERCENTAGE"
+  threshold      = each.key == "actual" ? "1" : "100"
+  display_name   = "vash-${each.key}-spend"
+  description    = each.key == "actual" ? "Something has started to cost money" : "This month is forecast to cost money"
+  message        = "VASH free-tier guardrail: the tenancy is spending money. Check Billing, Cost Analysis."
+  recipients     = var.budget_email
+  freeform_tags  = {}
+}

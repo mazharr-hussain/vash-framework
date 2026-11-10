@@ -58,6 +58,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--ssh-user", help="SSH user of the existing VM (default ubuntu)")
     p_onboard.add_argument("--ssh-key", help="Private key for the existing VM (default ~/.ssh/id_rsa)")
     p_onboard.add_argument("--notify-email", help="E-mail told when the VM is made, VASH is ready, or setup fails; '' for none")
+    p_onboard.add_argument("--guardrails-only", action="store_true",
+                           help="Only apply the free-tier guardrails (quota policy that allows Always Free amounts only, and a budget e-mail)")
     p_onboard.add_argument("--no-vault", action="store_true", help="Skip choosing the vault and key for VASH's secrets")
     p_onboard.add_argument("--subnet-id", help="Existing public subnet to use; no network is created")
     p_onboard.add_argument("--ocpus", type=int, default=2)
