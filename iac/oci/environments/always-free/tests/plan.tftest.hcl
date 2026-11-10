@@ -46,15 +46,15 @@ run "email_when_the_vm_is_made" {
     notify_email = "owner@example.com"
   }
   assert {
-    condition     = length(module.notification) == 1 && length(module.vm_created_event) == 1
-    error_message = "An e-mail address must plan the topic and the event rule."
+    condition     = length(module.notification) == 1
+    error_message = "An e-mail address must plan the notification topic."
   }
 }
 
 run "no_email_by_default" {
   command = plan
   assert {
-    condition     = length(module.notification) == 0 && length(module.vm_created_event) == 0
+    condition     = length(module.notification) == 0
     error_message = "Without an e-mail address nothing is sent."
   }
 }

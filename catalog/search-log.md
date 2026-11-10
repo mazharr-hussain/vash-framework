@@ -118,7 +118,7 @@ DECISION:
   release v2026.2.2 in iac/oci/environments/foundation (src/vash/adapters/cloud/oci/foundation.py):
   every compartment, vault and key onboarding creates (owner rule, 9 Nov 2026: everything CD3 has
   is built with CD3). The oci CLI is kept only for reading (lists, states) and for deletes.
-  Also REUSE CD3 managementservices/notification and event (e-mail on VM launch), governance/quota-policy,
+  Also REUSE CD3 managementservices/notification (e-mails), governance/quota-policy,
   costmanagement/budget and budget-alert-rule (free-tier guardrails), release v2026.2.2.
 - KEPT VASH's own free-tier Autonomous Database module: the CD3 adb module has no is_free_tier
   option, so it cannot create an Always Free database (LAW 1); the vendor option is not equal here.
