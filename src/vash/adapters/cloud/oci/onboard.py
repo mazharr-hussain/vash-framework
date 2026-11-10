@@ -538,6 +538,8 @@ class Onboarding:
                 raise VashError("The VM has no public IP",
                                 f"Check the instance in compartment '{self.options.compartment_name}'")
             self.echo(f"VM is up at {ip}; installing VASH, terraform and Ollama (about 10-20 minutes) ...")
+            self.notify(compartment, f"VASH VM {self.runner_name} launched ({ip})",
+                        "The VM is running; VASH is being installed (about 10-20 minutes). Another e-mail follows.")
             ready = self.wait_ready(key, ip)
         except VashError as exc:
             self.notify(compartment, f"VASH setup stopped in {region}", f"{exc.message}\n\nWhat to do: {exc.fix}")

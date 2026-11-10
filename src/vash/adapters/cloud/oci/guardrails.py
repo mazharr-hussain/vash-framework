@@ -14,12 +14,15 @@ from vash.core.exceptions import VashError
 
 from .foundation import Foundation
 
-# (quota family, limit service, pattern of the limit name, Always Free amount, what it is)
+# (quota family, limit service, pattern of the limit names, Always Free amount, what it is). Every matching
+# name is allowed: OCI checks a per-domain and a regional limit (e.g. standard-a1-core-count and
+# standard-a1-core-regional-count), and "zero <family>" zeroes both.
 ALLOWED = (
-    ("compute-core", "compute", r"^standard-a1-core-count$", 4, "Arm A1 cores"),
-    ("compute-memory", "compute", r"^standard-a1-memory-count$", 24, "Arm A1 memory (GB)"),
-    ("compute-core", "compute", r"^standard-e2-micro-core-count$|^vm-standard-e2-1-micro-count$", 2, "AMD Micro VMs"),
-    ("block-storage", "block-storage", r"^total-storage-gb$", 200, "block and boot volume storage (GB)"),
+    ("compute-core", "compute", r"^standard-a1-core(-regional)?-count$", 4, "Arm A1 cores"),
+    ("compute-memory", "compute", r"^standard-a1-memory(-regional)?-count$", 24, "Arm A1 memory (GB)"),
+    ("compute-core", "compute", r"^standard-e2-micro-core(-regional)?-count$|^vm-standard-e2-1-micro-count$", 2,
+     "AMD Micro VMs"),
+    ("block-storage", "block-storage", r"^total-storage-gb(-regional)?$", 200, "block and boot volume storage (GB)"),
     ("database", "database", r"^adb-free-count$", 2, "Always Free Autonomous Databases"),
 )
 ZEROED = (("compute-core", "compute"), ("compute-memory", "compute"), ("database", "database"))
@@ -42,9 +45,9 @@ class Guardrails:
         names = {svc: self.limit_names(tenancy, svc) for svc in {svc for _, svc, *_ in ALLOWED}}
         allowed: list[str] = []
         for family, service, pattern, amount, what in ALLOWED:
-            found = next((n for n in names[service] if re.match(pattern, n)), None)
+            found = sorted(n for n in names[service] if re.match(pattern, n))
             if found:
-                allowed.append(f"set {family} quota {found} to {amount} in tenancy")
+                allowed += [f"set {family} quota {name} to {amount} in tenancy" for name in found]
             else:
                 self.echo(f"  (no limit for {what} in this tenancy: left out)")
         # A family is zeroed only when its Always Free amount is allowed again, so nothing free is lost.

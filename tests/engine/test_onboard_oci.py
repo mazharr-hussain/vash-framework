@@ -502,8 +502,8 @@ def test_email_is_asked_once_kept_for_reruns_and_told_when_ready(home, monkeypat
     assert onboarding.up() == 0
     tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
     assert tfvars["notify_email"] == "owner@example.com"
-    ready = published(cloud)
-    assert len(ready) == 1 and "VASH is ready" in ready[0][ready[0].index("--title") + 1]
+    titles = [c[c.index("--title") + 1] for c in published(cloud)]
+    assert len(titles) == 2 and "launched" in titles[0] and "VASH is ready" in titles[1]
     again = make(FakeCloud(), home, notify_email=None)
     again.ask = lambda q, d: (_ for _ in ()).throw(AssertionError(q)) if "E-mail" in q else d
     again.up()  # the saved address is used, not asked again
