@@ -526,3 +526,25 @@ def test_no_email_sends_nothing(home, monkeypatch):
     cloud = FakeCloud()
     assert make(cloud, home).up() == 0
     assert published(cloud) == []
+
+
+def test_guardrails_only_asks_and_builds_nothing_else(home, monkeypatch):
+    from vash.adapters.cloud.oci import guardrails
+    seen = []
+    monkeypatch.setattr(guardrails.Guardrails, "apply", lambda self, tenancy, email: seen.append(email) or True)
+    tf = FakeTerraform()
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    assert make(FakeCloud(), home, guardrails_only=True, notify_email="owner@example.com").up() == 0
+    assert seen == ["owner@example.com"] and tf.calls == []  # no VM terraform
+    state = json.loads((home / ".vash/oci/onboard.json").read_text())
+    assert state["guardrails"] == "applied"
+
+
+def test_guardrails_are_offered_once_during_setup(home, monkeypatch):
+    from vash.adapters.cloud.oci import guardrails
+    seen = []
+    monkeypatch.setattr(guardrails.Guardrails, "apply", lambda self, tenancy, email: seen.append(1) or False)
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(FakeCloud(), home, guardrails=True).up()
+    make(FakeCloud(), home, guardrails=True).up()
+    assert seen == [1]  # a "no" is remembered too

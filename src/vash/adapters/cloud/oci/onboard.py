@@ -64,6 +64,8 @@ class Options:
     wait_minutes: int = 30
     vault: bool = False  # choose or create the vault and key for VASH's secrets (asked; never with --yes)
     notify_email: str | None = None  # e-mailed when the VM is made, when VASH is ready, or when setup fails
+    guardrails: bool = False  # offer the free-tier quota policy and budget (asked once; never with --yes)
+    guardrails_only: bool = False
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -166,6 +168,17 @@ class Onboarding:
         provider = {"region": region, "tenancy_ocid": tenancy,
                     "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey"}
         return Foundation(self.prepare_workdir(), provider, self.echo, self.sleep)
+
+    def ensure_guardrails(self, tenancy: str) -> None:
+        """Offer the free-tier quota policy and budget once; the answer is kept."""
+        if not (self.options.guardrails or self.options.guardrails_only):
+            return
+        if "guardrails" in self._state() and not self.options.guardrails_only:
+            return
+        from .guardrails import Guardrails
+        email = self.notify_address(self.existing_tfvars())
+        done = Guardrails(self.oci, self.echo, self.confirm, self.foundation(tenancy)).apply(tenancy, email)
+        self._save_state(guardrails="applied" if done else "declined")
 
     def ensure_vault(self, tenancy: str) -> None:
         """The vault and key for VASH's secrets: an existing one the owner picks, or a new one."""
@@ -447,6 +460,9 @@ class Onboarding:
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
+        if self.options.guardrails_only:
+            self.ensure_guardrails(tenancy)
+            return 0
         if self.options.review:
             from .cleaner import Cleaner
             from .inventory import Inventory, review
@@ -467,6 +483,7 @@ class Onboarding:
             self.echo("Stopped after the cleanup; nothing else was changed")
             return 0
         if self.options.vm_ip:
+            self.ensure_guardrails(tenancy)
             self.ensure_vault(tenancy)
             return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
@@ -479,6 +496,7 @@ class Onboarding:
         if not NAME_PREFIX_RE.match(self.prefix):
             raise VashError(f"Invalid name prefix '{self.prefix}'", "Use lowercase letters, digits and hyphens, max 20")
         compartment = self.ensure_compartment(tenancy)
+        self.ensure_guardrails(tenancy)
         self.ensure_vault(tenancy)
         if previous:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
@@ -600,6 +618,8 @@ def run_cli(args: Any) -> int:
         ssh_user=args.ssh_user,
         ssh_key=args.ssh_key,
         vault=not args.yes and not args.no_vault and not args.cleanup_only,
+        guardrails=not args.yes and not args.cleanup_only,
+        guardrails_only=args.guardrails_only,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)

@@ -24,3 +24,18 @@ variable "keys" {
   default     = {}
   description = "AES-256 HSM keys to create: display name => compartment and vault management endpoint."
 }
+variable "quota_statements" {
+  type        = list(string)
+  default     = []
+  description = "Quota policy statements (free-tier guardrail); empty creates no quota policy."
+}
+variable "budget_email" {
+  type        = string
+  default     = ""
+  description = "E-mail for the free-tier budget alerts; empty creates no budget."
+}
+variable "budget_amount" {
+  type        = number
+  default     = 1
+  description = "Monthly budget in the account currency; alerts at 1% actual and 100% forecast."
+}

@@ -43,9 +43,14 @@ class Foundation:
         self.tfvars.chmod(0o600)
 
     def _apply(self, section: str, name: str, entry: Any) -> dict[str, Any]:
+        def change(values: dict[str, Any]) -> None:
+            values[section][name] = entry
+        return self._change(change, name)
+
+    def _change(self, change: Callable[[dict[str, Any]], None], name: str) -> dict[str, Any]:
         before = self._values()
         after = json.loads(json.dumps(before))
-        after[section][name] = entry
+        change(after)
         self._write(after)
         adapter = Adapter({"iac_dir": str(self.workdir)})
         try:
@@ -63,6 +68,13 @@ class Foundation:
             if "LimitExceeded" in str(exc):
                 raise VashError(f"Could not create {name}: the tenancy limit is reached", LIMIT_HINT) from exc
             raise
+
+    def guardrails(self, statements: list[str], budget_email: str) -> None:
+        """The free-tier quota policy and the budget e-mail (CD3 quota-policy, budget, budget-alert-rule)."""
+        def change(values: dict[str, Any]) -> None:
+            values["quota_statements"] = statements
+            values["budget_email"] = budget_email
+        self._change(change, "the free-tier guardrails")
 
     def compartment(self, name: str, description: str) -> str:
         out = self._apply("compartments", name, description)
