@@ -4,7 +4,8 @@ from vash.adapters.cloud.oci.guardrails import Guardrails
 TEN = "ocid1.tenancy..t"
 NAMES = {
     "compute": ["standard-a1-core-count", "standard-a1-core-regional-count", "standard-a1-memory-count",
-                "standard-a1-memory-regional-count", "standard-e2-micro-core-count", "standard-e4-core-count"],
+                "standard-a1-memory-regional-count", "standard-e2-micro-core-count", "vm-standard-e2-1-micro-count",
+                "standard-e4-core-count"],
     "block-storage": ["total-storage-gb"],
     "database": ["adb-free-count", "atp-ocpu-count"],
 }
@@ -37,6 +38,9 @@ def test_free_amounts_are_allowed_and_paid_families_zeroed():
     assert "set compute-core quota standard-a1-core-regional-count to 4 in tenancy" in statements
     assert "set compute-memory quota standard-a1-memory-regional-count to 24 in tenancy" in statements
     assert not any("e4" in s for s in statements)
+    # a limit name that is not a compute-core quota name made OCI refuse the whole policy (seen live)
+    assert not any("vm-standard-e2-1-micro-count" in s for s in statements)
+    assert len(statements) == len(set(statements))
     assert "set compute-core quota standard-e2-micro-core-count to 2 in tenancy" in statements
     assert "set block-storage quota total-storage-gb to 200 in tenancy" in statements
     assert "set database quota adb-free-count to 2 in tenancy" in statements

@@ -7,26 +7,25 @@ applied. Built with Oracle's CD3 modules through the foundation environment.
 """
 from __future__ import annotations
 
-import re
 from typing import Any, Callable
 
 from vash.core.exceptions import VashError
 
 from .foundation import Foundation
 
-# (quota family, limit service, pattern of the limit names, Always Free amount, what it is). Every matching
-# name is allowed: OCI checks a per-domain and a regional limit (e.g. standard-a1-core-count and
-# standard-a1-core-regional-count), and "zero <family>" zeroes both.
+# (quota family, limit service, exact limit name, Always Free amount, what it is). Exact names only: a limit
+# name is not always a valid quota name for the family (seen live: vm-standard-e2-1-micro-count is a compute
+# limit but not a compute-core quota), and one invalid statement makes OCI refuse the whole policy.
 ALLOWED = (
-    ("compute-core", "compute", r"^standard-a1-core(-regional)?-count$", 4, "Arm A1 cores"),
-    ("compute-memory", "compute", r"^standard-a1-memory(-regional)?-count$", 24, "Arm A1 memory (GB)"),
-    ("compute-core", "compute", r"^standard-e2-micro-core(-regional)?-count$|^vm-standard-e2-1-micro-count$", 2,
-     "AMD Micro VMs"),
-    ("block-storage", "block-storage", r"^total-storage-gb(-regional)?$", 200, "block and boot volume storage (GB)"),
-    ("database", "database", r"^adb-free-count$", 2, "Always Free Autonomous Databases"),
+    ("compute-core", "compute", "standard-a1-core-count", 4, "Arm A1 cores"),
+    ("compute-memory", "compute", "standard-a1-memory-count", 24, "Arm A1 memory (GB)"),
+    ("compute-core", "compute", "standard-e2-micro-core-count", 2, "AMD Micro VMs"),
+    ("block-storage", "block-storage", "total-storage-gb", 200, "block and boot volume storage (GB)"),
+    ("database", "database", "adb-free-count", 2, "Always Free Autonomous Databases"),
 )
-# Regional limits OCI checks at launch but that `limits definition list` may not return: allowed whenever their
-# per-domain counterpart is found (both names seen in OCI's own QuotaExceeded error).
+# OCI also checks a regional A1 limit at launch, which "zero <family>" zeroes too and which
+# `limits definition list` may not return: allowed whenever the per-domain name is found (both regional names
+# appeared in OCI's own QuotaExceeded error).
 REGIONAL = {"standard-a1-core-count": "standard-a1-core-regional-count",
             "standard-a1-memory-count": "standard-a1-memory-regional-count"}
 ZEROED = (("compute-core", "compute"), ("compute-memory", "compute"), ("database", "database"))
@@ -48,11 +47,9 @@ class Guardrails:
     def statements(self, tenancy: str) -> list[str]:
         names = {svc: self.limit_names(tenancy, svc) for svc in {svc for _, svc, *_ in ALLOWED}}
         allowed: list[str] = []
-        for family, service, pattern, amount, what in ALLOWED:
-            found = sorted(n for n in names[service] if re.match(pattern, n))
-            found += [REGIONAL[n] for n in found if n in REGIONAL and REGIONAL[n] not in found]
-            if found:
-                allowed += [f"set {family} quota {name} to {amount} in tenancy" for name in found]
+        for family, service, name, amount, what in ALLOWED:
+            if name in names[service]:
+                allowed += [f"set {family} quota {n} to {amount} in tenancy" for n in [name, REGIONAL.get(name)] if n]
             else:
                 self.echo(f"  (no limit for {what} in this tenancy: left out)")
         # A family is zeroed only when its Always Free amount is allowed again, so nothing free is lost.
