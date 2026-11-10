@@ -56,3 +56,12 @@ def test_nothing_is_applied_without_a_yes():
     build = FakeBuild()
     assert not Guardrails(oci(NAMES), lambda m: None, lambda q: False, build).apply(TEN, "owner@example.com")
     assert build.applied is None
+
+
+def test_regional_a1_limits_are_allowed_even_when_not_listed():
+    names = {**NAMES, "compute": ["standard-a1-core-count", "standard-a1-memory-count"]}  # no regional names listed
+    build = FakeBuild()
+    Guardrails(oci(names), lambda m: None, lambda q: True, build).apply(TEN, "")
+    statements, _ = build.applied
+    assert "set compute-core quota standard-a1-core-regional-count to 4 in tenancy" in statements
+    assert "set compute-memory quota standard-a1-memory-regional-count to 24 in tenancy" in statements

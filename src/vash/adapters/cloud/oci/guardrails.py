@@ -25,6 +25,10 @@ ALLOWED = (
     ("block-storage", "block-storage", r"^total-storage-gb(-regional)?$", 200, "block and boot volume storage (GB)"),
     ("database", "database", r"^adb-free-count$", 2, "Always Free Autonomous Databases"),
 )
+# Regional limits OCI checks at launch but that `limits definition list` may not return: allowed whenever their
+# per-domain counterpart is found (both names seen in OCI's own QuotaExceeded error).
+REGIONAL = {"standard-a1-core-count": "standard-a1-core-regional-count",
+            "standard-a1-memory-count": "standard-a1-memory-regional-count"}
 ZEROED = (("compute-core", "compute"), ("compute-memory", "compute"), ("database", "database"))
 
 
@@ -46,6 +50,7 @@ class Guardrails:
         allowed: list[str] = []
         for family, service, pattern, amount, what in ALLOWED:
             found = sorted(n for n in names[service] if re.match(pattern, n))
+            found += [REGIONAL[n] for n in found if n in REGIONAL and REGIONAL[n] not in found]
             if found:
                 allowed += [f"set {family} quota {name} to {amount} in tenancy" for name in found]
             else:
