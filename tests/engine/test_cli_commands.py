@@ -1,8 +1,5 @@
 """Tests for CLI commands."""
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 from vash.cli.load import run as load_run
 from vash.cli.check import run as check_run
 from vash.cli.status import run as status_run

@@ -1,12 +1,11 @@
 """AvA runner (C-14)."""
-import json
 import time
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Any
+from typing import Mapping
 from vash.core.freeze import load_freeze
-from vash.core.interfaces import LLMAdapter, LLMReply
+from vash.core.interfaces import LLMAdapter
 from vash.adapters.llm import reply as llm_reply
 from vash.tools.gate1 import run as gate1_run
 from vash.core.paths import vash_root
@@ -52,7 +51,6 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
     freeze = load_freeze(repo_root)
     thresholds = freeze.thresholds
     floor = freeze.floor
-    threshold = 88
 
     task_file = repo_root / "audit" / "prompts" / f"{task_id}_prompt.md"
     if not task_file.exists():
@@ -109,7 +107,7 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
 
         g1 = gate1_run([artifact_path], repo_root)
         if not g1.ok:
-            current_prompt += f"\n\nGate 1 failed:\n"
+            current_prompt += "\n\nGate 1 failed:\n"
             for f in g1.findings:
                 current_prompt += f"- {f.message}\n"
             _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "MODIFY", "Gate 1 failed", log_paths)

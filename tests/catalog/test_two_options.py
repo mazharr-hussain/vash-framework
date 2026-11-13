@@ -1,9 +1,8 @@
 """Proves no vendor is hard-coded by loading a real and a fake for each category."""
 import sys
 import types
-import pytest
 from vash.core.registry import load_adapter
-from vash.core.interfaces import CATEGORY_INTERFACES, LLMAdapter
+from vash.core.interfaces import CATEGORY_INTERFACES
 from tests.mocks.adapters.fake_forge import FakeForge
 from tests.mocks.adapters.fake_ci import FakeCI
 from tests.mocks.adapters.fake_cloud import FakeCloud

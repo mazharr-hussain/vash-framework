@@ -6,7 +6,7 @@ from vash.core.freeze import load_freeze
 def run(repo_root: Path, task_id: str) -> int:
     """Run one AvA activity."""
     try:
-        freeze = load_freeze(repo_root)
+        load_freeze(repo_root)  # fail early on a bad freeze file
     except Exception as e:
         print(f"Error loading freeze: {e}")
         return 1
