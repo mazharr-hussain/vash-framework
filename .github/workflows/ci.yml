@@ -44,6 +44,7 @@ jobs:
           .github/pull_request_template.md
           .github/CODEOWNERS
           .github/workflows/ci.yml
+          .github/workflows/pr-review.yml
           .github/workflows/reusable-light.yml
           .github/workflows/reusable-heavy.yml
           .github/workflows/reusable-merge-gate.yml

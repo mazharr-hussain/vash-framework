@@ -2,7 +2,6 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 from vash.ava.runner import run_activity
 from tests.mocks.adapters.fake_llm import FakeLLM
 

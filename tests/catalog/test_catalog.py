@@ -1,7 +1,6 @@
 """Tests for the catalog (LAW 3 compliance)."""
 import json
 import pytest
-from pathlib import Path
 from vash.core.paths import vash_root
 from vash.loader.manifest import _parse_frontmatter
 

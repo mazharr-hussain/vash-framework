@@ -2,7 +2,6 @@
 import pytest
 from unittest.mock import patch
 from vash.cli.main import main
-from vash.core.exceptions import VashError
 
 def test_version(capsys):
     assert main(["--version"]) == 0

@@ -1,7 +1,4 @@
 """Tests for the loader (C-13)."""
-import json
-import pytest
-from pathlib import Path
 from vash.loader.load import load, generate_claude_md
 from vash.loader.manifest import generate_manifest
 

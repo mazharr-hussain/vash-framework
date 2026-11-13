@@ -1,0 +1,75 @@
+name: PR review
+
+# Every pull request is reviewed in two layers (rule R3: deterministic first).
+#   1. Checks without AI: they decide pass or fail and can block the merge.
+#   2. An AI reviewer: it runs only after layer 1 passed and posts one advisory comment.
+# Tests, Gate 1, Stage 0 and the terraform plan checks run in ci.yml.
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  static-checks:
+    name: Checks without AI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+        with:
+          python-version: '3.11'
+      - name: Install VASH and the review tools (pinned)
+        run: |
+          pip install -e .
+          pip install ruff==0.17.5 bandit==1.9.4 pip-audit==2.10.1 detect-secrets==1.5.0 actionlint-py==1.7.12.25
+      - name: Lint (ruff) - bugs and dead code
+        run: ruff check src tests
+      - name: Security lint (bandit) - high severity blocks
+        run: bandit -q -r src -lll
+      - name: Known vulnerabilities in dependencies (pip-audit)
+        run: pip-audit .
+      - name: Secrets (detect-secrets) - anything not in the reviewed baseline blocks
+        run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+      - name: Workflow files (actionlint)
+        run: actionlint -shellcheck= -pyflakes=
+
+  dependency-review:
+    name: New dependencies (GitHub dependency review)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high
+
+  ai-review:
+    name: AI review (advisory)
+    needs: static-checks
+    # Pull requests from forks get no secrets; the step then skips by itself.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+        with:
+          python-version: '3.11'
+      - name: Install VASH
+        run: pip install -e .
+      - name: Review the diff and post one comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VASH_REVIEW_VENDOR: google
+          VASH_REVIEW_MODEL: ${{ vars.VASH_REVIEW_MODEL || 'gemini-2.5-flash' }}
+        run: python -m vash.adapters.forge.github.pr_review

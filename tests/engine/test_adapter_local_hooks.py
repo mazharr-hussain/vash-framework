@@ -1,6 +1,5 @@
 """Tests for local hooks CI adapter."""
 import pytest
-from pathlib import Path
 from vash.adapters.ci.local_hooks.adapter import Adapter
 from vash.core.exceptions import NotAvailableYet
 
