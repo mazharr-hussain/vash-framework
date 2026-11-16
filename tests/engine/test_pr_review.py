@@ -50,6 +50,7 @@ def test_findings_are_sorted_and_posted_as_one_comment(tmp_path):
     assert method == "POST" and url.endswith("/repos/o/r/issues/7/comments")
     body = payload["body"]
     assert body.startswith(pr_review.MARKER) and "advisory" in body and "google / gemini" in body
+    assert route.name == "pr-review-ai"
     assert body.index("| high |") < body.index("| low |")  # worst first; unknown case normalised
     assert "no \\| test" in body  # a pipe in the text does not break the table
 
@@ -81,3 +82,25 @@ def test_a_long_diff_is_cut_and_said_so(tmp_path):
     assert "[diff cut here" in reviewer.prompts[0][0]
     body = github.calls[-1][2]["body"]
     assert "Only the first 120,000 characters" in body and "No findings." in body
+
+
+def test_each_reviewer_keeps_its_own_comment_and_limit(tmp_path):
+    values = {**env(tmp_path), "VASH_REVIEW_NAME": "models", "VASH_REVIEW_MAX_DIFF_CHARS": "10",
+              "VASH_REVIEW_KEY_ENV": "GITHUB_TOKEN", "VASH_REVIEW_VENDOR": "openai"}
+    reviewer = Reviewer(text='{"summary": "", "findings": []}')
+    github = GitHub(existing=[{"id": 12, "body": pr_review.MARKER + " the other reviewer"}])
+    assert pr_review.main(values, reviewer, github, lambda b, h: "x" * 50, lambda m: None) == 0
+    method, _, payload = github.calls[-1]
+    assert method == "POST"  # the other reviewer's comment is not overwritten
+    assert payload["body"].startswith("<!-- vash-ai-review:models -->") and "first 10 characters" in payload["body"]
+    assert reviewer.prompts[0][1].key_env == "GITHUB_TOKEN"
+
+
+def test_fail_on_makes_a_blocker_fail_the_check(tmp_path):
+    blocker = json.dumps({"summary": "", "findings": [{"severity": "blocker", "file": "a.py", "issue": "x", "fix": "y"}]})
+    github, out = GitHub(), []
+    values = {**env(tmp_path), "VASH_REVIEW_FAIL_ON": "blocker, nonsense"}
+    assert pr_review.main(values, Reviewer(text=blocker), github, lambda b, h: "d", out.append) == 1
+    assert "severity blocker fails this check" in github.calls[-1][2]["body"]
+    assert pr_review.main(values, Reviewer(), GitHub(), lambda b, h: "d", lambda m: None) == 0  # high and low only
+    assert pr_review.main(env(tmp_path), Reviewer(text=blocker), GitHub(), lambda b, h: "d", lambda m: None) == 0

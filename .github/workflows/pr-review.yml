@@ -2,7 +2,8 @@ name: PR review
 
 # Every pull request is reviewed in two layers (rule R3: deterministic first).
 #   1. Checks without AI: they decide pass or fail and can block the merge.
-#   2. An AI reviewer: it runs only after layer 1 passed and posts one advisory comment.
+#   2. AI reviewers (two vendors): they run only after layer 1 passed and each posts one comment.
+# Everything runs in GitHub Actions; outside services are only called from here.
 # Tests, Gate 1, Stage 0 and the terraform plan checks run in ci.yml.
 
 on:
@@ -28,7 +29,7 @@ jobs:
       - name: Install VASH and the review tools (pinned)
         run: |
           pip install -e .
-          pip install ruff==0.17.5 bandit==1.9.4 pip-audit==2.10.1 detect-secrets==1.5.0 actionlint-py==1.7.12.25
+          pip install -r .github/review-tools.txt
       - name: Lint (ruff) - bugs and dead code
         run: ruff check src tests
       - name: Security lint (bandit) - high severity blocks
@@ -42,6 +43,7 @@ jobs:
 
   dependency-review:
     name: New dependencies (GitHub dependency review)
+    # Needs the repository setting "Dependency graph" to be on (Settings, Code security).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -50,13 +52,33 @@ jobs:
           fail-on-severity: high
 
   ai-review:
-    name: AI review (advisory)
+    name: AI review (${{ matrix.name }})
     needs: static-checks
-    # Pull requests from forks get no secrets; the step then skips by itself.
+    # Two reviewers from different vendors; each posts and updates its own comment.
+    #   models: GitHub Models, signed in with this run's own token (no outside key).
+    #   gemini: Google Gemini, when the GEMINI_API_KEY secret is set; skipped without it.
+    # Pull requests from forks get no secrets and a read-only token; the step then skips or cannot comment.
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+      models: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: models
+            vendor: openai
+            base_url: https://models.github.ai/inference
+            model: openai/gpt-4.1-mini
+            key_env: GITHUB_TOKEN
+            max_diff_chars: '24000'
+          - name: gemini
+            vendor: google
+            base_url: https://generativelanguage.googleapis.com/v1beta/openai
+            model: gemini-2.5-flash
+            key_env: GEMINI_API_KEY
+            max_diff_chars: '120000'
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -70,6 +92,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VASH_REVIEW_VENDOR: google
-          VASH_REVIEW_MODEL: ${{ vars.VASH_REVIEW_MODEL || 'gemini-2.5-flash' }}
+          VASH_REVIEW_NAME: ${{ matrix.name }}
+          VASH_REVIEW_VENDOR: ${{ matrix.vendor }}
+          VASH_REVIEW_BASE_URL: ${{ matrix.base_url }}
+          VASH_REVIEW_MODEL: ${{ matrix.model }}
+          VASH_REVIEW_KEY_ENV: ${{ matrix.key_env }}
+          VASH_REVIEW_MAX_DIFF_CHARS: ${{ matrix.max_diff_chars }}
+          # Repository variable, e.g. "blocker": such a finding then fails the check. Empty = advisory.
+          VASH_REVIEW_FAIL_ON: ${{ vars.VASH_REVIEW_FAIL_ON }}
         run: python -m vash.adapters.forge.github.pr_review

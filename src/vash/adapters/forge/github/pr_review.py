@@ -8,10 +8,13 @@ The diff and description are untrusted text: the job that runs this has read acc
 only write pull request comments.
 
 Settings (environment):
+  VASH_REVIEW_NAME      short name of this reviewer; each reviewer keeps its own comment (default "ai")
   VASH_REVIEW_BASE_URL  OpenAI-compatible endpoint of the reviewer model
   VASH_REVIEW_MODEL     model name
   VASH_REVIEW_KEY_ENV   name of the variable that holds the API key (default GEMINI_API_KEY)
   VASH_REVIEW_VENDOR    vendor name, shown in the comment (default google)
+  VASH_REVIEW_MAX_DIFF_CHARS  how much of the diff the model is sent (default 120000)
+  VASH_REVIEW_FAIL_ON   severities that fail the job, e.g. "blocker" or "blocker,high" (default: none, advisory)
 """
 from __future__ import annotations
 
@@ -28,7 +31,7 @@ from .adapter import Adapter as ForgeAdapter
 from vash.core.exceptions import RouteUnavailable, VashError
 from vash.core.interfaces import RouteSettings
 
-MARKER = "<!-- vash-ai-review -->"
+MARKER = "<!-- vash-ai-review -->"  # reviewer "ai"; others use marker(name)
 MAX_DIFF_CHARS = 120_000
 SEVERITIES = ("blocker", "high", "medium", "low")
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -48,10 +51,14 @@ Answer with JSON only, in this shape:
 An empty findings list means you found no problem."""
 
 
-def build_prompt(title: str, body: str, diff: str) -> str:
+def marker(name: str) -> str:
+    return MARKER if name == "ai" else f"<!-- vash-ai-review:{name} -->"
+
+
+def build_prompt(title: str, body: str, diff: str, limit: int = MAX_DIFF_CHARS) -> str:
     cut = ""
-    if len(diff) > MAX_DIFF_CHARS:
-        diff, cut = diff[:MAX_DIFF_CHARS], "\n[diff cut here: it is longer than the reviewer reads]"
+    if len(diff) > limit:
+        diff, cut = diff[:limit], "\n[diff cut here: it is longer than the reviewer reads]"
     return (f"{INSTRUCTION}\n\n<title>\n{title}\n</title>\n\n<description>\n{body or '(none)'}\n</description>\n\n"
             f"<diff>\n{diff}{cut}\n</diff>\n")
 
@@ -83,12 +90,14 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render(review: dict[str, Any] | None, raw: str, vendor: str, model: str, cut: bool) -> str:
-    head = (f"{MARKER}\n### AI review (advisory)\n"
-            f"Reviewer: {vendor} / {model}. This comment is written by an AI model; it does not approve or block "
-            "the pull request. The deterministic checks decide pass or fail.\n\n")
+def render(review: dict[str, Any] | None, raw: str, vendor: str, model: str, cut: int = 0, name: str = "ai",
+           fail_on: tuple[str, ...] = ()) -> str:
+    rule = (f"A finding of severity {' or '.join(fail_on)} fails this check." if fail_on
+            else "It is advisory: it does not approve or block the pull request.")
+    head = (f"{marker(name)}\n### AI review: {vendor} / {model}\n"
+            f"This comment is written by an AI model. {rule} The checks without AI always decide first.\n\n")
     if cut:
-        head += f"Only the first {MAX_DIFF_CHARS:,} characters of the diff were reviewed.\n\n"
+        head += f"Only the first {cut:,} characters of the diff were reviewed.\n\n"
     if review is None:
         return head + "The reviewer did not answer in the expected format. Its answer:\n\n" + raw.strip()[:6000] + "\n"
     body = (review["summary"] + "\n\n") if review["summary"] else ""
@@ -101,14 +110,15 @@ def render(review: dict[str, Any] | None, raw: str, vendor: str, model: str, cut
     return head + body
 
 
-def post_comment(repo: str, number: int, body: str, request: Callable[..., Any] | None = None) -> str:
+def post_comment(repo: str, number: int, body: str, request: Callable[..., Any] | None = None,
+                 name: str = "ai") -> str:
     """Update this tool's earlier comment on the pull request, or add one. Returns 'updated' or 'created'.
 
     `request(method, path, data)` is the forge adapter's API call (token from GITHUB_TOKEN)."""
     request = request or ForgeAdapter({"repo": repo})._request
     base = f"/repos/{repo}/issues"
     comments = request("GET", f"{base}/{number}/comments?per_page=100") or []
-    mine = next((c for c in comments if MARKER in (c.get("body") or "")), None)
+    mine = next((c for c in comments if marker(name) in (c.get("body") or "")), None)
     if mine:
         request("PATCH", f"{base}/comments/{mine['id']}", {"body": body})
         return "updated"
@@ -137,16 +147,26 @@ def main(env: dict[str, str] | None = None, reviewer: Any = None, github: Callab
         echo("AI review skipped: the pull request has no diff")
         return 0
     vendor, model = env.get("VASH_REVIEW_VENDOR", "google"), env.get("VASH_REVIEW_MODEL", DEFAULT_MODEL)
-    route = RouteSettings(name="pr-review", adapter="openai_compatible", model=model, vendor=vendor,
+    name = env.get("VASH_REVIEW_NAME", "ai")
+    limit = int(env.get("VASH_REVIEW_MAX_DIFF_CHARS") or MAX_DIFF_CHARS)
+    fail_on = tuple(s for s in (p.strip().lower() for p in env.get("VASH_REVIEW_FAIL_ON", "").split(","))
+                    if s in SEVERITIES)
+    route = RouteSettings(name=f"pr-review-{name}", adapter="openai_compatible", model=model, vendor=vendor,
                           base_url=env.get("VASH_REVIEW_BASE_URL", DEFAULT_BASE_URL), key_env=key_env, timeout_s=180)
     try:
-        reply = (reviewer or Adapter({})).reply(build_prompt(pr.get("title") or "", pr.get("body") or "", text), route)
+        reply = (reviewer or Adapter({})).reply(
+            build_prompt(pr.get("title") or "", pr.get("body") or "", text, limit), route)
     except RouteUnavailable as exc:
         echo(f"AI review skipped: the reviewer model is not reachable ({exc.message})")
         return 0
-    body = render(parse_review(reply.text), reply.text, vendor, model, cut=len(text) > MAX_DIFF_CHARS)
-    done = post_comment(env["GITHUB_REPOSITORY"], int(pr["number"]), body, github)
+    review = parse_review(reply.text)
+    body = render(review, reply.text, vendor, model, cut=limit if len(text) > limit else 0, name=name, fail_on=fail_on)
+    done = post_comment(env["GITHUB_REPOSITORY"], int(pr["number"]), body, github, name)
     echo(f"AI review comment {done} on pull request {pr['number']}")
+    failing = [f for f in (review or {}).get("findings", []) if f["severity"] in fail_on]
+    if failing:
+        echo(f"{len(failing)} finding(s) of severity {', '.join(fail_on)}: this check fails (see the comment)")
+        return 1
     return 0
 
 
