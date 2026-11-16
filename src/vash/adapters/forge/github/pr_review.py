@@ -14,6 +14,7 @@ Settings (environment):
   VASH_REVIEW_KEY_ENV   name of the variable that holds the API key (default GEMINI_API_KEY)
   VASH_REVIEW_VENDOR    vendor name, shown in the comment (default google)
   VASH_REVIEW_MAX_DIFF_CHARS  how much of the diff the model is sent (default 120000)
+  VASH_REVIEW_HEADERS   extra request headers the provider documents, as JSON (default: none)
   VASH_REVIEW_FAIL_ON   severities that fail the job, e.g. "blocker" or "blocker,high" (default: none, advisory)
 """
 from __future__ import annotations
@@ -154,7 +155,8 @@ def main(env: dict[str, str] | None = None, reviewer: Any = None, github: Callab
     route = RouteSettings(name=f"pr-review-{name}", adapter="openai_compatible", model=model, vendor=vendor,
                           base_url=env.get("VASH_REVIEW_BASE_URL", DEFAULT_BASE_URL), key_env=key_env, timeout_s=180)
     try:
-        reply = (reviewer or Adapter({})).reply(
+        extra = json.loads(env.get("VASH_REVIEW_HEADERS") or "{}")
+        reply = (reviewer or Adapter({"headers": extra})).reply(
             build_prompt(pr.get("title") or "", pr.get("body") or "", text, limit), route)
     except RouteUnavailable as exc:
         echo(f"AI review skipped: the reviewer model is not reachable ({exc.message})")

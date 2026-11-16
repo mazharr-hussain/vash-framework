@@ -31,7 +31,10 @@ class Adapter(LLMAdapter):
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Accept": "application/json",
+            "User-Agent": "VASH-Engine",
+            "Authorization": f"Bearer {api_key}",
+            **dict(self.settings.get("headers") or {}),  # extra headers a provider documents
         }
         req = urllib.request.Request(
             url, data=json.dumps(data).encode("utf-8"),
@@ -39,13 +42,18 @@ class Adapter(LLMAdapter):
         )
         try:
             with urllib.request.urlopen(req, timeout=route.timeout_s) as response:
-                res = json.loads(response.read().decode("utf-8"))
-                text = res["choices"][0]["message"]["content"]
-                usage = res.get("usage", {})
-                return LLMReply(text=text, route=route.name, model=route.model, degraded=False, usage=usage)
+                status, kind = response.status, response.headers.get("Content-Type", "")
+                body = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
             raise RouteUnavailable(f"API error {e.code}: {e.reason}", "Check API limits or key")
         except (urllib.error.URLError, TimeoutError) as e:
             raise RouteUnavailable(f"Connection failed: {e}", "Check network connection")
-        except (json.JSONDecodeError, KeyError, IndexError) as e:
-            raise RouteUnavailable(f"Invalid JSON response: {e}", "Check the API endpoint")
+        try:
+            res = json.loads(body)
+            text = res["choices"][0]["message"]["content"]
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+            # Say what came back: a wrong URL or a missing header often answers 200 with a non-API body.
+            raise RouteUnavailable(
+                f"Not a chat completion answer (HTTP {status}, {kind or 'no content type'}): {body[:160]!r}",
+                "Check the API endpoint (base_url), the model name and the headers the provider needs")
+        return LLMReply(text=text, route=route.name, model=route.model, degraded=False, usage=res.get("usage", {}))

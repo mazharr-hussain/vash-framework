@@ -50,3 +50,18 @@ def test_timeout(mock_urlopen, monkeypatch):
     route = RouteSettings(name="test", adapter="openai_compatible", model="gpt", vendor="test", base_url="http://test", key_env="TEST_KEY", timeout_s=10)
     with pytest.raises(RouteUnavailable, match="Connection failed"):
         adapter.reply("Prompt", route)
+
+@patch("urllib.request.urlopen")
+def test_a_non_api_answer_says_what_came_back_and_extra_headers_are_sent(mock_urlopen, monkeypatch):
+    monkeypatch.setenv("TEST_KEY", "secret")
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b"OK"
+    mock_resp.status = 200
+    mock_resp.headers.get.return_value = "text/plain"
+    mock_urlopen.return_value.__enter__.return_value = mock_resp
+    adapter = Adapter({"headers": {"X-Api-Version": "1"}})
+    route = RouteSettings(name="test", adapter="openai_compatible", model="gpt", vendor="test", base_url="http://test", key_env="TEST_KEY", timeout_s=10)
+    with pytest.raises(RouteUnavailable, match=r"HTTP 200, text/plain\): 'OK'"):
+        adapter.reply("Prompt", route)
+    sent = mock_urlopen.call_args[0][0]
+    assert sent.get_header("X-api-version") == "1" and sent.get_header("Accept") == "application/json"

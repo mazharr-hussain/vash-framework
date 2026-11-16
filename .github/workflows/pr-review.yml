@@ -73,12 +73,14 @@ jobs:
             model: openai/gpt-4.1-mini
             key_env: GITHUB_TOKEN
             max_diff_chars: '24000'
+            headers: '{"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}'
           - name: gemini
             vendor: google
             base_url: https://generativelanguage.googleapis.com/v1beta/openai
             model: gemini-2.5-flash
             key_env: GEMINI_API_KEY
             max_diff_chars: '120000'
+            headers: '{}'
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -98,6 +100,7 @@ jobs:
           VASH_REVIEW_MODEL: ${{ matrix.model }}
           VASH_REVIEW_KEY_ENV: ${{ matrix.key_env }}
           VASH_REVIEW_MAX_DIFF_CHARS: ${{ matrix.max_diff_chars }}
+          VASH_REVIEW_HEADERS: ${{ matrix.headers }}
           # Repository variable, e.g. "blocker": such a finding then fails the check. Empty = advisory.
           VASH_REVIEW_FAIL_ON: ${{ vars.VASH_REVIEW_FAIL_ON }}
         run: python -m vash.adapters.forge.github.pr_review
