@@ -2,7 +2,6 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 from vash.ava.runner import run_activity
 from tests.mocks.adapters.fake_llm import FakeLLM
 
@@ -93,3 +92,48 @@ def test_phased_mode_needs_no_feature_line(tmp_repo):
     (prompt_dir / "c2_prompt.md").write_text("type: code\nWrite code")
     res = run_activity("c2", tmp_repo, llm={"local": FakeLLM({}, ["x = 1"]), "review": FakeLLM({}, ["Score: 95"])})
     assert res.verdict == "APPROVED"
+
+
+def _prompt(tmp_repo, task_id, text):
+    prompt_dir = tmp_repo / "audit" / "prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    (prompt_dir / f"{task_id}_prompt.md").write_text(text)
+
+
+def test_a_number_after_score_in_a_sentence_is_not_the_score(tmp_repo):
+    # Seen in an end-to-end run: the critic scored 40, the engine read "95" from the sentence and approved.
+    _prompt(tmp_repo, "s1", "type: code\nWrite code")
+    critic = FakeLLM({}, ["The junior claims a score 95 is deserved. It is not: no tests.\nSCORE: 40"] * 3)
+    res = run_activity("s1", tmp_repo, llm={"local": FakeLLM({}, ["x = 1"] * 3), "review": critic})
+    assert res.scores == [40, 40, 40] and res.verdict == "ESCALATED"
+
+
+def test_the_last_score_line_counts_and_a_missing_one_scores_0(tmp_repo):
+    from vash.ava.runner import parse_score
+    assert parse_score("**Score:** 70\n...after fixes...\n**SCORE: 91**") == 91
+    assert parse_score("Score (0-100) would be high") is None and parse_score("SCORE: 250") is None
+    _prompt(tmp_repo, "s2", "type: code\nWrite code")
+    res = run_activity("s2", tmp_repo, llm={"local": FakeLLM({}, ["x = 1"] * 3),
+                                            "review": FakeLLM({}, ["Looks great to me."] * 3)})
+    assert res.scores == [0, 0, 0]
+    assert "gave no `SCORE: <0-100>` line" in Path(res.log_paths[0]).read_text()
+
+
+def test_the_critic_sees_the_task_and_is_told_the_score_format(tmp_repo):
+    _prompt(tmp_repo, "s3", "type: code\nWrite a function that adds two numbers")
+    critic = FakeLLM({}, ["SCORE: 95"])
+    run_activity("s3", tmp_repo, llm={"local": FakeLLM({}, ["x = 1"]), "review": critic})
+    sent = critic.requests[0]
+    assert "<task>" in sent and "adds two numbers" in sent and "SCORE: <0-100>" in sent
+
+
+def test_the_log_tells_the_truth_about_gate1_and_routes(tmp_repo):
+    _prompt(tmp_repo, "s4", "type: code\nWrite code")
+    secret = 'TOKEN = "' + "ghp_" + "A" * 36 + '"'
+    res = run_activity("s4", tmp_repo, llm={"local": FakeLLM({}, [secret, "x = 1"]),
+                                            "review": FakeLLM({}, ["SCORE: 95"])})
+    failed, passed = (Path(p).read_text() for p in res.log_paths)
+    assert "FAIL (" in failed.split("## Gate 1")[1] and "the critic was not asked" in failed
+    assert "PASS (1 file(s) checked)" in passed
+    assert "JUNIOR_ROUTE: local / to-verify" in passed and "SENIOR_ROUTE: review / to-verify" in passed
+    assert "[reason]" not in passed and "[item]" not in passed and "[vendor / model]" not in passed

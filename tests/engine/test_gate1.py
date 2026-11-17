@@ -1,7 +1,5 @@
 """Tests for Gate 1 rules. Fails are built dynamically."""
-import json
 import pytest
-from pathlib import Path
 from vash.tools.gate1 import run, main
 from vash.core.paths import vash_root
 

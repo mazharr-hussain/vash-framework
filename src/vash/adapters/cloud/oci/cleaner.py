@@ -15,7 +15,7 @@ from typing import Callable
 from vash.core.exceptions import AdapterNotInstalled, VashError
 
 HUB_URL = "https://github.com/oracle-devrel/oci-automation-hub.git"
-HUB_COMMIT = "685ae12a021874609d0125619580356ca904dbeb"
+HUB_COMMIT = "685ae12a021874609d0125619580356ca904dbeb"  # pragma: allowlist secret (a public commit id)
 SAMPLE_DIR = "oci-compartment-cleaner-sample"
 SDK_REQUIREMENT = "oci>=2.150,<3"
 

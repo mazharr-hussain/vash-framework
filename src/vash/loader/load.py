@@ -1,9 +1,7 @@
 """Clean-slate loader (C-13)."""
 import shutil
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from vash.core.freeze import load_freeze
 from vash.core.paths import vash_root
 

@@ -6,12 +6,10 @@ import argparse
 import tomllib
 import pkgutil
 import importlib
-import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, Callable, Any
+from typing import Sequence, Callable
 import subprocess
-from vash.core.exceptions import VashError
 from vash.core.paths import vash_root
 
 @dataclass(frozen=True)

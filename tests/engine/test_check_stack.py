@@ -1,8 +1,6 @@
 """Tests for Stage 0 (check_stack)."""
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from vash.tools.check_stack import run, main
 
 def test_check_stack_pass(tmp_repo, monkeypatch, tmp_path):

@@ -28,3 +28,14 @@ Issues = "https://github.com/mazharr-hussain/vash-framework/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Errors that are bugs or dead code. Style rules are added step by step (see .github/workflows/pr-review.yml).
+select = ["E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]  # adapters re-export Adapter for the registry

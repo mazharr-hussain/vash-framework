@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from vash.core.freeze import load_freeze, load_stack_pack
 from vash.core.interfaces import VersionCheck, StackPack
-from vash.core.exceptions import VashError, FreezeInvalid
-from vash.core.paths import vash_root
+from vash.core.exceptions import VashError
 
 @dataclass(frozen=True)
 class StageReport:
@@ -59,7 +58,7 @@ def run(repo_root: Path) -> StageReport:
 
     pack_id = freeze.pack[0]
     try:
-        pack_data = load_stack_pack(repo_root, pack_id)
+        load_stack_pack(repo_root, pack_id)
     except VashError as e:
         problems.append(f"Stack pack {pack_id} invalid: {e}")
         return StageReport(checks=[], problems=problems, ok=False)

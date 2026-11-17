@@ -1,4 +1,3 @@
-import pytest
 
 from vash.adapters.cloud.oci.inventory import NEXT_PICK, Inventory, Row, _extra_groups
 from vash.adapters.cloud.oci.inventory import review as full_review
@@ -512,7 +511,7 @@ def test_wrong_choice_is_explained_and_asked_again():
 def test_second_delete_round_in_the_same_run():
     fake = FakeOci()
     inv = Inventory(fake, lambda m: None)
-    rows = inv.rows(TEN)
+    inv.rows(TEN)
     rounds = iter(["ocid1.subnet..old", "ocid1.vcn..b", ""])
     asked = []
     def pick(q, d):

@@ -1,7 +1,6 @@
 """Tests for freeze loading."""
 import json
 import pytest
-from pathlib import Path
 from vash.core.freeze import load_freeze
 from vash.core.interfaces import RouteSettings
 from vash.core.exceptions import FreezeFileMissing, FreezeInvalid

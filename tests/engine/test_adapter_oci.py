@@ -1,6 +1,6 @@
 """Tests for OCI cloud adapter."""
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from vash.adapters.cloud.oci.adapter import Adapter
 from vash.core.exceptions import AdapterNotInstalled, FreezeInvalid
 
