@@ -40,6 +40,11 @@ How a version is published (`.github/workflows/release.yml` checks the tag, test
   It becomes the default install.
 - **Dev:** nothing to publish; every merge to `main` is the dev version.
 
+Where the tracks are managed: on the repository's Releases page. Live is the release with the "Latest" badge,
+test is the newest release on the page (pre-releases included), dev is `main`. To hold live on a version (for example
+`v3.0.0`) while a newer full release exists, untick "Set as the latest release" on the newer one; live moves only when
+the "Latest" badge moves.
+
 The VM that onboarding builds gets the same VASH as the shell that built it, and its tools are pinned too (Ollama,
 the GitHub Actions runner with its checksum).
 
