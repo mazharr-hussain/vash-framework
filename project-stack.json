@@ -8,7 +8,7 @@
   },
   "vash": {
     "version": "3.0.0",
-    "commit": "to-verify"
+    "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f"
   },
   "stack": {
     "pack": "design-only",
@@ -35,19 +35,19 @@
     {
       "id": "junior-creator",
       "source": "catalog/agents/junior-creator.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "senior-validator",
       "source": "catalog/agents/senior-validator.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "prompt-engineer",
       "source": "catalog/agents/prompt-engineer.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     }
   ],
@@ -55,49 +55,49 @@
     {
       "id": "vash-creator",
       "source": "catalog/skills/vash-creator/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "vash-validator",
       "source": "catalog/skills/vash-validator/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "vash-orchestrator",
       "source": "catalog/skills/vash-orchestrator/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "prompt-engineering",
       "source": "catalog/skills/prompt-engineering/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "code-reviewer",
       "source": "catalog/skills/code-reviewer/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "senior-architect",
       "source": "catalog/skills/senior-architect/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "multi-agent-patterns",
       "source": "catalog/skills/multi-agent-patterns/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     },
     {
       "id": "canary-verifier",
       "source": "catalog/skills/canary-verifier/SKILL.md",
-      "commit": "to-verify",
+      "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f",
       "licence": "MIT"
     }
   ],

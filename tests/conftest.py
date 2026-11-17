@@ -14,7 +14,7 @@ def tmp_repo(tmp_path, monkeypatch):
     freeze = {
         "schema_version": "1.0",
         "project": {"id": "t", "name": "T", "repository": "t/t", "visibility": "private"},
-        "vash": {"version": "3.0.0", "commit": "to-verify"},
+        "vash": {"version": "3.0.0", "commit": "719ec2cf0b9ea37c8879f301427419f73fbf898f"},
         "stack": {"pack": "design-only", "pack_version": "1.0.0", "platform_version": {}},
         "forge": {"choice": "github", "settings": {"repo": "t/t"}},
         "ci": {"choice": "github-actions", "settings": {"repo": "t/t"}},

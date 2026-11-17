@@ -1,4 +1,5 @@
 """Stage 0: ownership and dependency check (C-12)."""
+import re
 import sys
 import argparse
 import subprocess
@@ -46,6 +47,23 @@ class CatalogStackPack(StackPack):
     def outputs_layout(self) -> list[str]:
         return self.manifest().get("outputs", [])
 
+SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+def unpinned(data: dict) -> list[str]:
+    """Rule R7 (freezing): VASH and every agent, skill and tool the project loads are pinned to a full commit."""
+    found = []
+    commit = str(data.get("vash", {}).get("commit", ""))
+    if not SHA.match(commit):
+        found.append(f"vash.commit is '{commit}', not a commit: pin it to the commit of the VASH release in use")
+    for kind in ("agents", "skills", "tools"):
+        for entry in data.get(kind, []) or []:
+            commit = str(entry.get("commit", ""))
+            if not SHA.match(commit):
+                found.append(f"{kind} entry '{entry.get('id', '?')}' has commit '{commit}', not a commit: pin it")
+    return found
+
+
 def run(repo_root: Path) -> StageReport:
     """Run Stage 0 checks on the repository."""
     problems = []
@@ -68,6 +86,8 @@ def run(repo_root: Path) -> StageReport:
     for c in checks:
         if not c.ok:
             problems.append(f"Tool {c.tool} expected {c.expected}, found {c.found}")
+
+    problems.extend(unpinned(freeze.data))
 
     for adr_id in freeze.decisions:
         matches = list((repo_root / "decisions").glob(f"{adr_id}*.md"))
