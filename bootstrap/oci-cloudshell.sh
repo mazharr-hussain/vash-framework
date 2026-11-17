@@ -1,9 +1,47 @@
 #!/bin/bash
 # VASH onboarding for OCI Cloud Shell.
 #   curl -fsSL https://raw.githubusercontent.com/mazharr-hussain/vash-framework/main/bootstrap/oci-cloudshell.sh | bash -s -- [options]
-# Options are passed to `vash onboard oci` (for example --runner-repo owner/name, --down, --yes).
+# Which VASH is installed (here and on the VM it builds):
+#   (default)          the live version: the newest GitHub release, e.g. v3.1.0
+#   --version v3.0.0   that release exactly (also how to go back to an earlier one)
+#   --channel dev      the development version: whatever is on main now
+# Every other option is passed to `vash onboard oci` (for example --runner-repo owner/name, --down, --yes).
 set -euo pipefail
-SOURCE="${VASH_SOURCE:-git+https://github.com/mazharr-hussain/vash-framework.git}"
+REPO="mazharr-hussain/vash-framework"
+
+CHANNEL="stable"
+VERSION=""
+ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --channel) CHANNEL="${2:-}"; shift 2 ;;
+    --channel=*) CHANNEL="${1#*=}"; shift ;;
+    --version) VERSION="${2:-}"; shift 2 ;;
+    --version=*) VERSION="${1#*=}"; shift ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+
+if [ -n "${VASH_SOURCE:-}" ]; then
+  REF="custom"
+elif [ -n "$VERSION" ]; then
+  case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+  REF="$VERSION"
+elif [ "$CHANNEL" = "dev" ]; then
+  REF="main"
+elif [ "$CHANNEL" = "stable" ]; then
+  REF=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)
+  if [ -z "$REF" ]; then
+    echo "No VASH release found (or GitHub could not be reached): installing the development version (main)."
+    REF="main"
+  fi
+else
+  echo "Unknown --channel '$CHANNEL': use stable or dev" >&2
+  exit 2
+fi
+export VASH_SOURCE="${VASH_SOURCE:-git+https://github.com/$REPO.git@$REF}"
+echo "Installing VASH $REF ($VASH_SOURCE)"
 
 python_ok() {
   "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null
@@ -21,8 +59,8 @@ VENV="$HOME/.vash/venv"
 if [ -n "$PY" ]; then
   [ -x "$VENV/bin/vash" ] || "$PY" -m venv "$VENV"
   "$VENV/bin/pip" install -q --upgrade pip
-  # --force-reinstall: the version number stays 3.0.0 between fixes, so a plain upgrade would keep old code.
-  "$VENV/bin/pip" install -q --upgrade --force-reinstall "$SOURCE"
+  # --force-reinstall: the development version keeps the same version number between changes.
+  "$VENV/bin/pip" install -q --upgrade --force-reinstall "$VASH_SOURCE"
 else
   # No Python 3.11+ here: uv fetches a standalone Python into the home folder (no root needed).
   if ! command -v uv >/dev/null; then
@@ -30,12 +68,12 @@ else
     export PATH="$HOME/.local/bin:$PATH"
   fi
   [ -x "$VENV/bin/vash" ] || uv venv --python 3.12 "$VENV"
-  uv pip install -q --python "$VENV/bin/python" --reinstall-package vash "$SOURCE"
+  uv pip install -q --python "$VENV/bin/python" --reinstall-package vash "$VASH_SOURCE"
 fi
 
 # Run with the terminal as stdin, so the confirmations work under `curl | bash`.
 if [ -t 0 ]; then
-  exec "$VENV/bin/vash" onboard oci "$@"
+  exec "$VENV/bin/vash" onboard oci ${ARGS[@]+"${ARGS[@]}"}
 else
-  exec "$VENV/bin/vash" onboard oci "$@" </dev/tty
+  exec "$VENV/bin/vash" onboard oci ${ARGS[@]+"${ARGS[@]}"} <"${VASH_TTY:-/dev/tty}"
 fi

@@ -21,6 +21,18 @@ deleted, and these checks must pass before the merge button turns active.
 
 An AI review (`pr-review.yml`) then posts one advisory comment when the `GEMINI_API_KEY` secret is set.
 
+## Versions: live and development
+
+| Track | What it is | How to install |
+|---|---|---|
+| Live | the newest GitHub release, e.g. `v3.1.0` | the bootstrap command as it is (the default) |
+| A named release | any earlier release, e.g. to go back | add `--version v3.0.0` |
+| Development | whatever is on `main` now | add `--channel dev` |
+
+A release is published by pushing a tag that equals the version in `pyproject.toml` (`.github/workflows/release.yml`
+tests, builds and publishes it). The VM that onboarding builds gets the same VASH as the shell that built it, and its
+tools are pinned too (Ollama, the GitHub Actions runner with its checksum).
+
 ## Links
 - [LICENSE](LICENSE)
 - [GOVERNANCE](GOVERNANCE.md)
