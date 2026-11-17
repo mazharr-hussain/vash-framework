@@ -2,14 +2,15 @@
 # VASH onboarding for OCI Cloud Shell.
 #   curl -fsSL https://raw.githubusercontent.com/mazharr-hussain/vash-framework/main/bootstrap/oci-cloudshell.sh | bash -s -- [options]
 # Which VASH is installed (here and on the VM it builds):
-#   (default)          the live version: the newest GitHub release, e.g. v3.1.0
+#   (default)          live: the newest full GitHub release, e.g. v3.1.0
+#   --channel test     test: the newest release including pre-releases, e.g. v3.2.0-rc.1
+#   --channel dev      dev: whatever is on main now
 #   --version v3.0.0   that release exactly (also how to go back to an earlier one)
-#   --channel dev      the development version: whatever is on main now
 # Every other option is passed to `vash onboard oci` (for example --runner-repo owner/name, --down, --yes).
 set -euo pipefail
 REPO="mazharr-hussain/vash-framework"
 
-CHANNEL="stable"
+CHANNEL="live"
 VERSION=""
 ARGS=()
 while [ $# -gt 0 ]; do
@@ -29,15 +30,23 @@ elif [ -n "$VERSION" ]; then
   REF="$VERSION"
 elif [ "$CHANNEL" = "dev" ]; then
   REF="main"
-elif [ "$CHANNEL" = "stable" ]; then
-  REF=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+elif [ "$CHANNEL" = "test" ]; then
+  # The releases list is newest first and includes pre-releases (test versions).
+  REF=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" 2>/dev/null | tr "," "\n" \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)
+  if [ -z "$REF" ]; then
+    echo "No VASH release found (or GitHub could not be reached): installing the development version (main)."
+    REF="main"
+  fi
+elif [ "$CHANNEL" = "live" ] || [ "$CHANNEL" = "stable" ]; then
+  REF=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | tr "," "\n" \
     | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)
   if [ -z "$REF" ]; then
     echo "No VASH release found (or GitHub could not be reached): installing the development version (main)."
     REF="main"
   fi
 else
-  echo "Unknown --channel '$CHANNEL': use stable or dev" >&2
+  echo "Unknown --channel '$CHANNEL': use live, test or dev" >&2
   exit 2
 fi
 export VASH_SOURCE="${VASH_SOURCE:-git+https://github.com/$REPO.git@$REF}"

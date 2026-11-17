@@ -11,16 +11,26 @@ def _exe(path: Path, text: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
-def run(tmp_path: Path, *args: str, release: str | None = "v3.1.0", env: dict | None = None) -> tuple[str, str, str]:
-    """Run the script with stand-ins for curl, pip and vash; return (its output, what pip installed, vash's args)."""
+def run(tmp_path: Path, *args: str, release: str | None = "v3.1.0", newest: str = "v3.2.0-rc.1",
+        env: dict | None = None) -> tuple[str, str, str]:
+    """Run the script with stand-ins for curl, pip and vash; return (its output, what pip installed, vash's args).
+
+    The curl stand-in answers like GitHub: releases/latest is the newest full release (`release`); the releases list
+    starts with the newest release of any kind, pre-releases included (`newest`)."""
     home, stubs = tmp_path / "home", tmp_path / "stubs"
     venv_bin = home / ".vash" / "venv" / "bin"
     venv_bin.mkdir(parents=True)
     stubs.mkdir()
     _exe(venv_bin / "pip", f'[ "$1" = install ] && echo "${{@: -1}}" > "{tmp_path}/installed"\nexit 0\n')
     _exe(venv_bin / "vash", f'echo "$*" > "{tmp_path}/vash-args"\necho "$VASH_SOURCE" > "{tmp_path}/vash-source"\n')
-    answer = f'{{"tag_name": "{release}", "name": "x"}}' if release else ""
-    _exe(stubs / "curl", f"echo '{answer}'\n" + ("" if release else "exit 22\n"))
+    if release:
+        _exe(stubs / "curl", f"""case "$*" in
+  *releases/latest*) echo '{{"tag_name": "{release}", "name": "x"}}' ;;
+  *) echo '[{{"tag_name": "{newest}", "prerelease": true}}, {{"tag_name": "{release}"}}]' ;;
+esac
+""")
+    else:
+        _exe(stubs / "curl", "exit 22\n")
     full_env = {"HOME": str(home), "PATH": f"{stubs}:/usr/bin:/bin", "VASH_TTY": "/dev/null", **(env or {})}
     out = subprocess.run(["bash", str(SCRIPT), *args], env=full_env, stdin=subprocess.DEVNULL, capture_output=True,
                          text=True, check=False)
@@ -54,3 +64,23 @@ def test_without_any_release_it_says_so_and_installs_main(tmp_path):
 def test_vash_source_set_by_hand_wins(tmp_path):
     _, installed, _ = run(tmp_path, env={"VASH_SOURCE": "git+https://example.org/fork.git@abc"})
     assert installed == "git+https://example.org/fork.git@abc"
+
+
+def test_three_tracks_live_test_dev(tmp_path):
+    _, live, _ = run(tmp_path / "live", "--channel", "live")
+    _, test, _ = run(tmp_path / "test", "--channel", "test")
+    _, dev, _ = run(tmp_path / "dev", "--channel", "dev")
+    assert (live, test, dev) == (f"{REPO}@v3.1.0", f"{REPO}@v3.2.0-rc.1", f"{REPO}@main")
+    _, old_name, _ = run(tmp_path / "stable", "--channel", "stable")  # the earlier name of live still works
+    assert old_name == live
+
+
+def test_test_track_without_a_pre_release_gets_the_live_one(tmp_path):
+    _, installed, _ = run(tmp_path, "--channel", "test", newest="v3.1.0")
+    assert installed == f"{REPO}@v3.1.0"
+
+
+def test_an_unknown_channel_stops(tmp_path):
+    out = subprocess.run(["bash", str(SCRIPT), "--channel", "beta"], env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
+                         capture_output=True, text=True, check=False)
+    assert out.returncode == 2 and "use live, test or dev" in out.stderr
