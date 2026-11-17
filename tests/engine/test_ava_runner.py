@@ -137,3 +137,29 @@ def test_the_log_tells_the_truth_about_gate1_and_routes(tmp_repo):
     assert "PASS (1 file(s) checked)" in passed
     assert "JUNIOR_ROUTE: local / to-verify" in passed and "SENIOR_ROUTE: review / to-verify" in passed
     assert "[reason]" not in passed and "[item]" not in passed and "[vendor / model]" not in passed
+
+
+def test_code_is_saved_without_the_models_markdown_fence(tmp_repo):
+    # Seen in the local-model run on GitHub's runner: the artifact kept ```python ... ``` around the code.
+    _prompt(tmp_repo, "f1", "type: code\nWrite add")
+    reply = "Here is the function:\n```python\ndef add(a, b):\n    return a + b\n```\nHope it helps."
+    critic = FakeLLM({}, ["SCORE: 95"])
+    res = run_activity("f1", tmp_repo, llm={"local": FakeLLM({}, [reply]), "review": critic})
+    artifact = tmp_repo / "audit" / "artifacts" / "f1_artifact.txt"
+    assert artifact.read_text() == "def add(a, b):\n    return a + b\n" and res.verdict == "APPROVED"
+    assert "```" not in critic.requests[0]  # the critic judges the same code that is saved
+
+
+def test_code_only_keeps_answers_without_exactly_one_fence():
+    from vash.ava.runner import code_only
+    assert code_only("x = 1\n") == "x = 1\n"
+    two = "```python\na = 1\n```\nand\n```python\nb = 2\n```\n"
+    assert code_only(two) == two
+    assert code_only("```\nplain\n```") == "plain\n"
+
+
+def test_documents_keep_their_markdown(tmp_repo):
+    _prompt(tmp_repo, "f2", "type: artifact\nWrite a design")
+    doc = "# Design\n```python\nx = 1\n```\nText.\n"
+    run_activity("f2", tmp_repo, llm={"local": FakeLLM({}, [doc]), "review": FakeLLM({}, ["SCORE: 95"])})
+    assert (tmp_repo / "audit" / "artifacts" / "f2_artifact.md").read_text() == doc

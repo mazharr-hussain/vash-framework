@@ -27,6 +27,17 @@ def parse_score(text: str) -> int | None:
     return value if 0 <= value <= 100 else None
 
 
+FENCE = re.compile(r"^```[^\n`]*\n(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def code_only(text: str) -> str:
+    """The code of a model's answer: models often wrap code in a markdown fence (```python ... ```), sometimes with
+    a sentence before or after. When the answer holds exactly one fenced block, that block's content is the code;
+    otherwise (no fence, or several blocks that may belong together) the answer is kept as it is."""
+    blocks = FENCE.findall(text)
+    return blocks[0] if len(blocks) == 1 else text
+
+
 def _normalize(text: str) -> str:
     lines = [line.rstrip() for line in text.replace("\r\n", "\n").split("\n")]
     return "\n".join(lines).rstrip("\n") + "\n"
@@ -138,7 +149,8 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
         rounds = r
         try:
             jr_reply = llm_reply(freeze, "coder", current_prompt, llm)
-            artifact_path.write_text(_normalize(jr_reply.text), encoding="utf-8", newline="\n")
+            artifact = _normalize(code_only(jr_reply.text) if act_type == "code" else jr_reply.text)
+            artifact_path.write_text(artifact, encoding="utf-8", newline="\n")
         except RouteUnavailable:
             _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "FAIL", "Coder route unavailable",
                        log_paths, "not run (no artifact)", routes(None, None))
@@ -156,7 +168,7 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
         gate1_line = f"PASS ({g1.files_checked} file(s) checked)"
 
         try:
-            sr_reply = llm_reply(freeze, "critic", critic_prompt(prompt, _load_checklist(checklist), jr_reply.text), llm)
+            sr_reply = llm_reply(freeze, "critic", critic_prompt(prompt, _load_checklist(checklist), artifact), llm)
         except RouteUnavailable:
             _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "FAIL", "Critic route unavailable",
                        log_paths, gate1_line, routes(jr_reply, None))
