@@ -622,6 +622,8 @@ def run_cli(args: Any) -> int:
         vault=not args.yes and not args.no_vault and not args.cleanup_only,
         guardrails=not args.yes and not args.cleanup_only,
         guardrails_only=args.guardrails_only,
+        # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
+        vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )
     if args.workdir:
         options.workdir = Path(args.workdir)

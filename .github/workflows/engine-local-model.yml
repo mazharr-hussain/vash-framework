@@ -1,0 +1,43 @@
+name: Engine with a local model
+
+# Runs VASH's AvA loop against a real Ollama model on GitHub's own runner (CPU, small model): no OCI VM
+# and no API key needed. It checks the plumbing (local model route, Gate 1, logs), not the model's quality.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'  # weekly, Monday 03:17 UTC
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/vash/ava/**'
+      - 'src/vash/adapters/llm/**'
+      - 'src/vash/core/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/engine-local-model.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  local-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OLLAMA_VERSION: '0.40.16'  # same pin as the OCI VM (iac/oci/cloud-init/vash-runner.sh)
+      MODEL: 'qwen2.5:0.5b'
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+        with:
+          python-version: '3.11'
+      - name: Install Ollama (pinned) and pull a small model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama --version
+          curl -fsS http://localhost:11434/api/version || { (ollama serve >/tmp/ollama.log 2>&1 &); sleep 5; }
+          ollama pull "$MODEL"
+      - name: Install VASH
+        run: pip install -e .
+      - name: Run one AvA activity on the local model
+        run: bash tests/e2e/local_model_run.sh "$MODEL"

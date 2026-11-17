@@ -4,6 +4,35 @@ VASH is a technology-independent framework designed to run an AI-driven software
 
 **Status:** 🚧 Under Construction. Nothing is installable yet.
 
+## How changes reach `main`
+
+`main` is protected by a ruleset: every change goes through a pull request, nothing is force-pushed or
+deleted, and these checks must pass before the merge button turns active.
+
+| Check | Workflow | What it does |
+|---|---|---|
+| `test` | `ci.yml` | the test suite, including an end-to-end run of the engine |
+| `gate1` | `ci.yml` | Gate 1, VASH's own deterministic checks |
+| `stage0` | `ci.yml` | the project and catalog checks (`vash check`) |
+| `terraform` | `ci.yml` | `init`, `validate` and offline plan tests of the OCI Terraform |
+| `Checks without AI` | `pr-review.yml` | ruff, bandit, pip-audit, detect-secrets, actionlint |
+| `New dependencies (GitHub dependency review)` | `pr-review.yml` | new dependencies with known vulnerabilities |
+| CodeQL | repository setting | GitHub's code scanning |
+
+An AI review (`pr-review.yml`) then posts one advisory comment when the `GEMINI_API_KEY` secret is set.
+
+## Versions: live and development
+
+| Track | What it is | How to install |
+|---|---|---|
+| Live | the newest GitHub release, e.g. `v3.1.0` | the bootstrap command as it is (the default) |
+| A named release | any earlier release, e.g. to go back | add `--version v3.0.0` |
+| Development | whatever is on `main` now | add `--channel dev` |
+
+A release is published by pushing a tag that equals the version in `pyproject.toml` (`.github/workflows/release.yml`
+tests, builds and publishes it). The VM that onboarding builds gets the same VASH as the shell that built it, and its
+tools are pinned too (Ollama, the GitHub Actions runner with its checksum).
+
 ## Links
 - [LICENSE](LICENSE)
 - [GOVERNANCE](GOVERNANCE.md)
