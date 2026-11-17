@@ -27,5 +27,18 @@ def run(target: str, repo_root: Path) -> int:
         else:
             shutil.copy2(item, target_path / item.name)
 
+    _pin_vash(target_path / "project-stack.json")
     print(f"Initialised project in {target_path}")
     return 0
+
+
+def _pin_vash(path: Path) -> None:
+    """Pin the new project to the VASH that created it (version and commit), rule R7."""
+    import json
+    from vash import __version__
+    from vash.core.paths import vash_commit
+    if not path.exists():
+        return
+    stack = json.loads(path.read_text(encoding="utf-8"))
+    stack.setdefault("vash", {}).update({"version": __version__, "commit": vash_commit()})
+    path.write_text(json.dumps(stack, indent=2) + "\n", encoding="utf-8", newline="\n")

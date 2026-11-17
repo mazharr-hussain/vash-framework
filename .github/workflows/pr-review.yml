@@ -37,7 +37,8 @@ jobs:
       - name: Known vulnerabilities in dependencies (pip-audit)
         run: pip-audit .
       - name: Secrets (detect-secrets) - anything not in the reviewed baseline blocks
-        run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+        # Lines holding a git commit id (40 lowercase hex characters, used to pin versions) are not secrets.
+        run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline --exclude-lines '\b[0-9a-f]{40}\b'
       - name: Workflow files (actionlint)
         run: actionlint -shellcheck= -pyflakes=
 

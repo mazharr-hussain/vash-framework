@@ -34,3 +34,27 @@ def test_project_pyproject_is_not_taken_for_vash(tmp_path, monkeypatch):
     assert paths.vash_root() == elsewhere
     (tmp_path / "method").mkdir()
     assert paths.vash_root() == tmp_path.resolve()
+
+
+def test_vash_commit_from_pips_record_of_a_git_install(monkeypatch, tmp_path):
+    import importlib.metadata
+    from vash.core import paths
+    sha = "719ec2cf0b9ea37c8879f301427419f73fbf898f"
+
+    class Dist:
+        def read_text(self, name):
+            return '{"url": "https://github.com/o/r.git", "vcs_info": {"vcs": "git", "commit_id": "%s"}}' % sha
+    monkeypatch.setattr(importlib.metadata, "distribution", lambda name: Dist())
+    assert paths.vash_commit() == sha
+
+
+def test_vash_commit_is_to_verify_when_nothing_tells(monkeypatch, tmp_path):
+    import importlib.metadata
+    from vash.core import paths
+
+    class Dist:
+        def read_text(self, name):
+            return None  # a wheel from a release page records no commit
+    monkeypatch.setattr(importlib.metadata, "distribution", lambda name: Dist())
+    monkeypatch.setenv("VASH_HOME", str(tmp_path))  # not a git checkout
+    assert paths.vash_commit() == "to-verify"

@@ -95,3 +95,23 @@ def test_check_stack_main(tmp_repo, monkeypatch, capsys):
     assert main(["--repo", str(tmp_repo)]) == 1
     captured = capsys.readouterr()
     assert "Problems found" in captured.out
+
+
+def test_to_verify_is_not_a_pin():
+    from vash.tools.check_stack import unpinned
+    sha = "719ec2cf0b9ea37c8879f301427419f73fbf898f"
+    good = {"vash": {"commit": sha}, "skills": [{"id": "s", "commit": sha}], "agents": [], "tools": []}
+    assert unpinned(good) == []
+    bad = {"vash": {"commit": "to-verify"}, "agents": [{"id": "a", "commit": "to-verify"}],
+           "tools": [{"id": "t", "commit": "abc123"}]}
+    found = unpinned(bad)
+    assert len(found) == 3 and "vash.commit is 'to-verify'" in found[0]
+    assert "agents entry 'a'" in found[1] and "tools entry 't' has commit 'abc123'" in found[2]
+
+
+def test_vash_own_freeze_is_pinned():
+    import json
+    from pathlib import Path
+    from vash.tools.check_stack import unpinned
+    stack = json.loads((Path(__file__).resolve().parents[2] / "project-stack.json").read_text())
+    assert unpinned(stack) == []

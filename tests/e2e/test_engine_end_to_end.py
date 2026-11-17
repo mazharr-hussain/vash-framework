@@ -71,3 +71,9 @@ def test_a_low_score_is_never_approved(project, capsys):
     assert main(["ava", "T-1", "--repo", str(project)]) == 1
     assert "ESCALATED (score 40)" in capsys.readouterr().out
     assert len(list((project / "audit" / "ava_logs").glob("T-1_round*.md"))) == 3
+
+
+def test_init_pins_the_project_to_the_running_vash(project):
+    import re
+    stack = json.loads((project / "project-stack.json").read_text())
+    assert re.fullmatch(r"[0-9a-f]{40}", stack["vash"]["commit"])  # the checkout's commit, not "to-verify"

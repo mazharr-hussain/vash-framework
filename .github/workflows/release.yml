@@ -1,12 +1,15 @@
 name: Release
 
-# Publishing a live version: push a tag such as v3.1.0 on main (git tag v3.1.0 && git push origin v3.1.0),
-# or create the release on github.com with a new tag. The tag must equal the version in pyproject.toml.
-# The bootstrap installs the newest release by default; `--channel dev` installs main instead.
+# Three tracks:
+#   live  a tag vX.Y.Z equal to the version in pyproject.toml         -> a full release (the default install)
+#   test  a tag vX.Y.Z-rc.N for the version in pyproject.toml        -> a pre-release (`--channel test`)
+#   dev   main itself, no tag                                         -> `--channel dev`
+# Create the tag on main, or create the release on github.com with a new tag (tick "Set as a pre-release" for a
+# test version). This workflow checks the tag, tests, builds and publishes.
 
 on:
   push:
-    tags: [ 'v*.*.*' ]
+    tags: [ 'v*.*.*' ]  # also matches test tags such as v3.2.0-rc.1
 
 permissions:
   contents: write
@@ -24,8 +27,12 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-          if [ "v$version" != "$TAG" ]; then
-            echo "::error::Tag $TAG does not match version $version in pyproject.toml"
+          if [ "$TAG" = "v$version" ]; then
+            echo "Live release $TAG"
+          elif [[ "$TAG" =~ ^v${version//./\\.}-rc\.[0-9]+$ ]]; then
+            echo "Test release (pre-release) $TAG"
+          else
+            echo "::error::Tag $TAG must be v$version (live) or v$version-rc.N (test), matching pyproject.toml"
             exit 1
           fi
       - name: Tag must be on main
@@ -46,8 +53,12 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           # Created on github.com first? Then add the build to it; otherwise create the release.
+          test_flag=""
+          case "$TAG" in *-rc.*) test_flag="--prerelease" ;; esac
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
+            # A test tag is always a pre-release, even if it was created on github.com without the tick.
+            [ -z "$test_flag" ] || gh release edit "$TAG" --prerelease
           else
-            gh release create "$TAG" dist/* --title "VASH $TAG" --generate-notes --verify-tag
+            gh release create "$TAG" dist/* --title "VASH $TAG" --generate-notes --verify-tag $test_flag
           fi
