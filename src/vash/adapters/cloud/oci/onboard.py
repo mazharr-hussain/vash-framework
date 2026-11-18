@@ -201,20 +201,20 @@ class Onboarding:
         """--database: an Always Free Autonomous Database `<prefix>-db`, made once; its password is in the vault."""
         if not self.options.database:
             return
-        made = self._state().get("database")
-        if made:
-            self.echo(f"Database {self.prefix}-db: the one made at an earlier onboarding (password in vault secret "
-                      f"'{made.get('secret', '')}')")
-            return
-        from .database import DatabaseSetup
+        from .database import DatabaseSetup, vault_entry
+        entry = vault_entry(self.prefix)  # the name of the vault secret; the password itself is never printed
         state = self._state()
+        if state.get("database"):
+            self.echo(f"Database {self.prefix}-db: the one made at an earlier onboarding (password in vault secret "
+                      f"'{entry}')")
+            return
         vault = {k: state.get(k, "") for k in ("vault_id", "key_id", "vault_compartment_id")}
         made = DatabaseSetup(self.oci, self.echo, self.confirm, self.foundation(tenancy)).create(
             self.prefix, compartment, self.options.compartment_name or "", vault)
         self._save_state(database=made)
         self.echo(f"Read the password with: oci secrets secret-bundle get-secret-bundle-by-name --vault-id "
-                  f"{vault['vault_id']} --secret-name {made['secret']} --query 'data.\"secret-bundle-content\".content' "
-                  f"--raw-output | base64 -d")
+                  f"{state.get('vault_id', '')} --secret-name {entry} "
+                  f"--query 'data.\"secret-bundle-content\".content' --raw-output | base64 -d")
 
     def foundation(self, tenancy: str) -> Foundation:
         """Compartments, vaults and keys through Oracle's CD3 modules (iac/oci/environments/foundation)."""

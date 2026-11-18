@@ -37,13 +37,15 @@ def generate_password(length: int = LENGTH) -> str:
             return password
 
 
+def vault_entry(prefix: str) -> str:
+    """Name of the vault secret that holds the admin password of `<prefix>-db` (a name, not the password)."""
+    return f"{prefix}-db-admin-password"
+
+
 class DatabaseSetup:
     def __init__(self, oci: Callable[..., Any], echo: Callable[[str], None], confirm: Callable[[str], bool],
                  build: Foundation):
         self.oci, self.echo, self.confirm, self.build = oci, echo, confirm, build
-
-    def secret_name(self, prefix: str) -> str:
-        return f"{prefix}-db-admin-password"
 
     def existing_password(self, vault: dict[str, str], name: str) -> str | None:
         found = self.oci("vault", "secret", "list", "--compartment-id", vault["vault_compartment_id"],
@@ -71,11 +73,11 @@ class DatabaseSetup:
             os.remove(path)
 
     def create(self, prefix: str, compartment_id: str, compartment_name: str, vault: dict[str, str]) -> dict[str, str]:
-        """{id, db_name, secret}: the database `<prefix>-db` and the name of the secret holding its password."""
+        """{id, db_name, vault_entry}: the database `<prefix>-db` and the name of the vault secret with its password."""
         if not (vault.get("vault_id") and vault.get("key_id")):
             raise VashError("No vault for the database password",
                             "Run onboarding without --no-vault, so VASH can keep the password in a vault")
-        name = self.secret_name(prefix)
+        name = vault_entry(prefix)
         if not self.confirm(f"Create the Always Free Autonomous Database '{prefix}-db' (1 OCPU, 20 GB, $0) in "
                             f"compartment {compartment_name}? Its admin password is generated and kept only in "
                             f"the vault secret '{name}'; clients connect with the wallet (mutual TLS)"):
@@ -90,4 +92,4 @@ class DatabaseSetup:
         self.echo(f"Creating database {prefix}-db (VASH database module; takes a few minutes) ...")
         made = self.build.database(prefix, compartment_id, password)
         self.echo(f"Database {prefix}-db created")
-        return {"id": made.get("id", ""), "db_name": made.get("db_name", ""), "secret": name}
+        return {"id": made.get("id", ""), "db_name": made.get("db_name", ""), "vault_entry": name}

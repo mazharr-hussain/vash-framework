@@ -93,7 +93,7 @@ def test_database_only_makes_the_database_and_keeps_the_password_out_of_files_an
     assert all(password not in " ".join(c[0]) for c in cloud.calls)
     state = json.loads((home / ".vash/oci/onboard.json").read_text())
     assert state["database"] == {"id": "ocid1.autonomousdatabase..d", "db_name": "northdb",
-                                 "secret": "north-db-admin-password"}  # pragma: allowlist secret (a test value)
+                                 "vault_entry": "north-db-admin-password"}  # pragma: allowlist secret (a test value)
 
 
 def test_secret_request_file_is_removed(home, monkeypatch, tmp_path):
