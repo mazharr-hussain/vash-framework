@@ -58,3 +58,22 @@ run "no_email_by_default" {
     error_message = "Without an e-mail address nothing is sent."
   }
 }
+
+run "network_in_its_own_compartment" {
+  command = plan
+  variables {
+    network_compartment_id = "ocid1.compartment.oc1..network"
+  }
+  assert {
+    condition     = local.network_compartment_id == "ocid1.compartment.oc1..network"
+    error_message = "The network objects must go to the network compartment."
+  }
+}
+
+run "network_defaults_to_the_vm_compartment" {
+  command = plan
+  assert {
+    condition     = local.network_compartment_id == "ocid1.compartment.oc1..test"
+    error_message = "Without a network compartment the network stays with the VM (earlier onboardings keep theirs)."
+  }
+}

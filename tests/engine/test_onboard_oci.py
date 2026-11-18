@@ -304,7 +304,8 @@ def test_names_are_typed_by_the_owner(home, monkeypatch):
     tfvars = json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
     assert tfvars["name_prefix"] == "south"
     created = json.loads((home / ".vash/oci/environments/foundation/terraform.tfvars.json").read_text())
-    assert list(created["compartments"]) == ["kyc-runner"]  # created by the CD3 iam-compartment module
+    # created by the CD3 iam-compartment module: the VM's compartment, and 'network' for the new network
+    assert list(created["compartments"]) == ["kyc-runner", "network"]
     assert not any(c[0][1:4] == ["iam", "compartment", "create"] for c in cloud.calls)
 
 

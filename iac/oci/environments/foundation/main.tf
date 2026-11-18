@@ -47,6 +47,17 @@ module "key" {
   protection_mode     = "HSM"
 }
 
+# Always Free Autonomous Databases: VASH's own module (the CD3 adb module has no is_free_tier option, see
+# catalog/search-log.md). The admin password comes from the environment (TF_VAR_db_admin_passwords) only when a
+# database is created; it is never written to terraform.tfvars.json, and onboarding keeps it in a vault secret.
+module "database" {
+  for_each       = var.databases
+  source         = "../../modules/database"
+  compartment_id = each.value.compartment_id
+  name_prefix    = each.key
+  admin_password = lookup(var.db_admin_passwords, each.key, "")
+}
+
 # Free-tier guardrails (asked in onboarding): a quota policy that zeroes paid families and allows only the
 # Always Free amounts (OCI refuses anything beyond it), and a monthly budget that e-mails at the first spend
 # and when spend is forecast (it only warns; OCI has no hard spending cap).

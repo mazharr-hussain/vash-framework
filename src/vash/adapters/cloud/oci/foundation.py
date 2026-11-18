@@ -1,7 +1,8 @@
-"""Compartments, vaults and keys through Oracle's CD3 Automation Toolkit modules (terraform).
+"""Compartments, vaults, keys and Always Free databases through Oracle's CD3 Automation Toolkit modules (terraform).
 
-The `foundation` environment (iac/oci/environments/foundation) holds three maps in its
-terraform.tfvars.json: compartments, vaults and keys. Each create adds one entry and applies;
+The `foundation` environment (iac/oci/environments/foundation) holds four maps in its
+terraform.tfvars.json: compartments, vaults, keys and databases (VASH's own module for the database: the
+CD3 adb module has no free-tier option). Each create adds one entry and applies;
 terraform leaves what already exists as it is. When an apply fails, the entry is taken out again,
 so a later run does not retry something the owner did not choose again.
 """
@@ -19,6 +20,9 @@ ENVIRONMENT = "foundation"
 LIMIT_HINT = ("OCI's limit for this tenancy is reached (vaults waiting for deletion still count). "
               "Run again and pick an existing vault by S.No, or ask Oracle for a higher limit")
 
+DB_LIMIT_HINT = ("Always Free allows 2 Autonomous Databases per tenancy (stopped ones count too). "
+                 "Delete one you no longer need, or use an existing one")
+
 
 class Foundation:
     def __init__(self, workdir: Path, provider: dict[str, Any], echo: Callable[[str], None],
@@ -34,7 +38,7 @@ class Foundation:
 
     def _values(self) -> dict[str, Any]:
         values = json.loads(self.tfvars.read_text()) if self.tfvars.exists() else {}
-        for name in ("compartments", "vaults", "keys"):
+        for name in ("compartments", "vaults", "keys", "databases"):
             values.setdefault(name, {})
         return {**values, **self.provider}
 
@@ -47,7 +51,8 @@ class Foundation:
             values[section][name] = entry
         return self._change(change, name)
 
-    def _change(self, change: Callable[[dict[str, Any]], None], name: str) -> dict[str, Any]:
+    def _change(self, change: Callable[[dict[str, Any]], None], name: str,
+                env: dict[str, str] | None = None) -> dict[str, Any]:
         before = self._values()
         after = json.loads(json.dumps(before))
         change(after)
@@ -55,18 +60,19 @@ class Foundation:
         adapter = Adapter({"iac_dir": str(self.workdir)})
         try:
             try:
-                return adapter.apply(ENVIRONMENT, approved=True)
+                return adapter.apply(ENVIRONMENT, approved=True, env=env)
             except VashError as exc:
                 if "NotAuthorizedOrNotFound" not in str(exc):
                     raise
                 # IAM is eventually consistent: a new compartment can read as 404 for a while.
                 self.echo("OCI is still making the new object visible; trying again in 30 seconds ...")
                 self.sleep(30)
-                return adapter.apply(ENVIRONMENT, approved=True)
+                return adapter.apply(ENVIRONMENT, approved=True, env=env)
         except VashError as exc:
             self._write(before)  # not created: forget it, so a later run does not retry it
             if "LimitExceeded" in str(exc):
-                raise VashError(f"Could not create {name}: the tenancy limit is reached", LIMIT_HINT) from exc
+                hint = DB_LIMIT_HINT if name.startswith("the database") else LIMIT_HINT
+                raise VashError(f"Could not create {name}: the tenancy limit is reached", hint) from exc
             raise
 
     def guardrails(self, statements: list[str], budget_email: str) -> None:
@@ -89,3 +95,12 @@ class Foundation:
         out = self._apply("keys", name, {"compartment_id": compartment_id,
                                          "management_endpoint": management_endpoint})
         return out.get("key_ids", {}).get("value", {}).get(name, "")
+
+    def database(self, name: str, compartment_id: str, admin_password: str) -> dict[str, str]:
+        """An Always Free Autonomous Database `<name>-db`; the password goes to terraform through the environment
+        only, never into terraform.tfvars.json. Returns {id, db_name}."""
+        def change(values: dict[str, Any]) -> None:
+            values["databases"][name] = {"compartment_id": compartment_id}
+        out = self._change(change, f"the database {name}-db",
+                           env={"TF_VAR_db_admin_passwords": json.dumps({name: admin_password})})
+        return out.get("databases", {}).get("value", {}).get(name, {})

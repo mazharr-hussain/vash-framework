@@ -28,6 +28,7 @@ ENVIRONMENT = "always-free"
 DEFAULT_SOURCE = "git+https://github.com/mazharr-hussain/vash-framework.git"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
 DEFAULT_NAME = "vash"
+DEFAULT_NETWORK = "network"
 COMPARTMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 NAME_PREFIX_RE = re.compile(r"^[a-z][a-z0-9-]{0,19}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -66,6 +67,9 @@ class Options:
     notify_email: str | None = None  # e-mailed when the VM is made, when VASH is ready, or when setup fails
     guardrails: bool = False  # offer the free-tier quota policy and budget (asked once; never with --yes)
     guardrails_only: bool = False
+    database: bool = False  # an Always Free Autonomous Database, password in the vault
+    database_only: bool = False  # compartment, vault and database; no VM
+    network_compartment: str | None = None  # where a new network goes (default 'network', asked)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -148,6 +152,10 @@ class Onboarding:
 
     def ensure_compartment(self, tenancy: str) -> str:
         name = self.compartment_name()
+        return self.find_or_create_compartment(tenancy, name, "VASH runner (created by vash onboard)",
+                                               "Pass --compartment <name of an existing compartment>")
+
+    def find_or_create_compartment(self, tenancy: str, name: str, description: str, fix: str) -> str:
         found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy, "--name", name,
                          "--lifecycle-state", "ACTIVE", "--compartment-id-in-subtree", "true",
                          "--access-level", "ACCESSIBLE")
@@ -156,11 +164,57 @@ class Onboarding:
             self.echo(f"Compartment '{name}' exists")
             return items[0]["id"]
         if not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
-            raise VashError(f"No compartment '{name}'", "Pass --compartment <name of an existing compartment>")
+            raise VashError(f"No compartment '{name}'", fix)
         self.echo(f"Creating compartment {name} (CD3 iam-compartment module) ...")
-        comp_id = self.foundation(tenancy).compartment(name, "VASH runner (created by vash onboard)")
+        comp_id = self.foundation(tenancy).compartment(name, description)
         self.echo(f"Compartment '{name}' created")
         return comp_id
+
+    def network_compartment(self, tenancy: str) -> str:
+        """Where a new network goes: the 'network' compartment (one place for every application's networks), or a
+        name the owner types; an existing one is reused, a new one is made under the root after a yes."""
+        name = self.options.network_compartment
+        if not name:
+            if self.confirm(f"Put the new network (VCN, subnet, gateway, route table, security list) in a compartment "
+                            f"named '{DEFAULT_NETWORK}' (one place for every application's networks)?"):
+                name = DEFAULT_NETWORK
+            else:
+                name = self.ask_required("Name of the compartment for the network (an existing name, or a new one)",
+                                         COMPARTMENT_RE, "letters, digits, '.', '-' and '_', at most 100")
+            self.options.network_compartment = name
+        if not COMPARTMENT_RE.match(name):
+            raise VashError(f"Invalid compartment name '{name}'", "Use letters, digits, '.', '-' and '_', at most 100")
+        return self.find_or_create_compartment(tenancy, name, "Networks of every application (created by vash onboard)",
+                                               "Pass --network-compartment <name of an existing compartment>")
+
+    def ensure_prefix(self, previous: dict[str, Any]) -> None:
+        if previous.get("name_prefix"):
+            self.options.name_prefix = previous["name_prefix"]  # keep the names terraform already manages
+        elif not self.options.name_prefix:
+            self.options.name_prefix = self.choose_name(
+                "name prefix", "Name prefix for the new objects, e.g. north, south or your name (VM: <prefix>-runner, network: <prefix>-vcn)",
+                NAME_PREFIX_RE, "lowercase letters, digits and hyphens, starting with a letter, at most 20")
+        if not NAME_PREFIX_RE.match(self.prefix):
+            raise VashError(f"Invalid name prefix '{self.prefix}'", "Use lowercase letters, digits and hyphens, max 20")
+
+    def ensure_database(self, tenancy: str, compartment: str) -> None:
+        """--database: an Always Free Autonomous Database `<prefix>-db`, made once; its password is in the vault."""
+        if not self.options.database:
+            return
+        made = self._state().get("database")
+        if made:
+            self.echo(f"Database {self.prefix}-db: the one made at an earlier onboarding (password in vault secret "
+                      f"'{made.get('secret', '')}')")
+            return
+        from .database import DatabaseSetup
+        state = self._state()
+        vault = {k: state.get(k, "") for k in ("vault_id", "key_id", "vault_compartment_id")}
+        made = DatabaseSetup(self.oci, self.echo, self.confirm, self.foundation(tenancy)).create(
+            self.prefix, compartment, self.options.compartment_name or "", vault)
+        self._save_state(database=made)
+        self.echo(f"Read the password with: oci secrets secret-bundle get-secret-bundle-by-name --vault-id "
+                  f"{vault['vault_id']} --secret-name {made['secret']} --query 'data.\"secret-bundle-content\".content' "
+                  f"--raw-output | base64 -d")
 
     def foundation(self, tenancy: str) -> Foundation:
         """Compartments, vaults and keys through Oracle's CD3 modules (iac/oci/environments/foundation)."""
@@ -463,6 +517,14 @@ class Onboarding:
         if self.options.guardrails_only:
             self.ensure_guardrails(tenancy)
             return 0
+        if self.options.database_only:
+            self.ensure_prefix(self.existing_tfvars())
+            compartment = self.ensure_compartment(tenancy)
+            self.ensure_guardrails(tenancy)
+            self.ensure_vault(tenancy)
+            self.ensure_database(tenancy, compartment)
+            self.echo("Done (--database-only: no VM was made or changed)")
+            return 0
         if self.options.review:
             from .cleaner import Cleaner
             from .inventory import Inventory, review
@@ -485,19 +547,18 @@ class Onboarding:
         if self.options.vm_ip:
             self.ensure_guardrails(tenancy)
             self.ensure_vault(tenancy)
+            if self.options.database:
+                kept = self.options.name_prefix
+                self.ensure_prefix({})  # names the database only; the runner keeps its name from the VM
+                self.ensure_database(tenancy, self.ensure_compartment(tenancy))
+                self.options.name_prefix = kept
             return self.install_on_existing(runner_token)
         previous = self.existing_tfvars()
-        if previous.get("name_prefix"):
-            self.options.name_prefix = previous["name_prefix"]  # keep the names terraform already manages
-        elif not self.options.name_prefix:
-            self.options.name_prefix = self.choose_name(
-                "name prefix", "Name prefix for the new objects, e.g. north, south or your name (VM: <prefix>-runner, network: <prefix>-vcn)",
-                NAME_PREFIX_RE, "lowercase letters, digits and hyphens, starting with a letter, at most 20")
-        if not NAME_PREFIX_RE.match(self.prefix):
-            raise VashError(f"Invalid name prefix '{self.prefix}'", "Use lowercase letters, digits and hyphens, max 20")
+        self.ensure_prefix(previous)
         compartment = self.ensure_compartment(tenancy)
         self.ensure_guardrails(tenancy)
         self.ensure_vault(tenancy)
+        self.ensure_database(tenancy, compartment)
         if previous:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
@@ -516,6 +577,13 @@ class Onboarding:
         if not self.confirm(f"Create a {self.options.ocpus}-core {self.options.memory_in_gbs} GB Always Free VM in {region}?"):
             self.echo("Stopped; nothing was created")
             return 1
+        if subnet_id:
+            network_compartment = ""
+        elif previous:
+            # A network made earlier stays where it is: moving it would make terraform replace it.
+            network_compartment = previous.get("network_compartment_id", "")
+        else:
+            network_compartment = self.network_compartment(tenancy)
         workdir = self.prepare_workdir()
         base = {
             "region": region,
@@ -523,6 +591,7 @@ class Onboarding:
             "image_id": image,
             "admin_cidr": cidr,
             "subnet_id": subnet_id,
+            "network_compartment_id": network_compartment,
             "ssh_public_key": public_key,
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
             "ocpus": self.options.ocpus,
@@ -613,15 +682,20 @@ def run_cli(args: Any) -> int:
         runner_repo=args.runner_repo,
         notify_email=args.notify_email,
         model=args.model,
-        review=(not args.yes and not args.no_inventory) or args.cleanup_only,
+        review=((not args.yes and not args.no_inventory) or args.cleanup_only) and not args.database_only,
         cleanup_only=args.cleanup_only,
         name_prefix=args.name_prefix,
         vm_ip=args.vm_ip,
         ssh_user=args.ssh_user,
         ssh_key=args.ssh_key,
-        vault=not args.yes and not args.no_vault and not args.cleanup_only,
+        # The database needs the vault for its password, also with --yes (then the defaults are taken).
+        vault=(not args.no_vault and not args.cleanup_only
+               and (not args.yes or args.database or args.database_only)),
         guardrails=not args.yes and not args.cleanup_only,
         guardrails_only=args.guardrails_only,
+        database=args.database or args.database_only,
+        database_only=args.database_only,
+        network_compartment=args.network_compartment,
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )

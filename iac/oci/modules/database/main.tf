@@ -16,4 +16,12 @@ resource "oci_database_autonomous_database" "db" {
   db_workload              = "OLTP"
   is_free_tier             = true
   admin_password           = var.admin_password
+  # Always Free databases have no private endpoint: the endpoint is public and only clients holding the
+  # wallet (mutual TLS) and the password can connect.
+  is_mtls_connection_required = true
+
+  lifecycle {
+    # The password is given only at creation (onboarding keeps it in a vault secret); later applies send none.
+    ignore_changes = [admin_password]
+  }
 }

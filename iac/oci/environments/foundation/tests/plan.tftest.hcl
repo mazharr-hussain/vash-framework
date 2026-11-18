@@ -49,3 +49,15 @@ run "no_guardrails_by_default" {
     error_message = "Without statements or an e-mail nothing is created."
   }
 }
+
+run "free_database" {
+  command = plan
+  variables {
+    databases          = { vash = { compartment_id = "ocid1.compartment.oc1..app" } }
+    db_admin_passwords = { vash = "Test-Password-123" }
+  }
+  assert {
+    condition     = length(module.database) == 1
+    error_message = "One entry in databases must plan one Always Free Autonomous Database."
+  }
+}

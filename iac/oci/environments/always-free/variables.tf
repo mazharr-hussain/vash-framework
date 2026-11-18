@@ -3,6 +3,11 @@ variable "compartment_id" { type = string }
 variable "availability_domain" { type = string }
 variable "image_id" { type = string }
 variable "admin_cidr" { type = string }
+variable "network_compartment_id" {
+  type        = string
+  default     = ""
+  description = "Compartment for the network objects; empty puts them in compartment_id."
+}
 variable "subnet_id" {
   type        = string
   default     = ""

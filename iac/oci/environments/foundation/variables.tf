@@ -39,3 +39,16 @@ variable "budget_amount" {
   default     = 1
   description = "Monthly budget in the account currency; alerts at 1% actual and 100% forecast."
 }
+
+variable "databases" {
+  type        = map(object({ compartment_id = string }))
+  default     = {}
+  description = "Always Free Autonomous Databases by name prefix (display name <prefix>-db)."
+}
+
+variable "db_admin_passwords" {
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+  description = "Admin password per database, given only when it is created (TF_VAR_db_admin_passwords)."
+}
