@@ -61,6 +61,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--guardrails-only", action="store_true",
                            help="Only apply the free-tier guardrails (quota policy that allows Always Free amounts only, and a budget e-mail)")
     p_onboard.add_argument("--no-vault", action="store_true", help="Skip choosing the vault and key for VASH's secrets")
+    p_onboard.add_argument("--database", action="store_true",
+                           help="Also create an Always Free Autonomous Database <prefix>-db (password kept in the vault)")
+    p_onboard.add_argument("--database-only", action="store_true",
+                           help="Only the compartment, the vault and the database: no VM is made or changed")
+    p_onboard.add_argument("--network-compartment", default=None,
+                           help="Compartment for a new network (default 'network', asked; an existing one is reused)")
     p_onboard.add_argument("--subnet-id", help="Existing public subnet to use; no network is created")
     p_onboard.add_argument("--ocpus", type=int, default=2)
     p_onboard.add_argument("--memory", type=int, default=12, help="GB of memory")

@@ -20,6 +20,9 @@ provider "oci" {
 
 locals {
   create_network = var.subnet_id == ""
+  # The network (VCN, gateway, route table, security list, subnet) lives in the network compartment when one is
+  # given; the VM stays in its own compartment.
+  network_compartment_id = var.network_compartment_id != "" ? var.network_compartment_id : var.compartment_id
   network_key    = var.name_prefix
   no_options     = { tcp = [], udp = [], icmp = [] }
 }
@@ -27,7 +30,7 @@ locals {
 module "vcn" {
   count          = local.create_network ? 1 : 0
   source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/network/vcn?ref=v2026.2.2"
-  compartment_id = var.compartment_id
+  compartment_id = local.network_compartment_id
   cidr_blocks    = ["10.0.0.0/16"]
   display_name   = "${var.name_prefix}-vcn"
 }
@@ -35,7 +38,7 @@ module "vcn" {
 module "igw" {
   count          = local.create_network ? 1 : 0
   source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/network/igw?ref=v2026.2.2"
-  compartment_id = var.compartment_id
+  compartment_id = local.network_compartment_id
   vcn_id         = module.vcn[0].vcn_tf_id
   display_name   = "${var.name_prefix}-igw"
   enabled        = true
@@ -44,7 +47,7 @@ module "igw" {
 module "route_table" {
   count          = local.create_network ? 1 : 0
   source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/network/route-table?ref=v2026.2.2"
-  compartment_id = var.compartment_id
+  compartment_id = local.network_compartment_id
   vcn_id         = module.vcn[0].vcn_tf_id
   display_name   = "${var.name_prefix}-rt"
   key_name       = local.network_key
@@ -69,7 +72,7 @@ module "route_table" {
 module "security_list" {
   count          = local.create_network ? 1 : 0
   source         = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/network/sec-list?ref=v2026.2.2"
-  compartment_id = var.compartment_id
+  compartment_id = local.network_compartment_id
   vcn_id         = module.vcn[0].vcn_tf_id
   display_name   = "${var.name_prefix}-sl"
   key_name       = local.network_key
@@ -107,7 +110,7 @@ module "security_list" {
 module "subnet" {
   count                        = local.create_network ? 1 : 0
   source                       = "git::https://github.com/oracle-devrel/cd3-automation-toolkit.git//cd3_automation_toolkit/ocicloud/terraform/modules/network/subnet?ref=v2026.2.2"
-  compartment_id               = var.compartment_id
+  compartment_id               = local.network_compartment_id
   vcn_id                       = module.vcn[0].vcn_tf_id
   cidr_block                   = "10.0.0.0/24"
   display_name                 = "${var.name_prefix}-subnet"

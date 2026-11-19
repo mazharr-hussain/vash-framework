@@ -125,3 +125,14 @@ DECISION:
 - REJECTED OCI-SuperDelete: the vendor's cleaner is equal or better (vendor-first rule).
 - RECORDED, NOT USED (LAW 1): the paid GenAI samples, for a later paid tier.
 - UPL-1.0 added to catalog/licences.json (owner decision, 9 Nov 2026).
+
+## 18 Nov 2026: database password secret and network compartment (vash onboard oci)
+- SEARCHED cd3-automation-toolkit v2026.2.2 modules/security (cloud-guard-configuration,
+  cloud-guard-target, firewall, key, vault) and modules/database (adb, cdb, db-home, dbsystem-vm-bm,
+  exa-infra, exa-vmcluster, mysql-*, pdb): no module for vault secrets.
+- USED the vendor's oci CLI (`oci vault secret create-base64`, request read from a private file) for the
+  database admin password secret; reading it back with `oci secrets secret-bundle get`.
+- KEPT VASH's own free-tier database module, now in the foundation environment too (is_free_tier and
+  mutual TLS; the password is ignored after creation so it never has to be sent again).
+- The network compartment uses the CD3 iam-compartment module already in use; the CD3 network modules
+  take its id.

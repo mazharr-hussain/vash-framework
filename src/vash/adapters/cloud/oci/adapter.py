@@ -1,5 +1,6 @@
 """OCI cloud adapter running terraform."""
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping
@@ -12,13 +13,14 @@ class Adapter(CloudAdapter):
         super().__init__(settings)
         self.iac_dir = Path(self.settings.get("iac_dir", "iac/oci"))
 
-    def _run_tf(self, environment: str, args: list[str]) -> str:
+    def _run_tf(self, environment: str, args: list[str], env: Mapping[str, str] | None = None) -> str:
         env_dir = self.iac_dir / "environments" / environment
         if not env_dir.exists():
             raise VashError(f"Environment directory not found: {env_dir}", "Check iac_dir setting")
         cmd = ["terraform"] + args
         try:
-            res = subprocess.run(cmd, cwd=env_dir, check=False, capture_output=True, text=True)
+            res = subprocess.run(cmd, cwd=env_dir, check=False, capture_output=True, text=True,
+                                 env={**os.environ, **env} if env else None)
             if res.returncode not in (0, 2):
                 raise VashError(
                     f"Terraform failed: {res.stderr}",
@@ -45,11 +47,12 @@ class Adapter(CloudAdapter):
                 break
         return CloudPlan(environment=environment, summary="Plan generated", changes=changes)
 
-    def apply(self, environment: str, approved: bool) -> dict[str, Any]:
+    def apply(self, environment: str, approved: bool, env: Mapping[str, str] | None = None) -> dict[str, Any]:
+        """`env` adds variables for this apply only, e.g. a TF_VAR_ password that must not be written to a file."""
         if not approved:
             raise FreezeInvalid("Apply requires approval", "Set approved=True")
         self._run_tf(environment, ["init", "-input=false"])
-        self._run_tf(environment, ["apply", "-input=false", "-auto-approve"])
+        self._run_tf(environment, ["apply", "-input=false", "-auto-approve"], env)
         return self.outputs(environment)
 
     def destroy(self, environment: str, approved: bool) -> None:
