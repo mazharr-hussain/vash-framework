@@ -21,8 +21,9 @@ def done(stdout="", code=0, stderr=""):
 class FakeCloud:
     """Answers the oci, ssh and ssh-keygen calls the onboarding makes."""
 
-    def __init__(self, quota=None, compartments=(), images=("ocid1.image.oc1..u",), ready="vash=vash 3.0.0"):
+    def __init__(self, quota=None, compartments=(), images=("ocid1.image.oc1..u",), ready="vash=vash 3.0.0", micro=0):
         self.quota = quota or {"AD-1": (4, 24)}
+        self.micro = micro  # AMD Micro VMs free in each domain
         self.compartments = list(compartments)
         self.images = list(images)
         self.ready = ready
@@ -60,6 +61,8 @@ class FakeCloud:
             ad = args[args.index("--availability-domain") + 1]
             cores, memory = self.quota[ad]
             limit = args[args.index("--limit-name") + 1]
+            if "micro" in limit:
+                return {"data": {"available": self.micro}}
             return {"data": {"available": cores if "core" in limit else memory}}
         if args[:3] == ["network", "subnet", "get"]:
             return {"data": self.subnet}
@@ -135,7 +138,7 @@ def test_existing_compartment_is_reused(home, monkeypatch):
 
 
 def test_no_quota_stops_before_creating(home, monkeypatch):
-    cloud, tf = FakeCloud(quota={"AD-1": (1, 6), "AD-2": (0, 0)}), FakeTerraform()
+    cloud, tf = FakeCloud(quota={"AD-1": (0.5, 4), "AD-2": (0, 0)}), FakeTerraform()
     monkeypatch.setattr(tf_module.subprocess, "run", tf)
     with pytest.raises(VashError, match="No availability domain"):
         make(cloud, home).up()
@@ -549,3 +552,69 @@ def test_guardrails_are_offered_once_during_setup(home, monkeypatch):
     make(FakeCloud(), home, guardrails=True).up()
     make(FakeCloud(), home, guardrails=True).up()
     assert seen == [1]  # a "no" is remembered too
+
+
+def _vm_tfvars(home):
+    return json.loads((home / ".vash/oci/environments/always-free/terraform.tfvars.json").read_text())
+
+
+def _script(home):
+    return (home / ".vash/oci/environments/always-free/scripts/vash-runner.sh").read_text()
+
+
+def test_asked_a1_size_first(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(FakeCloud(quota={"AD-1": (4, 24)}, micro=2), home).up()
+    t = _vm_tfvars(home)
+    assert (t["shape"], t["ocpus"], t["memory_in_gbs"]) == ("VM.Standard.A1.Flex", 2, 12)
+    assert 'MODEL="qwen2.5-coder:7b"' in _script(home)
+
+
+def test_basic_a1_when_the_asked_size_does_not_fit(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(FakeCloud(quota={"AD-1": (1, 6)}, micro=2), home).up()
+    t = _vm_tfvars(home)
+    assert (t["shape"], t["ocpus"], t["memory_in_gbs"]) == ("VM.Standard.A1.Flex", 1, 6)
+    assert 'MODEL="qwen2.5-coder:1.5b"' in _script(home)  # the 7b model does not fit in 6 GB
+
+
+def test_amd_micro_when_no_a1_quota(home, monkeypatch):
+    cloud = FakeCloud(quota={"AD-1": (0, 0)}, micro=2)
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    make(cloud, home).up()
+    t = _vm_tfvars(home)
+    assert (t["shape"], t["ocpus"], t["memory_in_gbs"]) == ("VM.Standard.E2.1.Micro", 1, 1)
+    assert 'MODEL=""' in _script(home)
+    images = [c[0] for c in cloud.calls if c[0][1:4] == ["compute", "image", "list"]]
+    assert images and images[-1][images[-1].index("--shape") + 1] == "VM.Standard.E2.1.Micro"
+
+
+def test_each_smaller_vm_needs_a_yes(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    onboarding = make(FakeCloud(quota={"AD-1": (1, 6)}, micro=2), home)
+    onboarding.confirm = lambda q: "basic" not in q
+    with pytest.raises(VashError, match="No availability domain"):
+        onboarding.up()
+
+
+def test_shape_a1_never_falls_back(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    with pytest.raises(VashError, match="No availability domain"):
+        make(FakeCloud(quota={"AD-1": (1, 6)}, micro=2), home, shape="a1").up()
+
+
+def test_no_a1_capacity_offers_the_amd_micro_before_waiting(home, monkeypatch):
+    tf = BusyTerraform(busy=99)
+    monkeypatch.setattr(tf_module.subprocess, "run", tf)
+    sleeps = []
+    onboarding = make(FakeCloud(micro=1), home)
+    onboarding.sleep = sleeps.append
+    original = tf.__call__
+
+    def micro_has_capacity(cmd, cwd=None, **kw):
+        if Path(cwd).name == "always-free" and cmd[1] == "apply" and _vm_tfvars(home)["shape"].endswith("Micro"):
+            return done()
+        return original(cmd, cwd=cwd, **kw)
+    monkeypatch.setattr(tf_module.subprocess, "run", micro_has_capacity)
+    assert onboarding.up() == 0
+    assert _vm_tfvars(home)["shape"] == "VM.Standard.E2.1.Micro" and 300 not in sleeps

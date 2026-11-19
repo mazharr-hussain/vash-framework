@@ -23,6 +23,11 @@ variable "config_file_profile" {
   type    = string
   default = "DEFAULT"
 }
+variable "shape" {
+  type        = string
+  default     = "VM.Standard.A1.Flex"
+  description = "Always Free shape: VM.Standard.A1.Flex (Arm) or VM.Standard.E2.1.Micro (AMD, 1 GB)."
+}
 variable "ocpus" {
   type    = number
   default = 2
