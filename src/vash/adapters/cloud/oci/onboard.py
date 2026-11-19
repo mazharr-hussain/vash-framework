@@ -476,6 +476,18 @@ class Onboarding:
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
 
+    def earlier_vm_exists(self) -> bool:
+        """Whether the earlier onboarding's terraform state holds the VM (an attempt can stop before it is made,
+        for example when Oracle had no A1 capacity; then the VM is chosen again)."""
+        state = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
+        if not state.exists():
+            return False
+        try:
+            resources = json.loads(state.read_text()).get("resources", [])
+        except (ValueError, OSError):
+            return True  # unreadable: keep the earlier VM's settings, the safe choice
+        return any(r.get("type") == "oci_core_instance" and r.get("instances") for r in resources)
+
     def existing_tfvars(self) -> dict[str, Any]:
         path = self.tfvars_path(self.options.workdir)
         return json.loads(path.read_text()) if path.exists() else {}
@@ -626,7 +638,11 @@ class Onboarding:
         self.ensure_guardrails(tenancy)
         self.ensure_vault(tenancy)
         self.ensure_database(tenancy, compartment)
-        if previous:
+        vm_made = bool(previous) and self.earlier_vm_exists()
+        if previous and not vm_made:
+            self.echo(f"Earlier onboarding found in {self.options.workdir}, but it made no VM: choosing the VM again "
+                      "(its network is kept)")
+        if vm_made:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
             domains = [previous["availability_domain"]]
@@ -679,7 +695,7 @@ class Onboarding:
         try:
             def micro_instead() -> tuple[dict[str, Any], list[str]] | None:
                 """No A1 capacity anywhere: with --shape auto, the AMD Micro after a yes (its own image and setup)."""
-                if previous or self.options.shape != SHAPE or self.options.requested_shape != "auto":
+                if vm_made or self.options.shape != SHAPE or self.options.requested_shape != "auto":
                     return None
                 micro = self.offer_micro(tenancy, f"Oracle has no free A1 capacity in {region} right now")
                 if not micro:
