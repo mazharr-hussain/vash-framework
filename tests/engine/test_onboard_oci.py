@@ -625,7 +625,7 @@ def test_no_a1_capacity_offers_the_amd_micro_before_waiting(home, monkeypatch):
 
 def test_earlier_attempt_without_a_vm_chooses_the_vm_again(home, monkeypatch):
     """Seen live: an attempt stopped by no A1 capacity left its settings; the next run must not retry only that A1
-    size but choose again (here the AMD Micro), keeping the network the attempt made."""
+    size but choose again (here the AMD Micro); its network, used by no VM yet, goes to the network compartment."""
     monkeypatch.setattr(tf_module.subprocess, "run", BusyTerraform(busy=1))
     first = make(FakeCloud(), home)
     first.confirm = lambda q: "Keep trying" not in q
@@ -633,11 +633,17 @@ def test_earlier_attempt_without_a_vm_chooses_the_vm_again(home, monkeypatch):
         first.up()
     env = home / ".vash/oci/environments/always-free"
     (env / "terraform.tfstate").write_text(json.dumps({"resources": [{"type": "oci_core_vcn", "instances": [{}]}]}))
+    path = env / "terraform.tfvars.json"
     before = _vm_tfvars(home)
+    del before["network_compartment_id"]  # an attempt from before network compartments: its VCN went to the VM's
+    path.write_text(json.dumps(before))
     monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
     cloud = FakeCloud(quota={"AD-1": (0, 0)}, micro=1)
     assert make(cloud, home).up() == 0
     after = _vm_tfvars(home)
     assert after["shape"] == "VM.Standard.E2.1.Micro"
-    assert after["network_compartment_id"] == before["network_compartment_id"]  # the network stays where it is
+    # nothing uses that network yet, so it goes to the network compartment like a new one
+    assert after["network_compartment_id"] == COMPARTMENT
+    created = json.loads((home / ".vash/oci/environments/foundation/terraform.tfvars.json").read_text())
+    assert "network" in created["compartments"]
     assert any(a[0][1:3] == ["limits", "resource-availability"] for a in cloud.calls)  # quota checked again
