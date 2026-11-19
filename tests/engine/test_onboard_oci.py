@@ -95,6 +95,9 @@ class FakeTerraform:
             ad = json.loads((Path(cwd) / "terraform.tfvars.json").read_text())["availability_domain"]
             if ad in self.capacity_fail:
                 return done(code=1, stderr="Error: 500-InternalError, Out of host capacity.")
+        if cmd[1] == "apply":  # like terraform: the state now holds the VM
+            (Path(cwd) / "terraform.tfstate").write_text(json.dumps(
+                {"resources": [{"type": "oci_core_instance", "instances": [{"attributes": {}}]}]}))
         if cmd[1] == "output":
             return done(json.dumps({"runner_ip": {"value": "203.0.113.7"}}))
         return done()
@@ -618,3 +621,23 @@ def test_no_a1_capacity_offers_the_amd_micro_before_waiting(home, monkeypatch):
     monkeypatch.setattr(tf_module.subprocess, "run", micro_has_capacity)
     assert onboarding.up() == 0
     assert _vm_tfvars(home)["shape"] == "VM.Standard.E2.1.Micro" and 300 not in sleeps
+
+
+def test_earlier_attempt_without_a_vm_chooses_the_vm_again(home, monkeypatch):
+    """Seen live: an attempt stopped by no A1 capacity left its settings; the next run must not retry only that A1
+    size but choose again (here the AMD Micro), keeping the network the attempt made."""
+    monkeypatch.setattr(tf_module.subprocess, "run", BusyTerraform(busy=1))
+    first = make(FakeCloud(), home)
+    first.confirm = lambda q: "Keep trying" not in q
+    with pytest.raises(VashError):
+        first.up()
+    env = home / ".vash/oci/environments/always-free"
+    (env / "terraform.tfstate").write_text(json.dumps({"resources": [{"type": "oci_core_vcn", "instances": [{}]}]}))
+    before = _vm_tfvars(home)
+    monkeypatch.setattr(tf_module.subprocess, "run", FakeTerraform())
+    cloud = FakeCloud(quota={"AD-1": (0, 0)}, micro=1)
+    assert make(cloud, home).up() == 0
+    after = _vm_tfvars(home)
+    assert after["shape"] == "VM.Standard.E2.1.Micro"
+    assert after["network_compartment_id"] == before["network_compartment_id"]  # the network stays where it is
+    assert any(a[0][1:3] == ["limits", "resource-availability"] for a in cloud.calls)  # quota checked again
