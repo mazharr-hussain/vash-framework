@@ -640,8 +640,8 @@ class Onboarding:
         self.ensure_database(tenancy, compartment)
         vm_made = bool(previous) and self.earlier_vm_exists()
         if previous and not vm_made:
-            self.echo(f"Earlier onboarding found in {self.options.workdir}, but it made no VM: choosing the VM again "
-                      "(its network is kept)")
+            self.echo(f"Earlier onboarding found in {self.options.workdir}, but it made no VM: choosing the VM and "
+                      "the network compartment again")
         if vm_made:
             # A VM made earlier keeps its domain and image, so terraform repairs it instead of replacing it.
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
@@ -670,8 +670,8 @@ class Onboarding:
             return 1
         if subnet_id:
             network_compartment = ""
-        elif previous:
-            # A network made earlier stays where it is: moving it would make terraform replace it.
+        elif vm_made:
+            # A network that already serves a VM stays where it is: moving it would disturb that VM.
             network_compartment = previous.get("network_compartment_id", "")
         else:
             network_compartment = self.network_compartment(tenancy)
