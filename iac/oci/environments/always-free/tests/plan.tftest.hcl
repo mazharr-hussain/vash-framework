@@ -77,3 +77,12 @@ run "network_defaults_to_the_vm_compartment" {
     error_message = "Without a network compartment the network stays with the VM (earlier onboardings keep theirs)."
   }
 }
+
+run "basic_amd_micro" {
+  command = plan
+  variables {
+    shape         = "VM.Standard.E2.1.Micro"
+    ocpus         = 1
+    memory_in_gbs = 1
+  }
+}

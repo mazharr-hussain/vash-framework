@@ -23,7 +23,10 @@ from vash.core.paths import vash_root
 from .adapter import Adapter
 from .foundation import Foundation
 
-SHAPE = "VM.Standard.A1.Flex"
+SHAPE = "VM.Standard.A1.Flex"  # Arm A1: up to 4 cores and 24 GB free per tenancy
+MICRO = "VM.Standard.E2.1.Micro"  # AMD: 1/8 core and 1 GB, up to 2 free; too small for a local model
+BASIC_A1 = (1, 6)  # the smallest useful A1 VM (cores, GB): room for a small local model
+SMALL_MODEL = "qwen2.5-coder:1.5b"  # the default model on an A1 VM with less than 12 GB
 ENVIRONMENT = "always-free"
 DEFAULT_SOURCE = "git+https://github.com/mazharr-hussain/vash-framework.git"
 DEFAULT_MODEL = "qwen2.5-coder:7b"
@@ -53,8 +56,13 @@ class Options:
     vm_name: str = ""
     ssh_user: str | None = None
     ssh_key: str | None = None
+    shape: str = "auto"  # auto: the asked A1 size, else a basic A1, else the AMD Micro (each after a yes); a1; micro
+    # (after the choice, `shape` holds the OCI shape name; `requested_shape` keeps what was asked)
     ocpus: int = 2
     memory_in_gbs: int = 12
+
+    def __post_init__(self) -> None:
+        self.requested_shape = self.shape
     os_name: str = "Canonical Ubuntu"
     os_version: str = "24.04"
     admin_cidr: str | None = None
@@ -308,31 +316,84 @@ class Onboarding:
         value = data.get("available")
         return float(value) if value is not None else 0.0
 
-    def domains_with_quota(self, tenancy: str) -> list[str]:
+    def a1_domains(self, tenancy: str, cores: float, memory: float, show: bool = True) -> list[str]:
         fits = []
         for ad in self.availability_domains(tenancy):
-            cores = self._available(tenancy, ad, "standard-a1-core-count")
-            memory = self._available(tenancy, ad, "standard-a1-memory-count")
-            ok = cores >= self.options.ocpus and memory >= self.options.memory_in_gbs
-            self.echo(f"{ad}: {cores:g} A1 cores, {memory:g} GB free{'' if ok else ' (not enough)'}")
+            free_cores = self._available(tenancy, ad, "standard-a1-core-count")
+            free_memory = self._available(tenancy, ad, "standard-a1-memory-count")
+            ok = free_cores >= cores and free_memory >= memory
+            if show:
+                self.echo(f"{ad}: {free_cores:g} A1 cores, {free_memory:g} GB free{'' if ok else ' (not enough)'}")
             if ok:
                 fits.append(ad)
-        if not fits:
-            raise VashError(
-                f"No availability domain has {self.options.ocpus} A1 cores and {self.options.memory_in_gbs} GB free",
-                "Free A1 quota (stop or delete A1 instances), or pass --ocpus/--memory smaller values",
-            )
         return fits
 
+    def micro_domains(self, tenancy: str) -> list[str]:
+        fits = []
+        for ad in self.availability_domains(tenancy):
+            free = self._available(tenancy, ad, "vm-standard-e2-1-micro-count")
+            self.echo(f"{ad}: {free:g} AMD Micro VMs free")
+            if free >= 1:
+                fits.append(ad)
+        return fits
+
+    def use_micro(self) -> None:
+        self.options.shape, self.options.ocpus, self.options.memory_in_gbs = MICRO, 1, 1
+        self.options.model = ""  # 1 GB holds no local model
+
+    def use_a1(self, cores: int, memory: int) -> None:
+        self.options.shape, self.options.ocpus, self.options.memory_in_gbs = SHAPE, cores, memory
+        if memory < 12 and self.options.model == DEFAULT_MODEL:
+            self.options.model = SMALL_MODEL  # the 7b model needs more memory than a basic VM has
+
+    def offer_micro(self, tenancy: str, why: str) -> list[str]:
+        domains = self.micro_domains(tenancy)
+        if domains and self.confirm(f"{why}. Create the basic AMD VM instead ({MICRO}: 1 GB, Always Free)? It has no "
+                                    "room for a local model, so VASH uses the free model APIs on it"):
+            self.use_micro()
+            return domains
+        return []
+
+    def domains_with_quota(self, tenancy: str) -> list[str]:
+        """The shape and the availability domains with free quota for it: the asked A1 size first; with --shape auto,
+        a basic A1 VM and then the AMD Micro, each after a yes."""
+        if self.options.shape == "micro":
+            domains = self.micro_domains(tenancy)
+            if not domains:
+                raise VashError("No AMD Micro VM free in any availability domain",
+                                "Free one (stop or delete an E2.1.Micro instance), or pass --shape a1")
+            self.use_micro()
+            return domains
+        cores, memory = self.options.ocpus, self.options.memory_in_gbs
+        domains = self.a1_domains(tenancy, cores, memory)
+        if domains:
+            self.use_a1(cores, memory)
+            return domains
+        if self.options.shape == "auto":
+            basic = self.a1_domains(tenancy, *BASIC_A1, show=False) if (cores, memory) > BASIC_A1 else []
+            if basic and self.confirm(f"Not enough A1 quota for {cores} cores and {memory} GB. Create a basic A1 VM "
+                                      f"instead ({BASIC_A1[0]} core, {BASIC_A1[1]} GB, with the small model "
+                                      f"{SMALL_MODEL})?"):
+                self.use_a1(*BASIC_A1)
+                return basic
+            micro = self.offer_micro(tenancy, f"Not enough A1 quota for {cores} cores and {memory} GB")
+            if micro:
+                return micro
+        raise VashError(
+            f"No availability domain has {cores} A1 cores and {memory} GB free",
+            "Free A1 quota (stop or delete A1 instances), pass --ocpus/--memory smaller values, or --shape micro",
+        )
+
     def latest_image(self, compartment: str) -> str:
+        shape = MICRO if self.options.shape == MICRO else SHAPE
         data = self.oci("compute", "image", "list", "--compartment-id", compartment,
                         "--operating-system", self.options.os_name,
                         "--operating-system-version", self.options.os_version,
-                        "--shape", SHAPE, "--sort-by", "TIMECREATED", "--sort-order", "DESC",
+                        "--shape", shape, "--sort-by", "TIMECREATED", "--sort-order", "DESC",
                         "--limit", "1").get("data", [])
         if not data:
-            raise VashError(f"No {self.options.os_name} {self.options.os_version} image for {SHAPE}",
-                            "Pass --os-version with a version OCI offers for Arm")
+            raise VashError(f"No {self.options.os_name} {self.options.os_version} image for {shape}",
+                            "Pass --os-version with a version OCI offers for this shape")
         self.echo(f"Image: {data[0].get('display-name', data[0]['id'])}")
         return data[0]["id"]
 
@@ -424,8 +485,10 @@ class Onboarding:
         path.write_text(json.dumps(values, indent=2) + "\n")
         path.chmod(0o600)
 
-    def create(self, workdir: Path, base: dict[str, Any], domains: list[str]) -> dict[str, Any]:
-        """Every domain in turn; when all are out of A1 capacity, retry every few minutes after a yes."""
+    def create(self, workdir: Path, base: dict[str, Any], domains: list[str],
+               fallback: Callable[[], tuple[dict[str, Any], list[str]] | None] | None = None) -> dict[str, Any]:
+        """Every domain in turn; when all are out of A1 capacity, the fallback (the AMD Micro) after a yes, else
+        retry every few minutes after a yes."""
         adapter = Adapter({"iac_dir": str(workdir)})
         for attempt in range(CAPACITY_RETRIES + 1):
             for ad in domains:
@@ -437,6 +500,10 @@ class Onboarding:
                     if not any(word in str(exc).lower() for word in CAPACITY_ERRORS):
                         raise
                     self.echo(f"{ad}: Oracle has no free A1 capacity there right now")
+            other = fallback() if attempt == 0 and fallback else None
+            if other:
+                micro_base, micro_domains = other
+                return self.create(workdir, micro_base, micro_domains)
             if attempt == 0 and not self.confirm(
                     f"Oracle has no free A1 capacity in {base['region']} right now. Keep trying every "
                     f"{CAPACITY_WAIT_MINUTES} minutes for up to {CAPACITY_RETRIES * CAPACITY_WAIT_MINUTES // 60} "
@@ -564,6 +631,12 @@ class Onboarding:
             self.echo(f"Earlier onboarding found in {self.options.workdir}; checking that VM")
             domains = [previous["availability_domain"]]
             image = previous["image_id"]
+            self.options.shape = previous.get("shape", SHAPE)
+            if self.options.shape == MICRO:
+                self.use_micro()
+            else:
+                self.use_a1(previous.get("ocpus", self.options.ocpus),
+                            previous.get("memory_in_gbs", self.options.memory_in_gbs))
         else:
             domains = self.domains_with_quota(tenancy)
             image = self.latest_image(compartment)
@@ -574,7 +647,9 @@ class Onboarding:
         cidr = self.admin_cidr()
         if not subnet_id:
             self.echo(f"SSH will be open to {cidr} only")
-        if not self.confirm(f"Create a {self.options.ocpus}-core {self.options.memory_in_gbs} GB Always Free VM in {region}?"):
+        what = (f"basic AMD VM ({MICRO}, 1 GB, no local model)" if self.options.shape == MICRO else
+                f"{self.options.ocpus}-core {self.options.memory_in_gbs} GB Arm VM (model {self.options.model})")
+        if not self.confirm(f"Create the Always Free {what} in {region}?"):
             self.echo("Stopped; nothing was created")
             return 1
         if subnet_id:
@@ -594,6 +669,7 @@ class Onboarding:
             "network_compartment_id": network_compartment,
             "ssh_public_key": public_key,
             "oci_auth": "InstancePrincipal" if self.in_cloud_shell() else "ApiKey",
+            "shape": self.options.shape,
             "ocpus": self.options.ocpus,
             "memory_in_gbs": self.options.memory_in_gbs,
             "cloud_init_script": self.write_cloud_init(workdir),
@@ -601,7 +677,18 @@ class Onboarding:
             "notify_email": self.notify_address(previous),
         }
         try:
-            outputs = self.create(workdir, base, domains)
+            def micro_instead() -> tuple[dict[str, Any], list[str]] | None:
+                """No A1 capacity anywhere: with --shape auto, the AMD Micro after a yes (its own image and setup)."""
+                if previous or self.options.shape != SHAPE or self.options.requested_shape != "auto":
+                    return None
+                micro = self.offer_micro(tenancy, f"Oracle has no free A1 capacity in {region} right now")
+                if not micro:
+                    return None
+                return ({**base, "shape": MICRO, "ocpus": 1, "memory_in_gbs": 1,
+                         "image_id": self.latest_image(compartment),
+                         "cloud_init_script": self.write_cloud_init(workdir)}, micro)
+
+            outputs = self.create(workdir, base, domains, fallback=micro_instead)
             ip = outputs.get("runner_ip", {}).get("value")
             if not ip:
                 raise VashError("The VM has no public IP",
@@ -675,6 +762,7 @@ def run_cli(args: Any) -> int:
     options = Options(
         compartment_name=args.compartment,
         subnet_id=args.subnet_id,
+        shape=getattr(args, "shape", "auto"),
         ocpus=args.ocpus,
         memory_in_gbs=args.memory,
         os_version=args.os_version,

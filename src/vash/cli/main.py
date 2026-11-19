@@ -72,6 +72,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard.add_argument("--memory", type=int, default=12, help="GB of memory")
     p_onboard.add_argument("--os-version", default="24.04")
     p_onboard.add_argument("--model", default="qwen2.5-coder:7b", help="Model to pull on the VM")
+    p_onboard.add_argument("--shape", choices=("auto", "a1", "micro"), default="auto",
+                           help="VM shape: auto (the asked Arm A1 size, else a basic 1-core 6 GB A1, else the AMD "
+                                "Micro, each after a yes), a1 (Arm only) or micro (AMD E2.1.Micro, 1 GB, no model on the VM)")
     p_onboard.add_argument("--workdir", help="Where the terraform state is kept")
 
     args = parser.parse_args(argv)

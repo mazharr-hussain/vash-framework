@@ -23,8 +23,8 @@ locals {
   # The network (VCN, gateway, route table, security list, subnet) lives in the network compartment when one is
   # given; the VM stays in its own compartment.
   network_compartment_id = var.network_compartment_id != "" ? var.network_compartment_id : var.compartment_id
-  network_key    = var.name_prefix
-  no_options     = { tcp = [], udp = [], icmp = [] }
+  network_key            = var.name_prefix
+  no_options             = { tcp = [], udp = [], icmp = [] }
 }
 
 module "vcn" {
@@ -126,14 +126,15 @@ module "instance" {
   compartment_id      = var.compartment_id
   availability_domain = var.availability_domain
   display_name        = "${var.name_prefix}-runner"
-  shape               = "VM.Standard.A1.Flex"
-  ocpu_count          = var.ocpus
-  memory_in_gbs       = var.memory_in_gbs
-  source_type         = "image"
-  source_image_id     = var.image_id
-  subnet_id           = local.create_network ? module.subnet[0].subnet_tf_id : var.subnet_id
-  assign_public_ip    = true
-  ssh_public_keys     = var.ssh_public_key
+  shape               = var.shape
+  # A fixed shape (the AMD Micro: 1 core, 1 GB) gets its own size from onboarding; CD3 would otherwise look it up.
+  ocpu_count       = var.ocpus
+  memory_in_gbs    = var.memory_in_gbs
+  source_type      = "image"
+  source_image_id  = var.image_id
+  subnet_id        = local.create_network ? module.subnet[0].subnet_tf_id : var.subnet_id
+  assign_public_ip = true
+  ssh_public_keys  = var.ssh_public_key
   # The CD3 instance module reads scripts/<cloud_init_script> next to this file; onboarding writes it
   # before terraform runs (git-ignored, it is rendered per run).
   cloud_init_script = var.cloud_init_script
