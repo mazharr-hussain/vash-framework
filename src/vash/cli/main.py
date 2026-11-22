@@ -53,6 +53,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                            help="Show the setup running in the cloud's job service: its state, last log lines, the VM")
     p_onboard.add_argument("--resume", action="store_true",
                            help="Run the setup again (no capacity: next availability domain, then a smaller VM)")
+    p_onboard.add_argument("--update", action="store_true",
+                           help="Install this VASH on the VM again over SSH, then run the health check and a first task")
     p_onboard.add_argument("--in-shell", action="store_true",
                            help="Run terraform in this shell step by step instead of in the cloud's job service")
     p_onboard.add_argument("--yes", action="store_true", help="Do not ask before creating or removing")

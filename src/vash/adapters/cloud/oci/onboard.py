@@ -81,6 +81,7 @@ class Options:
     engine: str = "shell"  # "stack": every question first, then one OCI Resource Manager job (the CLI's default)
     status: bool = False  # stack: show the setup job
     resume: bool = False  # stack: run the setup again (next domain or a smaller VM on no capacity)
+    update: bool = False  # install this VASH on the VM again and run the checks
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -493,6 +494,57 @@ class Onboarding:
             return None
         return vm.get("shape", SHAPE), int(cfg["ocpus"]), int(cfg.get("memory-in-gbs", 0))
 
+    VM_REPORT = ("echo '--- install'; cat /var/lib/vash/ready 2>/dev/null || tail -n 5 /var/log/vash-onboard.log; "
+                 "echo '--- health check (vash doctor)'; cat /var/lib/vash/doctor.txt 2>/dev/null || echo 'not run yet'; "
+                 "echo '--- first AvA task (test project)'; tail -n 12 /var/lib/vash/smoke.txt 2>/dev/null "
+                 "|| echo 'not run yet'")
+
+    def vm_access(self) -> tuple[Path, str] | None:
+        """The SSH key and public address of the VASH VM this shell set up (stack, step by step, or --vm-ip)."""
+        state = self._state()
+        ip = (self.options.vm_ip or state.get("stack", {}).get("outputs", {}).get("runner_ip") or "")
+        if not ip:
+            path = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
+            try:
+                ip = json.loads(path.read_text()).get("outputs", {}).get("runner_ip", {}).get("value") or ""
+            except (ValueError, OSError):
+                ip = ""
+        key = self.options.ssh_key or state.get("ssh_key")
+        return (Path(key).expanduser(), ip) if ip and key else None
+
+    def vm_report(self) -> int:
+        """What the VM says about itself: the install, the health check and the first AvA task."""
+        access = self.vm_access()
+        if access is None:
+            self.echo("No VASH VM is known to this shell")
+            return 1
+        res = self.ssh(*access, self.VM_REPORT)
+        self.echo(f"On the VM {access[1]}:\n" + (res.stdout.strip() or res.stderr.strip() or "(not reachable)"))
+        return 0 if res.returncode == 0 else 1
+
+    def update(self) -> int:
+        """Install this shell's VASH on the VM again and run the checks; nothing is done by hand on the VM."""
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell",
+                            "Run `vash onboard oci` first, or pass --vm-ip and --ssh-key")
+        key, ip = access
+        if not self.confirm(f"Install VASH ({self.options.vash_source}) on the VM {ip} again and run the health "
+                            "check and a first AvA task? Nothing else on the VM changes"):
+            self.echo("Stopped; nothing was changed")
+            return 1
+        script = self.user_data(self.prepare_workdir())
+        res = self.ssh(key, ip, "sudo rm -f /var/lib/vash/ready && cat > /tmp/vash-install.sh && "
+                       "sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 &", stdin=script)
+        if res.returncode != 0:
+            raise VashError(f"Could not start the installer on {ip}: {res.stderr.strip()[-200:]}",
+                            f"Check that ssh -i {key} {self.user}@{ip} works")
+        self.echo(f"Updating VASH on {ip} (a few minutes) ...")
+        self.echo(self.wait_ready(key, ip))
+        self.echo("VASH is updated. The health check and a first AvA task now run on the VM (5-30 minutes); "
+                  "see them with `vash onboard oci --status`")
+        return 0
+
     def earlier_instance_id(self) -> str:
         state = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
         try:
@@ -620,6 +672,10 @@ class Onboarding:
         return o.engine == "stack" and not (o.vm_ip or o.guardrails_only or o.cleanup_only)
 
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
+        if self.options.update:
+            return self.update()
+        if self.options.status and not self._state().get("stack", {}).get("id"):
+            return self.vm_report()
         if self.uses_stack() or self.options.status or self.options.resume:
             from .stack_setup import StackSetup
             setup = StackSetup(self)
@@ -849,6 +905,7 @@ def run_cli(args: Any) -> int:
         engine="shell" if getattr(args, "in_shell", False) else "stack",
         status=getattr(args, "status", False),
         resume=getattr(args, "resume", False),
+        update=getattr(args, "update", False),
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )

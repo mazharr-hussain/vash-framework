@@ -234,3 +234,42 @@ def test_a_vm_resized_in_the_console_is_not_shrunk_by_a_later_run(home, monkeypa
     stack_make(cloud, home, resume=True).up()
     v = cloud.stacks[-1][1]
     assert (v["ocpus"], v["memory_in_gbs"]) == ("4", "24")
+
+
+def test_update_installs_vash_on_the_vm_again_with_nothing_done_by_hand(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()  # the VM is known: its address from the stack, its key from the state
+    key = home / ".ssh" / "k"
+    key.parent.mkdir(exist_ok=True)
+    key.write_text("x")
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(key)
+    path.write_text(json.dumps(state))
+    assert stack_make(cloud, home, update=True, vash_source="git+https://example.org/vash.git@v9").up() == 0
+    installs = [c for c in cloud.calls if c[0][0] == "ssh" and "vash-install.sh" in c[0][-1]]
+    assert len(installs) == 1 and "203.0.113.9" in " ".join(installs[0][0])
+    assert "rm -f /var/lib/vash/ready" in installs[0][0][-1]  # never reads the old result
+    assert 'VASH_SOURCE="git+https://example.org/vash.git@v9"' in installs[0][1]["input"]
+
+
+def test_status_shows_the_install_the_health_check_and_the_first_task(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    path.write_text(json.dumps(state))
+    stack_make(cloud, home, status=True).up()
+    reports = [c for c in cloud.calls if c[0][0] == "ssh" and "doctor.txt" in c[0][-1]]
+    assert reports and "smoke.txt" in reports[-1][0][-1]
+
+
+def test_the_vm_checks_itself_after_the_install():
+    from vash.core.paths import vash_root
+    script = (vash_root() / "iac" / "oci" / "cloud-init" / "vash-runner.sh").read_text()
+    assert "vash doctor --repo" in script and "/var/lib/vash/doctor.txt" in script
+    assert "vash init vash-smoke" in script and "vash ava T1" in script and "/var/lib/vash/smoke.txt" in script
+    assert script.index("== vash onboard done") < script.index("vash ava T1")  # ready first, checks after

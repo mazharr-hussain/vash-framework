@@ -5,6 +5,8 @@
 set -euo pipefail
 exec >>/var/log/vash-onboard.log 2>&1
 echo "== vash onboard start $(date -u +%FT%TZ)"
+# A rerun (vash onboard oci --update) starts from "not ready" so nobody reads an old result.
+rm -f /var/lib/vash/ready /var/lib/vash/doctor.txt /var/lib/vash/smoke.txt
 
 VASH_SOURCE="@@VASH_SOURCE@@"
 # Fixed versions: a new release of a tool never changes this VM by surprise. Update them here, in a PR.
@@ -96,3 +98,45 @@ mkdir -p /var/lib/vash
   fi
 } > /var/lib/vash/ready
 echo "== vash onboard done $(date -u +%FT%TZ)"
+
+# Check that VASH works here, with nothing done by hand: a small test project set to this VM's model, the health
+# check in it, then one real AvA task. Results: /var/lib/vash/doctor.txt and /var/lib/vash/smoke.txt
+# (`vash onboard oci --status` shows them). A failure here is reported, it does not undo the install.
+set +e
+SMOKE="/home/$RUN_USER/projects/vash-smoke"
+rm -rf "$SMOKE"
+sudo -u "$RUN_USER" -H bash -c "
+  set -e
+  mkdir -p '$(dirname "$SMOKE")' && cd '$(dirname "$SMOKE")'
+  vash init vash-smoke >/dev/null
+  cd vash-smoke
+  # The test uses the model this VM pulled (a basic VM has a smaller one than the default).
+  [ -z '$MODEL' ] || python3 - <<'PY'
+import json
+p = 'project-stack.json'
+d = json.load(open(p))
+for r in d['models']['routes'].values():
+    if r['adapter'] == 'ollama':
+        r['model'] = '$MODEL'
+json.dump(d, open(p, 'w'), indent=2)
+PY
+" > /var/lib/vash/smoke.txt 2>&1
+sudo -u "$RUN_USER" -H vash doctor --repo "$SMOKE" > /var/lib/vash/doctor.txt 2>&1
+echo "exit=$?" >> /var/lib/vash/doctor.txt
+if [ -n "$MODEL" ]; then
+  sudo -u "$RUN_USER" -H bash -c "
+    cd '$SMOKE'
+    printf '%s\\n' 'type: code' \\
+      'Write a Python function is_valid_iban(iban: str) -> bool that checks the IBAN checksum (mod 97).' \\
+      'Include three doctest examples.' > audit/prompts/T1_prompt.md
+    timeout 3600 vash ava T1
+  " >> /var/lib/vash/smoke.txt 2>&1
+  code=$?
+  {
+    echo "exit=$code"
+    grep -hE '^\*\*(SCORE|VERDICT)|ROUTE:' "$SMOKE"/audit/ava_logs/*.md 2>/dev/null | tail -n 12
+  } >> /var/lib/vash/smoke.txt
+  echo "== vash smoke test done (exit $code) $(date -u +%FT%TZ)"
+else
+  echo "skipped: no model on this VM (it uses the free model APIs)" >> /var/lib/vash/smoke.txt
+fi

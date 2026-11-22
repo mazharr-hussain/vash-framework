@@ -271,12 +271,8 @@ class StackSetup:
                 self.echo(f"  {line.rstrip()}")
             return 0
         code = self.report(job_id, job, lines)
-        ip = self.state.get("outputs", {}).get("runner_ip")
-        key = self.ob._state().get("ssh_key")
-        if code == 0 and ip and key:
-            from pathlib import Path
-            res = self.ob.ssh(Path(key), ip, "cat /var/lib/vash/ready 2>/dev/null || tail -n 5 /var/log/vash-onboard.log")
-            self.echo("On the VM:\n" + (res.stdout.strip() or res.stderr.strip() or "(not reachable yet)"))
+        if code == 0 and self.ob.vm_access():
+            self.ob.vm_report()
         return code
 
     def resume(self) -> int:
