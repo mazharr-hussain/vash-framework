@@ -80,6 +80,13 @@ else
   uv pip install -q --python "$VENV/bin/python" --reinstall-package vash "$VASH_SOURCE"
 fi
 
+# `vash` on the path in every new shell (Cloud Shell keeps the home folder): added once to ~/.bashrc.
+PATH_LINE='export PATH="$HOME/.vash/venv/bin:$PATH"  # added by the VASH setup'
+if ! grep -qF "$PATH_LINE" "$HOME/.bashrc" 2>/dev/null; then
+  printf '\n%s\n' "$PATH_LINE" >> "$HOME/.bashrc"
+  echo "Added VASH to your path: new shells know \`vash\` (in this one: source ~/.bashrc)"
+fi
+
 # Run with the terminal as stdin, so the confirmations work under `curl | bash`.
 if [ -t 0 ]; then
   exec "$VENV/bin/vash" onboard oci ${ARGS[@]+"${ARGS[@]}"}
