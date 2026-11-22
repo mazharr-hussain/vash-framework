@@ -136,3 +136,16 @@ DECISION:
   mutual TLS; the password is ignored after creation so it never has to be sent again).
 - The network compartment uses the CD3 iam-compartment module already in use; the CD3 network modules
   take its id.
+
+## 22 Nov 2026: setup in the background and in parallel (vash onboard oci)
+- SEARCHED for a vendor service that runs terraform outside the shell: OCI Resource Manager (Oracle, free,
+  runs terraform jobs inside OCI, keeps the state, shows jobs and logs in the Console), OCI DevOps build
+  pipelines (Oracle, needs a project, a repository and build runners: more parts for the same result),
+  Cloud Shell background processes (end with the session after about 20 minutes idle), a detached process on a
+  bastion (ends with that machine).
+- USED OCI Resource Manager (vendor-native, $0, LAW 1 and R9): iac/oci/environments/vash-stack is one terraform
+  graph, so terraform builds in parallel whatever does not depend on something else.
+- REUSE the same CD3 modules (v2026.2.2) inside the stack; the database password is made with HashiCorp's
+  random provider and kept with the OCI provider's oci_vault_secret (CD3 has no secrets module), so no person
+  and no file sees it; HashiCorp's time provider waits out IAM's delay and a new vault's DNS.
+- KEPT the step-by-step path as `--in-shell` (and for work on an existing VM).

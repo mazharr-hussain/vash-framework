@@ -174,3 +174,58 @@ class VaultSetup:
         key_id = self.build.key(name, vault.compartment_id, vault.endpoint)
         self.echo(f"Key {name} created")
         return key_id
+
+    # ---- choosing only (the stack creates) -----------------------------
+    def find_compartment(self, tenancy: str, name: str) -> str:
+        found = self.oci("iam", "compartment", "list", "--compartment-id", tenancy, "--name", name,
+                         "--lifecycle-state", "ACTIVE", "--compartment-id-in-subtree", "true",
+                         "--access-level", "ACCESSIBLE").get("data", [])
+        return found[0]["id"] if found else ""
+
+    def plan(self, tenancy: str, key_name: str) -> dict[str, str]:
+        """The vault and key VASH will use, chosen now and made later by the Resource Manager stack:
+        {vault_id, vault_endpoint, key_id (empty: made), vault_name, key_name, security_name, security_id (empty:
+        made)}."""
+        self.echo("Looking for vaults and keys in the tenancy ...")
+        vaults = self.vaults(tenancy)
+        vault: Vault | None = None
+        if vaults:
+            self.echo("VASH keeps its secrets (passwords, tokens) in an OCI vault. These vaults exist:")
+            self.show(vaults)
+            no = self._number("Which vault should VASH use? Type its S.No, or press Enter (or 0) to create a new one",
+                              [v.no for v in vaults])
+            vault = next((v for v in vaults if v.no == no), None)
+        if vault is not None:
+            key_id = ""
+            if vault.keys:
+                listed = list(enumerate(vault.keys, 1))
+                self.echo(f"Keys in vault {vault.name}: " + ", ".join(f"{i} = {n}" for i, (n, _) in listed))
+                no = self._number(f"Which key should encrypt VASH's secrets? Type its number, or press Enter (or 0) "
+                                  f"to create a new key '{key_name}'", [i for i, _ in listed])
+                key_id = next((k for i, (_, k) in listed if i == no), "")
+            return {"vault_id": vault.id, "vault_endpoint": vault.endpoint, "key_id": key_id,
+                    "vault_name": vault.name, "key_name": key_name, "security_name": vault.compartment,
+                    "security_id": vault.compartment_id}
+        if not vaults:
+            self.echo("No vault found: VASH keeps its secrets (passwords, tokens) in an OCI vault; one is made")
+        name = DEFAULT_SECURITY
+        if not self.confirm(f"Keep the new vault in a compartment named '{DEFAULT_SECURITY}' "
+                            "(one place for every application's vaults and keys)?"):
+            name = ""
+            for _ in range(3):
+                answer = self.ask("Name of the compartment for vaults and keys (an existing name, or a new one)",
+                                  "").strip()
+                if COMPARTMENT_RE.match(answer):
+                    name = answer
+                    break
+                self.echo("Please type a name: letters, digits, '.', '-' and '_', at most 100")
+            if not name:
+                raise VashError("No compartment name for the vault", "Run again and type a name")
+        security_id = self.find_compartment(tenancy, name)
+        if not security_id and not self.confirm(f"Compartment '{name}' does not exist. Create it?"):
+            raise VashError(f"No compartment '{name}' for the vault", "Run again and choose an existing vault")
+        if not self.confirm(f"Create the free virtual vault '{name}-vault' and the key '{key_name}' (AES-256, HSM) "
+                            f"in compartment {name}?"):
+            raise VashError("No vault for VASH's secrets", "Run again and choose an existing vault")
+        return {"vault_id": "", "vault_endpoint": "", "key_id": "", "vault_name": f"{name}-vault",
+                "key_name": key_name, "security_name": name, "security_id": security_id}
