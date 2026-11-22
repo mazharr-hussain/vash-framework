@@ -86,6 +86,7 @@ def test_empty_tenancy_one_job_with_everything(home, monkeypatch):
         "app": ("vash", ""), "security": ("security", ""), "network": ("network", "")}  # all three made, at the root
     assert v["vault_id"] == "" and v["key_id"] == "" and v["create_database"] == "true" and v["create_vm"] == "true"
     assert v["shape"] == "VM.Standard.A1.Flex" and v["availability_domain"] == "AD-1"
+    assert v["tenancy_ocid"] == "ocid1.tenancy.oc1..t" and v["region"] == "eu-frankfurt-1"  # not filled by OCI
     assert "environments/vash-stack/main.tf" in cloud.zip_names
     assert "environments/vash-stack/scripts/vash-runner.sh" in cloud.zip_names
     assert "modules/database/main.tf" in cloud.zip_names
@@ -161,3 +162,17 @@ def test_down_starts_a_destroy_job(home, monkeypatch):
 def test_stack_variables_are_text():
     assert stack_variables({"a": True, "b": 2, "c": {"x": 1}, "d": ["s"], "e": None, "f": "t"}) == {
         "a": "true", "b": "2", "c": '{"x": 1}', "d": '["s"]', "f": "t"}
+
+
+def test_resume_sets_tenancy_and_region_on_a_stack_saved_without_them(home, monkeypatch):
+    """Seen live: the first stack had no tenancy_ocid or region; --resume must save them."""
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud(jobs=("FAILED",), logs=("Error: No value for required variable",))
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["stack"]["values"].pop("tenancy_ocid", None)
+    path.write_text(json.dumps(state))
+    stack_make(cloud, home, resume=True).up()
+    _, v = cloud.stacks[-1]
+    assert v["tenancy_ocid"] == "ocid1.tenancy.oc1..t" and v["region"] == "eu-frankfurt-1"
