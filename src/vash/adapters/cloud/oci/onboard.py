@@ -78,6 +78,9 @@ class Options:
     database: bool = False  # an Always Free Autonomous Database, password in the vault
     database_only: bool = False  # compartment, vault and database; no VM
     network_compartment: str | None = None  # where a new network goes (default 'network', asked)
+    engine: str = "shell"  # "stack": every question first, then one OCI Resource Manager job (the CLI's default)
+    status: bool = False  # stack: show the setup job
+    resume: bool = False  # stack: run the setup again (next domain or a smaller VM on no capacity)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -590,7 +593,20 @@ class Onboarding:
         self.echo(f"GitHub runner registered for {repo}")
 
     # ---- entry points --------------------------------------------------
+    def uses_stack(self) -> bool:
+        """The Resource Manager path: the default, except for work on an existing VM or the guardrails alone."""
+        o = self.options
+        return o.engine == "stack" and not (o.vm_ip or o.guardrails_only or o.cleanup_only)
+
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
+        if self.uses_stack() or self.options.status or self.options.resume:
+            from .stack_setup import StackSetup
+            setup = StackSetup(self)
+            if self.options.status:
+                return setup.status()
+            if self.options.resume:
+                return setup.resume()
+            return setup.up()
         tenancy, region = self.tenancy_and_region()
         self.echo(f"Tenancy found, region {region}{' (Cloud Shell)' if self.in_cloud_shell() else ''}")
         if self.options.guardrails_only:
@@ -759,6 +775,9 @@ class Onboarding:
         return 0
 
     def down(self) -> int:
+        if self._state().get("stack", {}).get("id"):
+            from .stack_setup import StackSetup
+            return StackSetup(self).down()
         workdir = self.options.workdir
         if not self.tfvars_path(workdir).exists():
             self.echo(f"Nothing to remove: no onboarding state in {workdir}")
@@ -786,7 +805,9 @@ def run_cli(args: Any) -> int:
         runner_repo=args.runner_repo,
         notify_email=args.notify_email,
         model=args.model,
-        review=((not args.yes and not args.no_inventory) or args.cleanup_only) and not args.database_only,
+        # The stack path asks no cleanup questions (it runs unattended); `--in-shell` or `--cleanup-only` still can.
+        review=(((not args.yes and not args.no_inventory) or args.cleanup_only) and not args.database_only
+                and (getattr(args, "in_shell", False) or args.cleanup_only)),
         cleanup_only=args.cleanup_only,
         name_prefix=args.name_prefix,
         vm_ip=args.vm_ip,
@@ -800,6 +821,9 @@ def run_cli(args: Any) -> int:
         database=args.database or args.database_only,
         database_only=args.database_only,
         network_compartment=args.network_compartment,
+        engine="shell" if getattr(args, "in_shell", False) else "stack",
+        status=getattr(args, "status", False),
+        resume=getattr(args, "resume", False),
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )

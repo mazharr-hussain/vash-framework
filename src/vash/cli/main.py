@@ -47,6 +47,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_onboard = subparsers.add_parser("onboard", help="Create a cloud runner VM with VASH installed")
     p_onboard.add_argument("cloud", help="Cloud adapter id from the catalog")
     p_onboard.add_argument("--down", action="store_true", help="Remove what onboarding created")
+    p_onboard.add_argument("--status", action="store_true",
+                           help="Show the setup running in the cloud's job service: its state, last log lines, the VM")
+    p_onboard.add_argument("--resume", action="store_true",
+                           help="Run the setup again (no capacity: next availability domain, then a smaller VM)")
+    p_onboard.add_argument("--in-shell", action="store_true",
+                           help="Run terraform in this shell step by step instead of in the cloud's job service")
     p_onboard.add_argument("--yes", action="store_true", help="Do not ask before creating or removing")
     p_onboard.add_argument("--runner-repo", help="owner/name: register a self-hosted CI runner for it")
     p_onboard.add_argument("--admin-cidr", help="CIDR allowed to SSH (default: this shell's IP/32)")
