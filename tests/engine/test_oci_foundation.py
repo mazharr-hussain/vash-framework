@@ -86,3 +86,45 @@ def test_cd3_instance_module_gets_the_values_its_defaults_break_on():
     assert "boot_tf_policy  = null" in instance  # CD3's default "" looks up a policy named ""
     assert "launch_options  = null" in instance  # CD3 reads element(launch_options, 0) of its default []
     assert "nsg_ids         = null" in instance  # CD3 turns its default [] into ["INVALID NSG Name"]
+
+
+def _state(tmp_path, resources):
+    (tmp_path / "environments" / "foundation" / "terraform.tfstate").write_text(json.dumps({"resources": resources}))
+
+
+KEY_IN_STATE = {"module": 'module.key["vash-secrets-key"]', "type": "oci_kms_key", "name": "key",
+                "instances": [{"status": "tainted", "attributes": {
+                    "compartment_id": "ocid1.comp..security", "management_endpoint": "https://security-vault"}}]}
+
+
+def test_new_vault_address_not_yet_in_dns_is_waited_for(tmp_path, monkeypatch):
+    """Seen live in Frankfurt: a new vault's management address is unknown to DNS for the first minutes."""
+    dns = ('Error: Get "https://x-management.kms.eu-frankfurt-1.oraclecloud.com/20180608/keys/ocid1.key": '
+           "dial tcp: lookup x-management.kms.eu-frankfurt-1.oraclecloud.com on 169.254.169.254:53: no such host")
+    tf = FakeTerraform([dns, dns])
+    build = foundation(tmp_path, monkeypatch, tf)
+    assert build.key("vash-secrets-key", "ocid1.comp..security", "https://security-vault") == \
+        "ocid1.key..vash-secrets-key"
+    assert tf.calls.count("apply") == 3
+    assert "vash-secrets-key" in tfvars(tmp_path)["keys"]
+
+
+def test_a_failed_apply_keeps_what_terraform_made(tmp_path, monkeypatch):
+    tf = FakeTerraform(["Error: something else went wrong"])
+    build = foundation(tmp_path, monkeypatch, tf)
+    _state(tmp_path, [KEY_IN_STATE])  # terraform made the key before the error
+    with pytest.raises(VashError):
+        build.key("vash-secrets-key", "ocid1.comp..security", "https://security-vault")
+    assert "vash-secrets-key" in tfvars(tmp_path)["keys"]  # kept: dropping it would make terraform delete the key
+
+
+def test_an_object_the_tfvars_lost_is_put_back_and_untainted(tmp_path, monkeypatch):
+    """An older VASH forgot the key after the DNS error although terraform had made it: the next apply would
+    have deleted it. It is put back from terraform's records and marked healthy before any apply."""
+    tf = FakeTerraform()
+    build = foundation(tmp_path, monkeypatch, tf)
+    _state(tmp_path, [KEY_IN_STATE])
+    build.compartment("network", "Networks")
+    assert tfvars(tmp_path)["keys"]["vash-secrets-key"] == {"compartment_id": "ocid1.comp..security",
+                                                           "management_endpoint": "https://security-vault"}
+    assert "untaint" in tf.calls and tf.calls.index("untaint") < tf.calls.index("apply")
