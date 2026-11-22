@@ -74,11 +74,20 @@ def reply(
             raise e
 
 
-def gateway_command(out: str, env_file: str, local_model: str) -> int:
+def gateway_command(out: str, env_file: str, local_model: str, extra: str = "") -> int:
     """`vash gateway config`: write the model gateway's settings (kinds of work, fallbacks) from the key file."""
     from pathlib import Path
     from vash.adapters.llm.litellm.gateway import write
-    data = write(Path(out), Path(env_file), local_model)
+    data = write(Path(out), Path(env_file), local_model, Path(extra) if extra else None)
     kinds = sorted({m["model_name"] for m in data["model_list"] if not m["model_name"][-1].isdigit()})
     print(f"Gateway settings written to {out}: {', '.join(kinds)}")
+    return 0
+
+
+def gateway_add(kind: str, model: str, maker: str, key_env: str, paid: bool, first: bool, extra: str) -> int:
+    """`vash gateway add`: any LiteLLM model for a kind of work; then `vash gateway config` and a restart use it."""
+    from pathlib import Path
+    from vash.adapters.llm.litellm.gateway import add
+    print(add(Path(extra), kind, model, maker, key_env, paid, first))
+    print("Apply it: sudo vash gateway config && sudo systemctl restart vash-gateway")
     return 0

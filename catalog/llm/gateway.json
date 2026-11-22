@@ -1,34 +1,60 @@
 {
-  "note": "Models per kind of work for the model gateway. Free line-ups change: each entry is checked in activity 3.3, and changing one is one line here. maker is who made the model (rule R4 compares makers, not hosts).",
+  "note": "Models per kind of work for the model gateway (LiteLLM). Every provider here has a free tier; limits and model line-ups change, so each entry is checked in activity 3.3, and changing one is one line here. maker is who made the model (rule R4 compares makers, not hosts). A provider is used only once its key is given (vash onboard oci --keys).",
   "providers": {
     "groq": {"key_env": "GROQ_API_KEY", "signup": "https://console.groq.com/keys"},
     "cerebras": {"key_env": "CEREBRAS_API_KEY", "signup": "https://cloud.cerebras.ai"},
     "gemini": {"key_env": "GEMINI_API_KEY", "signup": "https://aistudio.google.com/apikey"},
-    "mistral": {"key_env": "MISTRAL_API_KEY", "signup": "https://console.mistral.ai/api-keys"}
+    "mistral": {"key_env": "MISTRAL_API_KEY", "signup": "https://console.mistral.ai/api-keys"},
+    "codestral": {"key_env": "CODESTRAL_API_KEY", "signup": "https://console.mistral.ai/codestral"},
+    "nvidia_nim": {"key_env": "NVIDIA_NIM_API_KEY", "signup": "https://build.nvidia.com"},
+    "sambanova": {"key_env": "SAMBANOVA_API_KEY", "signup": "https://cloud.sambanova.ai/apis"},
+    "openrouter": {"key_env": "OPENROUTER_API_KEY", "signup": "https://openrouter.ai/keys"},
+    "huggingface": {"key_env": "HF_TOKEN", "signup": "https://huggingface.co/settings/tokens"},
+    "cloudflare": {"key_env": "CLOUDFLARE_API_KEY", "signup": "https://dash.cloudflare.com/profile/api-tokens",
+                   "extra": [{"env": "CLOUDFLARE_ACCOUNT_ID", "label": "Cloudflare account id", "secret": false}]},
+    "cohere": {"key_env": "COHERE_API_KEY", "signup": "https://dashboard.cohere.com/api-keys"}
   },
   "kinds": {
     "coding": [
       {"provider": "cerebras", "model": "cerebras/qwen-3-coder-480b", "maker": "alibaba"},
+      {"provider": "nvidia_nim", "model": "nvidia_nim/qwen/qwen2.5-coder-32b-instruct", "maker": "alibaba"},
+      {"provider": "openrouter", "model": "openrouter/qwen/qwen3-coder:free", "maker": "alibaba"},
       {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"},
+      {"provider": "codestral", "model": "codestral/codestral-latest", "maker": "mistral"},
+      {"provider": "sambanova", "model": "sambanova/DeepSeek-V3-0324", "maker": "deepseek"},
+      {"provider": "cloudflare", "model": "cloudflare/@cf/qwen/qwen2.5-coder-32b-instruct", "maker": "alibaba"},
+      {"provider": "huggingface", "model": "huggingface/Qwen/Qwen2.5-Coder-32B-Instruct", "maker": "alibaba"},
       {"provider": "mistral", "model": "mistral/devstral-small-latest", "maker": "mistral"}
     ],
     "test": [
       {"provider": "cerebras", "model": "cerebras/qwen-3-coder-480b", "maker": "alibaba"},
-      {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"}
+      {"provider": "openrouter", "model": "openrouter/qwen/qwen3-coder:free", "maker": "alibaba"},
+      {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"},
+      {"provider": "codestral", "model": "codestral/codestral-latest", "maker": "mistral"},
+      {"provider": "nvidia_nim", "model": "nvidia_nim/qwen/qwen2.5-coder-32b-instruct", "maker": "alibaba"}
     ],
     "docs": [
       {"provider": "groq", "model": "groq/llama-3.3-70b-versatile", "maker": "meta"},
       {"provider": "cerebras", "model": "cerebras/llama-3.3-70b", "maker": "meta"},
-      {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"}
+      {"provider": "sambanova", "model": "sambanova/Meta-Llama-3.3-70B-Instruct", "maker": "meta"},
+      {"provider": "nvidia_nim", "model": "nvidia_nim/meta/llama-3.3-70b-instruct", "maker": "meta"},
+      {"provider": "openrouter", "model": "openrouter/meta-llama/llama-3.3-70b-instruct:free", "maker": "meta"},
+      {"provider": "cloudflare", "model": "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast", "maker": "meta"},
+      {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"},
+      {"provider": "cohere", "model": "cohere_chat/command-r-plus", "maker": "cohere"}
     ],
     "prompt": [
       {"provider": "cerebras", "model": "cerebras/llama-3.3-70b", "maker": "meta"},
       {"provider": "groq", "model": "groq/llama-3.3-70b-versatile", "maker": "meta"},
-      {"provider": "mistral", "model": "mistral/mistral-small-latest", "maker": "mistral"}
+      {"provider": "sambanova", "model": "sambanova/Meta-Llama-3.3-70B-Instruct", "maker": "meta"},
+      {"provider": "mistral", "model": "mistral/mistral-small-latest", "maker": "mistral"},
+      {"provider": "cohere", "model": "cohere_chat/command-r-plus", "maker": "cohere"}
     ],
     "review": [
       {"provider": "groq", "model": "groq/openai/gpt-oss-120b", "maker": "openai"},
       {"provider": "cerebras", "model": "cerebras/gpt-oss-120b", "maker": "openai"},
+      {"provider": "nvidia_nim", "model": "nvidia_nim/openai/gpt-oss-120b", "maker": "openai"},
+      {"provider": "openrouter", "model": "openrouter/openai/gpt-oss-20b:free", "maker": "openai"},
       {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"}
     ]
   },

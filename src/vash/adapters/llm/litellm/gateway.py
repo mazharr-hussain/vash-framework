@@ -18,8 +18,47 @@ LOCAL = "vash-local"
 PORT = 4000
 
 
-def catalog() -> dict[str, Any]:
-    return json.loads((vash_root() / "catalog" / "llm" / "gateway.json").read_text())
+EXTRA = Path("/etc/vash/gateway-models.json")
+
+
+def catalog(extra: Path | None = None) -> dict[str, Any]:
+    """The free models of catalog/llm/gateway.json, plus the owner's own additions (`vash gateway add`): any model
+    LiteLLM supports. An addition marked first goes ahead of the catalog's models of its kind."""
+    cat = json.loads((vash_root() / "catalog" / "llm" / "gateway.json").read_text())
+    path = extra if extra is not None else EXTRA
+    added = json.loads(path.read_text()) if path.exists() else {}
+    for name, provider in added.get("providers", {}).items():
+        cat["providers"].setdefault(name, provider)
+    for kind, models in added.get("kinds", {}).items():
+        first = [m for m in models if m.get("first")]
+        cat["kinds"][kind] = first + cat["kinds"].get(kind, []) + [m for m in models if not m.get("first")]
+    return cat
+
+
+def add(extra: Path, kind: str, model: str, maker: str, key_env: str, paid: bool, first: bool) -> str:
+    """Add any LiteLLM model (provider/model) to a kind of work. A provider outside the free catalog must be
+    marked paid by the owner (LAW 1: nothing costs money by surprise)."""
+    if "/" not in model:
+        raise VashError(f"'{model}' is not a LiteLLM model name", "Use provider/model, e.g. together_ai/meta-llama/...")
+    provider = model.split("/", 1)[0]
+    base = json.loads((vash_root() / "catalog" / "llm" / "gateway.json").read_text())
+    if kind not in base["kinds"]:
+        raise VashError(f"Unknown kind of work '{kind}'", f"Use one of: {', '.join(base['kinds'])}")
+    free = provider in base["providers"] or provider in ("ollama", "ollama_chat", "cohere_chat")
+    if not free and not paid:
+        raise VashError(f"'{provider}' is not in VASH's list of free providers",
+                        "If it is free for you, or you accept paying for it, add --paid (LAW 1: say it explicitly)")
+    added = json.loads(extra.read_text()) if extra.exists() else {}
+    if key_env:
+        added.setdefault("providers", {}).setdefault(provider, {"key_env": key_env, "signup": "", "paid": paid})
+    elif provider in base["providers"]:
+        key_env = base["providers"][provider]["key_env"]
+    entry = {"provider": provider, "model": model, "maker": maker.lower(), "first": first, "paid": paid}
+    models = added.setdefault("kinds", {}).setdefault(kind, [])
+    models[:] = [m for m in models if m["model"] != model] + [entry]
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text(json.dumps(added, indent=2) + "\n")
+    return f"{model} added to {kind}" + (" (first)" if first else "") + (f"; its key: {key_env}" if key_env else "")
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -35,8 +74,11 @@ def read_env(path: Path) -> dict[str, str]:
 
 def chains(cat: dict[str, Any], keys: set[str]) -> dict[str, list[dict[str, str]]]:
     providers = cat["providers"]
-    return {kind: [m for m in models if providers[m["provider"]]["key_env"] in keys]
-            for kind, models in cat["kinds"].items()}
+
+    def usable(m: dict[str, str]) -> bool:
+        p = providers.get(m["provider"])
+        return p is None or not p.get("key_env") or p["key_env"] in keys  # no key needed: keyless or on the VM
+    return {kind: [m for m in models if usable(m)] for kind, models in cat["kinds"].items()}
 
 
 def apply_makers(cat: dict[str, Any], available: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
@@ -50,8 +92,9 @@ def apply_makers(cat: dict[str, Any], available: dict[str, list[dict[str, str]]]
     return out
 
 
-def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0.1:11434") -> dict[str, Any]:
-    cat = catalog()
+def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0.1:11434",
+             extra: Path | None = None) -> dict[str, Any]:
+    cat = catalog(extra)
     available = apply_makers(cat, chains(cat, keys))
     model_list: list[dict[str, Any]] = []
     fallbacks: list[dict[str, list[str]]] = []
@@ -61,9 +104,9 @@ def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0
     for kind, models in available.items():
         names = [f"vash-{kind}" if i == 0 else f"vash-{kind}-{i + 1}" for i in range(len(models))]
         for name, m in zip(names, models):
-            key_env = cat["providers"][m["provider"]]["key_env"]
-            model_list.append({"model_name": name, "model_info": {"maker": m["maker"]},
-                               "litellm_params": {"model": m["model"], "api_key": f"os.environ/{key_env}"}})
+            key_env = (cat["providers"].get(m["provider"]) or {}).get("key_env")
+            params = {"model": m["model"], **({"api_key": f"os.environ/{key_env}"} if key_env else {})}
+            model_list.append({"model_name": name, "model_info": {"maker": m["maker"]}, "litellm_params": params})
         chain = names[1:] + ([LOCAL] if local_model else [])
         if not names:  # no key for this kind: the VM's model does it
             if local_model:
@@ -85,8 +128,8 @@ def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0
     }
 
 
-def write(out: Path, env_file: Path, local_model: str) -> dict[str, Any]:
-    data = settings(set(read_env(env_file)), local_model)
+def write(out: Path, env_file: Path, local_model: str, extra: Path | None = None) -> dict[str, Any]:
+    data = settings(set(read_env(env_file)), local_model, extra=extra)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, indent=2) + "\n")
     return data

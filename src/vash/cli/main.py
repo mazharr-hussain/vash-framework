@@ -29,9 +29,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_gw = subparsers.add_parser("gateway", help="The model gateway on this machine")
     gw_sub = p_gw.add_subparsers(dest="action", required=True)
     p_gwc = gw_sub.add_parser("config", help="Write the gateway's settings: a model per kind of work, with fallbacks")
+    p_gwa = gw_sub.add_parser("add", help="Add any model the gateway supports to a kind of work (provider/model)")
+    p_gwa.add_argument("kind", help="coding, test, docs, prompt or review")
+    p_gwa.add_argument("model", help="provider/model as the gateway names it, e.g. together_ai/meta-llama/...")
+    p_gwa.add_argument("--maker", required=True, help="Who made the model (rule R4 compares makers), e.g. meta")
+    p_gwa.add_argument("--key-env", default="", help="Environment variable of the provider's key, if new")
+    p_gwa.add_argument("--paid", action="store_true", help="The provider is not in the free list: accept its cost")
+    p_gwa.add_argument("--first", action="store_true", help="Put it ahead of the catalog's models of that kind")
+    p_gwa.add_argument("--extra", default="/etc/vash/gateway-models.json")
     p_gwc.add_argument("--out", default="/etc/vash/gateway.yaml")
     p_gwc.add_argument("--env", default="/etc/vash/gateway.env", help="File with the provider keys (KEY=value)")
     p_gwc.add_argument("--vm-model", default="", help="The model on this machine, the last fallback")
+    p_gwc.add_argument("--extra", default="/etc/vash/gateway-models.json", help="The owner's added models")
     subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
@@ -128,8 +137,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             from vash.cli.status import run
             return run(args.repo)
         elif args.command == "gateway":
-            from vash.adapters.llm import gateway_command
-            return gateway_command(args.out, args.env, args.vm_model)
+            from vash.adapters.llm import gateway_add, gateway_command
+            if args.action == "add":
+                return gateway_add(args.kind, args.model, args.maker, args.key_env, args.paid, args.first,
+                                   args.extra)
+            return gateway_command(args.out, args.env, args.vm_model, args.extra)
         elif args.command == "mcp":
             from vash.mcp.server import run as serve
             return serve()

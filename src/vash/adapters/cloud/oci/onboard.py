@@ -607,8 +607,25 @@ class Onboarding:
         given: dict[str, str] = {}
         for name, p in providers.items():
             value = self.secret(f"{name} key ({p['signup']}), or Enter to skip: ").strip()
+            if not value:
+                continue
+            given[p["key_env"]] = value
+            for extra in p.get("extra", []):  # e.g. Cloudflare also needs the account id
+                ask = self.secret if extra.get("secret", True) else (lambda q: self.ask(q, ""))
+                more = ask(f"{name}: {extra['label']}: ").strip()
+                if more:
+                    given[extra["env"]] = more
+        for _ in range(20):  # any other provider the gateway supports (added with `vash gateway add`)
+            env_name = self.ask("Another provider's key variable (e.g. TOGETHER_API_KEY), or Enter to finish",
+                                "").strip()
+            if not env_name:
+                break
+            if not re.match(r"^[A-Z][A-Z0-9_]{1,63}$", env_name):
+                self.echo("Use capital letters, digits and '_', e.g. TOGETHER_API_KEY")
+                continue
+            value = self.secret(f"{env_name}: ").strip()
             if value:
-                given[p["key_env"]] = value
+                given[env_name] = value
         if not given:
             self.echo("No key given; nothing changed")
             return 0

@@ -51,3 +51,32 @@ def test_written_as_json_which_is_yaml_and_keys_are_only_named(tmp_path):
     write(tmp_path / "gw.yaml", env, "qwen2.5-coder:7b")
     text = (tmp_path / "gw.yaml").read_text()
     assert "gsk_secret" not in text and json.loads(text)["model_list"]
+
+
+def test_any_model_can_be_added_free_ones_at_once_paid_ones_only_when_said(tmp_path):
+    import pytest
+    from vash.adapters.llm.litellm.gateway import add
+    from vash.core.exceptions import VashError
+    extra = tmp_path / "gateway-models.json"
+    add(extra, "coding", "groq/moonshotai/kimi-k2-instruct", "moonshot", "", paid=False, first=True)
+    with pytest.raises(VashError, match="not in VASH's list of free providers"):
+        add(extra, "docs", "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo", "meta", "TOGETHER_API_KEY",
+            paid=False, first=False)
+    add(extra, "docs", "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo", "meta", "TOGETHER_API_KEY",
+        paid=True, first=False)
+    data = settings({"GROQ_API_KEY", "TOGETHER_API_KEY"}, "qwen2.5-coder:7b", extra=extra)
+    assert model_of(data, "vash-coding") == "groq/moonshotai/kimi-k2-instruct"  # added first
+    docs = [m["litellm_params"]["model"] for m in data["model_list"] if m["model_name"].startswith("vash-docs")]
+    assert docs[-1] == "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"  # added last
+    assert next(m["litellm_params"]["api_key"] for m in data["model_list"]
+                if m["litellm_params"]["model"].startswith("together_ai/")) == "os.environ/TOGETHER_API_KEY"
+
+
+def test_unknown_kind_or_model_name_is_refused(tmp_path):
+    import pytest
+    from vash.adapters.llm.litellm.gateway import add
+    from vash.core.exceptions import VashError
+    with pytest.raises(VashError, match="Unknown kind"):
+        add(tmp_path / "x.json", "dance", "groq/x", "meta", "", False, False)
+    with pytest.raises(VashError, match="not a LiteLLM model name"):
+        add(tmp_path / "x.json", "coding", "justaname", "meta", "", False, False)
