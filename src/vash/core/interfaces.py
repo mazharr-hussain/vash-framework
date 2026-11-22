@@ -111,6 +111,11 @@ class CIAdapter(ABC):
     @abstractmethod
     def install_hooks(self, repo_root: Path) -> list[Path]: pass
 
+    @classmethod
+    def runner_status(cls) -> tuple[bool | None, str, str]:
+        """(ok, what was found, how to fix) for a runner on this machine; ok None when none is set up here."""
+        return None, "no runner check for this CI", ""
+
 
 class CloudAdapter(ABC):
     """Cloud adapter.
@@ -137,6 +142,10 @@ class LLMAdapter(ABC):
 
     @abstractmethod
     def reply(self, prompt: str, route: RouteSettings) -> LLMReply: pass
+
+    def check(self, route: RouteSettings) -> tuple[bool, str, str]:
+        """(ok, what was found, how to fix) for the route now, without spending tokens (`vash doctor`)."""
+        return True, "not checked by this adapter", ""
 
 
 class StackPack(ABC):

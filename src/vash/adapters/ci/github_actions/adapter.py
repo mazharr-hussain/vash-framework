@@ -104,3 +104,32 @@ class Adapter(CIAdapter):
 
     def install_hooks(self, repo_root: Path) -> list[Path]:
         return []
+
+    @classmethod
+    def runner_status(cls) -> tuple[bool | None, str, str]:
+        """The self-hosted runner on this machine: its files, its registration and its service."""
+        import subprocess
+        home = Path(os.environ.get("VASH_RUNNER_DIR", str(Path.home() / "actions-runner")))
+        if not (home / "config.sh").exists():
+            return None, "no runner files on this machine", ""
+        if not (home / ".runner").exists():
+            return False, f"runner files in {home}, not registered", (
+                "Repository Settings, Actions, Runners, New self-hosted runner: copy the token, then "
+                f"cd {home} && ./config.sh --url https://github.com/<owner>/<repo> --token <TOKEN> "
+                "--labels self-hosted,vash --unattended && sudo ./svc.sh install && sudo ./svc.sh start")
+        try:
+            repo = json.loads((home / ".runner").read_text(encoding="utf-8-sig")).get("gitHubUrl", "")
+        except (ValueError, OSError):
+            repo = ""
+        try:
+            out = subprocess.run(["systemctl", "list-units", "--type=service", "--all", "--no-legend",
+                                  "--plain", "actions.runner.*"], capture_output=True, text=True, check=False)
+            units = [line.split()[0] for line in out.stdout.splitlines() if line.strip()]
+            active = [u for u in units if subprocess.run(["systemctl", "is-active", "--quiet", u],
+                                                         check=False).returncode == 0]
+        except (FileNotFoundError, IndexError):
+            units, active = [], []
+        if not active:
+            return False, f"registered for {repo or 'a repository'}, but its service is not running", (
+                f"cd {home} && sudo ./svc.sh install && sudo ./svc.sh start")
+        return True, f"registered for {repo or 'a repository'}, service running", ""

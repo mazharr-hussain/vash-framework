@@ -24,6 +24,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_ava.add_argument("--repo", type=Path, default=Path.cwd())
     p_cost = subparsers.add_parser("cost", help="Show cost meter status")
     p_cost.add_argument("--repo", type=Path, default=Path.cwd())
+    p_doctor = subparsers.add_parser("doctor", help="Check that everything VASH needs here works; says how to fix it")
+    p_doctor.add_argument("--repo", type=Path, default=Path.cwd())
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
     for kind in ("skill", "agent"):
@@ -112,6 +114,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "status":
             from vash.cli.status import run
             return run(args.repo)
+        elif args.command == "doctor":
+            from vash.tools.doctor import run as doctor
+            return doctor(args.repo)
         elif args.command in ("skill", "agent"):
             from vash.cli import skill as skill_cli
             if args.action == "new":
