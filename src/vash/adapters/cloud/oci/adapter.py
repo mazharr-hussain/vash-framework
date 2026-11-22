@@ -55,6 +55,10 @@ class Adapter(CloudAdapter):
         self._run_tf(environment, ["apply", "-input=false", "-auto-approve"], env)
         return self.outputs(environment)
 
+    def untaint(self, environment: str, address: str) -> None:
+        """Mark an object terraform created as healthy again (its create succeeded, only the read after it failed)."""
+        self._run_tf(environment, ["untaint", address])
+
     def destroy(self, environment: str, approved: bool) -> None:
         if not approved:
             raise FreezeInvalid("Destroy requires approval", "Set approved=True")
