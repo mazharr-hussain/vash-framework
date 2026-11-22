@@ -95,6 +95,7 @@ class Options:
     resume: bool = False  # stack: run the setup again (next domain or a smaller VM on no capacity)
     update: bool = False  # install this VASH on the VM again and run the checks
     keys: bool = False  # model provider keys for the gateway: into the vault and onto the VM
+    chat: bool = False  # open the chat harness on the VM (OpenCode with VASH's tools)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -634,6 +635,17 @@ class Onboarding:
         self.echo(f"Keys installed on {ip}; the gateway was restarted ({res.stdout.strip().splitlines()[-1] if res.stdout.strip() else 'started'})")
         return 0
 
+    def chat(self) -> int:
+        """Open the chat harness on the VM (OpenCode with VASH's tools), in this terminal, over SSH."""
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell", "Run `vash onboard oci` first")
+        key, ip = access
+        self.echo(f"Opening the VASH chat on {ip} (leave it with Ctrl+C) ...")
+        res = self._run(["ssh", "-t", "-i", str(key), "-o", "StrictHostKeyChecking=accept-new",
+                         f"{self.user}@{ip}", "vash-chat"], check=False)
+        return res.returncode
+
     def earlier_instance_id(self) -> str:
         state = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
         try:
@@ -765,6 +777,8 @@ class Onboarding:
             return self.update()
         if self.options.keys:
             return self.keys()
+        if self.options.chat:
+            return self.chat()
         if self.options.status and not self._state().get("stack", {}).get("id"):
             return self.vm_report()
         if self.uses_stack() or self.options.status or self.options.resume:
@@ -998,6 +1012,7 @@ def run_cli(args: Any) -> int:
         resume=getattr(args, "resume", False),
         update=getattr(args, "update", False),
         keys=getattr(args, "keys", False),
+        chat=getattr(args, "chat", False),
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )

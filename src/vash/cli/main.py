@@ -32,6 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_gwc.add_argument("--out", default="/etc/vash/gateway.yaml")
     p_gwc.add_argument("--env", default="/etc/vash/gateway.env", help="File with the provider keys (KEY=value)")
     p_gwc.add_argument("--vm-model", default="", help="The model on this machine, the last fallback")
+    subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
     for kind in ("skill", "agent"):
@@ -63,6 +64,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                            help="Install this VASH on the VM again over SSH, then run the health check and a first task")
     p_onboard.add_argument("--keys", action="store_true",
                            help="Give the model provider keys once: kept in the vault, installed in the VM's gateway")
+    p_onboard.add_argument("--chat", action="store_true",
+                           help="Open the chat on the VM: a harness that talks to VASH and uses its models")
     p_onboard.add_argument("--in-shell", action="store_true",
                            help="Run terraform in this shell step by step instead of in the cloud's job service")
     p_onboard.add_argument("--yes", action="store_true", help="Do not ask before creating or removing")
@@ -127,6 +130,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "gateway":
             from vash.adapters.llm import gateway_command
             return gateway_command(args.out, args.env, args.vm_model)
+        elif args.command == "mcp":
+            from vash.mcp.server import run as serve
+            return serve()
         elif args.command == "doctor":
             from vash.tools.doctor import run as doctor
             return doctor(args.repo)

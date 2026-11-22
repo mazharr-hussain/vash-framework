@@ -159,3 +159,15 @@ DECISION:
   and the settings VASH writes: every kind answered, a failing provider fell back to the VM's model, a wrong key
   was refused.
 - KEPT freellmpool and OpenRouter as possible providers behind the gateway (activity 3.3).
+
+## 22 Nov 2026: a chat harness on the VM (owner request: talk to VASH on OCI, with the VM's Ollama model)
+- SEARCHED: OpenCode (MIT, npm @opencode/cli, V2 line), Codex CLI (Apache-2.0, built-in Ollama option), Gemini CLI
+  (Apache-2.0, free with a Google login, Gemini models only without a bridge), Claude Code (proprietary, paid
+  models), Antigravity (proprietary IDE).
+- USED OpenCode 2.2.6 (6 Nov 2026, at least two weeks old) through npm, which pins the version and checks the
+  package's checksum (the release page publishes no checksums for V2). Tried here: its machine-wide settings with
+  VASH's gateway as provider listed the models, answered through the gateway from the stand-in VM model, and
+  connected to `vash mcp` ("vash connected").
+- USED the official MCP Python SDK 2.3.0 (MIT) for `vash mcp`; tried with the SDK's own client: project, task, AvA
+  run, status and result, and a refused name returned as a tool error.
+- Any other harness can use the same gateway and `vash mcp` (owner decision D10, any coding tool).

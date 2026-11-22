@@ -12,6 +12,8 @@ VASH_SOURCE="@@VASH_SOURCE@@"
 # Fixed versions: a new release of a tool never changes this VM by surprise. Update them here, in a PR.
 OLLAMA_VERSION="0.40.16"
 GATEWAY_VERSION="1.108.3"  # LiteLLM, the model gateway (catalog/llm/litellm.md)
+HARNESS_VERSION="2.2.6"  # OpenCode, the chat harness (npm checks the package's checksum)
+MCP_VERSION="2.3.0"  # the official MCP Python SDK, for `vash mcp`
 RUNNER_VERSION="2.338.2"
 RUNNER_SHA256_ARM64="670adb2f268fe21dcbb58b3db0e0aa9d5b3bddfe2c651481336e561ff86de945"  # pragma: allowlist secret (published checksum)
 RUNNER_SHA256_X64="baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40"  # pragma: allowlist secret (published checksum)
@@ -127,11 +129,69 @@ if [ "$GATEWAY_READY" = 1 ]; then
   done
 fi
 
+# The chat harness (OpenCode) and VASH's tools for it (`vash mcp`). OpenCode's settings are machine-wide
+# (/etc/opencode, written by VASH, above any user setting): it thinks with the model gateway (the VM's model until
+# provider keys are added) and drives VASH through MCP. `vash-chat` starts it in ~/projects.
+/opt/vash/bin/pip install "mcp==$MCP_VERSION"
+wait_for_apt
+"${APT[@]}" install nodejs npm
+npm install -g "@opencode/cli@$HARNESS_VERSION"
+install -d -m 0755 /etc/opencode
+cat > /etc/opencode/opencode.json <<'JSON'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "vash": {
+      "name": "VASH model gateway",
+      "env": ["VASH_GATEWAY_KEY"],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {"baseURL": "http://127.0.0.1:4000/v1", "apiKey": "{file:/etc/vash/gateway-key}"},
+      "models": {
+        "vash-coding": {"name": "VASH coding"},
+        "vash-docs": {"name": "VASH documents"},
+        "vash-prompt": {"name": "VASH prompts"},
+        "vash-test": {"name": "VASH tests"},
+        "vash-review": {"name": "VASH review"},
+        "vash-local": {"name": "VASH: the VM's own model (Ollama)"}
+      }
+    }
+  },
+  "model": "vash/vash-coding",
+  "mcp": {
+    "timeout": {"execution": 600000},
+    "servers": {"vash": {"type": "local", "command": ["/usr/local/bin/vash", "mcp"]}}
+  }
+}
+JSON
+PROJECTS="/home/$RUN_USER/projects"
+install -d -o "$RUN_USER" -g "$RUN_USER" "$PROJECTS"
+cat > "$PROJECTS/AGENTS.md" <<'MD'
+# VASH front desk
+
+You talk with the owner of VASH, a virtual software house. You do not write the deliverables yourself:
+VASH's own agents write, check (Gate 1) and review them (AvA). Use the `vash` tools:
+
+1. `list_projects`, or `new_project` for a new piece of work.
+2. `new_task`: a short task id, the kind of work (code, test, artifact for documents, feature, prompt) and a
+   clear request that says what the result must contain.
+3. `run_task`, then `task_status` until it is finished, then `read_result` to show the owner the result.
+4. `doctor` when something does not work.
+MD
+chown "$RUN_USER:$RUN_USER" "$PROJECTS/AGENTS.md"
+cat > /usr/local/bin/vash-chat <<'SH'
+#!/bin/bash
+# Chat with VASH: OpenCode in ~/projects, thinking with the model gateway, VASH's tools attached.
+export VASH_GATEWAY_KEY="$(cat /etc/vash/gateway-key 2>/dev/null)"
+cd "$HOME/projects" && exec opencode "$@"
+SH
+chmod 0755 /usr/local/bin/vash-chat
+
 mkdir -p /var/lib/vash
 {
   echo "vash=$(vash --version) from $VASH_SOURCE"
   echo "terraform=$(terraform version | head -1)"
   echo "gateway=litellm $GATEWAY_VERSION $(systemctl is-active vash-gateway)"
+  echo "harness=$(opencode --version 2>/dev/null | head -1) (start it with: vash-chat)"
   if [ -n "$MODEL" ]; then
     echo "ollama=$(ollama --version 2>&1 | tail -1)"
     echo "model=$MODEL"

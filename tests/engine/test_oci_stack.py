@@ -314,3 +314,16 @@ def test_no_key_given_changes_nothing(home, monkeypatch):
     before = len(cloud.calls)
     assert stack_make(cloud, home, keys=True).up() == 0
     assert len(cloud.calls) == before
+
+
+def test_chat_opens_the_harness_on_the_vm_in_this_terminal(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    path.write_text(json.dumps(state))
+    stack_make(cloud, home, chat=True).up()
+    chat = cloud.calls[-1]
+    assert chat[0][:2] == ["ssh", "-t"] and chat[0][-1] == "vash-chat" and "capture_output" not in chat[1]
