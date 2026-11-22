@@ -26,8 +26,13 @@ Free tiers and free allowances only (LAW 1). Usage is tracked against every free
 - The model on the owner's VM is the **gatekeeper**: it understands each request, splits it into tasks, masks
   client data before anything leaves the VM, and decides (within fixed rules) where each task goes. Masked
   answers are unmasked only on the VM.
-- Other work goes to free model pools (OpenRouter, freellmpool and others), free GPUs and free runners, many
-  tasks in parallel.
+- Other work goes to free models, free GPUs and free runners, many tasks in parallel.
+- **One model gateway** on the VM holds every model key (given once by the owner, kept in the vault, the gateway's
+  settings written by VASH, never by hand). VASH asks it only for a kind of work (`vash-coding`, `vash-review`,
+  `vash-docs`, `vash-prompt`, `vash-test`, ...); the gateway maps each kind to the right model, falls back to the
+  next model when one fails or runs out of free quota, and counts usage. The model on the VM is the last fallback.
+  A review model always comes from a different model maker than the model whose work it reviews (rule R4).
+  Changing the model for a kind of work is one line in that mapping; projects do not change.
 - Deterministic checks come first and cannot be overruled by a model (rule R3).
 
 ## 4. Reuse, not recreation
@@ -47,6 +52,6 @@ owner only briefs, decides, approves and merges (LAW 2).
 |---|---|---|
 | 1 Personas and AvA | AvA loop (one producer, one critic, Gate 1, threshold, 3 rounds); roles registry; skills loader, `vash skill validate`, `vash skill suggest` | persona and agent choice per task; multi-persona workflows across a software-house flow; automatic skill search, validation and download before a task |
 | 2 $0 | free-tier guardrails in OCI; Always Free VM and database | usage tracking against free API limits (`vash cost`) |
-| 3 Free resources | VM with a local model; free model APIs through the OpenAI-compatible adapter | gatekeeper (understand, split, mask, route, unmask); free pool (freellmpool, OpenRouter); parallel tasks; free GPUs |
+| 3 Free resources | VM with a local model; free model APIs through the OpenAI-compatible adapter | gatekeeper (understand, split, mask, route, unmask); the model gateway with a model per kind of work (candidate: LiteLLM); parallel tasks; free GPUs |
 | 4 Reuse | catalog, search log, CD3 and vendor modules | the automatic skill and tool search of point 1 |
 | 5 Many ways in | command line; GitHub pull request checks | starting work from Git issues or comments; chat harness (MCP server); other channels |
