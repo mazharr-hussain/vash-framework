@@ -148,7 +148,7 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
     for r in range(1, 4):
         rounds = r
         try:
-            jr_reply = llm_reply(freeze, "coder", current_prompt, llm)
+            jr_reply = llm_reply(freeze, "coder", current_prompt, llm, kind=act_type)
             artifact = _normalize(code_only(jr_reply.text) if act_type == "code" else jr_reply.text)
             artifact_path.write_text(artifact, encoding="utf-8", newline="\n")
         except RouteUnavailable:
@@ -168,7 +168,8 @@ def run_activity(task_id: str, repo_root: Path, llm: Mapping[str, LLMAdapter] | 
         gate1_line = f"PASS ({g1.files_checked} file(s) checked)"
 
         try:
-            sr_reply = llm_reply(freeze, "critic", critic_prompt(prompt, _load_checklist(checklist), artifact), llm)
+            sr_reply = llm_reply(freeze, "critic", critic_prompt(prompt, _load_checklist(checklist), artifact), llm,
+                                 kind=act_type)
         except RouteUnavailable:
             _write_log(log_dir, task_id, feature, iteration, r, 0, thresh, "FAIL", "Critic route unavailable",
                        log_paths, gate1_line, routes(jr_reply, None))

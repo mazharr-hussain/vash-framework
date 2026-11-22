@@ -40,3 +40,17 @@ class Adapter(LLMAdapter):
             raise RouteUnavailable(f"Ollama connection failed: {e}", "Ensure Ollama is running")
         except (json.JSONDecodeError, KeyError, IndexError) as e:
             raise RouteUnavailable(f"Invalid JSON from Ollama: {e}", "Check Ollama version")
+
+    def check(self, route: RouteSettings) -> tuple[bool, str, str]:
+        """The Ollama server answers and has the route's model (lists models; no tokens are spent)."""
+        base_url = route.base_url or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        try:
+            with urllib.request.urlopen(f"{base_url.rstrip('/')}/api/tags", timeout=10) as response:
+                names = [m.get("name", "") for m in json.loads(response.read().decode("utf-8")).get("models", [])]
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as e:
+            return False, f"Ollama is not answering at {base_url} ({e})", "sudo systemctl start ollama"
+        wanted = route.model if ":" in route.model else f"{route.model}:latest"
+        if wanted not in names:
+            return False, f"model {route.model} is not pulled (have: {', '.join(names) or 'none'})", \
+                f"ollama pull {route.model}"
+        return True, f"{route.model} ready", ""

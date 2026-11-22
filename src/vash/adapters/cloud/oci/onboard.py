@@ -38,6 +38,18 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CLOUD_INIT_NAME = "vash-runner.sh"
 CAPACITY_ERRORS = ("out of host capacity", "outofhostcapacity", "out of capacity")
 CAPACITY_WAIT_MINUTES = 5
+# Run on the VM: merges KEY=value lines from stdin into the gateway's key file (root only; existing keys stay).
+MERGE_KEYS = """import os, sys
+path = sys.argv[1]
+keys = {}
+if os.path.exists(path):
+    keys.update(line.split("=", 1) for line in open(path).read().splitlines() if "=" in line)
+keys.update(line.split("=", 1) for line in sys.stdin.read().splitlines() if "=" in line)
+os.umask(0o077)
+with open(path, "w") as f:
+    f.write("".join(f"{k}={v}\\n" for k, v in keys.items()))
+os.chmod(path, 0o600)
+"""
 CAPACITY_RETRIES = 36  # 3 hours
 
 Runner = Callable[..., subprocess.CompletedProcess]
@@ -81,6 +93,9 @@ class Options:
     engine: str = "shell"  # "stack": every question first, then one OCI Resource Manager job (the CLI's default)
     status: bool = False  # stack: show the setup job
     resume: bool = False  # stack: run the setup again (next domain or a smaller VM on no capacity)
+    update: bool = False  # install this VASH on the VM again and run the checks
+    keys: bool = False  # model provider keys for the gateway: into the vault and onto the VM
+    chat: bool = False  # open the chat harness on the VM (OpenCode with VASH's tools)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -108,6 +123,7 @@ class Onboarding:
         ask: Callable[[str, str], str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         env: dict[str, str] | None = None,
+        secret: Callable[[str], str] | None = None,
     ):
         self.options = options
         self._run = run
@@ -116,6 +132,7 @@ class Onboarding:
         self.ask = ask or (lambda _question, default: default)
         self.sleep = sleep
         self.env = dict(os.environ if env is None else env)
+        self.secret = secret or (lambda _question: "")  # hidden input (getpass) for keys
 
     # ---- helpers -------------------------------------------------------
     def _cmd(self, args: Sequence[str], stdin: str | None = None) -> subprocess.CompletedProcess:
@@ -479,6 +496,200 @@ class Onboarding:
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
 
+    def actual_vm_size(self, instance_id: str) -> tuple[str, int, int] | None:
+        """The VM's shape, cores and memory as OCI has them now (the owner may have resized it in the Console, seen
+        live): a later apply sends these, so it never shrinks the VM back. None when it cannot be read."""
+        if not instance_id:
+            return None
+        try:
+            vm = self.oci("compute", "instance", "get", "--instance-id", instance_id).get("data", {})
+        except VashError:
+            return None
+        cfg = vm.get("shape-config") or {}
+        if vm.get("lifecycle-state") in ("TERMINATED", "TERMINATING") or not cfg.get("ocpus"):
+            return None
+        return vm.get("shape", SHAPE), int(cfg["ocpus"]), int(cfg.get("memory-in-gbs", 0))
+
+    VM_REPORT = ("echo '--- install'; cat /var/lib/vash/ready 2>/dev/null || tail -n 5 /var/log/vash-onboard.log; "
+                 "echo '--- health check (vash doctor)'; cat /var/lib/vash/doctor.txt 2>/dev/null || echo 'not run yet'; "
+                 "echo '--- first AvA task (test project)'; tail -n 12 /var/lib/vash/smoke.txt 2>/dev/null "
+                 "|| echo 'not run yet'")
+
+    def vm_access(self) -> tuple[Path, str] | None:
+        """The SSH key and public address of the VASH VM this shell set up (stack, step by step, or --vm-ip)."""
+        state = self._state()
+        ip = (self.options.vm_ip or state.get("stack", {}).get("outputs", {}).get("runner_ip") or "")
+        if not ip:
+            path = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
+            try:
+                ip = json.loads(path.read_text()).get("outputs", {}).get("runner_ip", {}).get("value") or ""
+            except (ValueError, OSError):
+                ip = ""
+        key = self.options.ssh_key or state.get("ssh_key")
+        return (Path(key).expanduser(), ip) if ip and key else None
+
+    def vm_report(self) -> int:
+        """What the VM says about itself: the install, the health check and the first AvA task."""
+        access = self.vm_access()
+        if access is None:
+            self.echo("No VASH VM is known to this shell")
+            return 1
+        res = self.ssh(*access, self.VM_REPORT)
+        self.echo(f"On the VM {access[1]}:\n" + (res.stdout.strip() or res.stderr.strip() or "(not reachable)"))
+        return 0 if res.returncode == 0 else 1
+
+    def update(self) -> int:
+        """Install this shell's VASH on the VM again and run the checks; nothing is done by hand on the VM."""
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell",
+                            "Run `vash onboard oci` first, or pass --vm-ip and --ssh-key")
+        key, ip = access
+        if not self.confirm(f"Install VASH ({self.options.vash_source}) on the VM {ip} again and run the health "
+                            "check and a first AvA task? Nothing else on the VM changes"):
+            self.echo("Stopped; nothing was changed")
+            return 1
+        script = self.user_data(self.prepare_workdir())
+        res = self.ssh(key, ip, "sudo rm -f /var/lib/vash/ready && cat > /tmp/vash-install.sh && "
+                       "sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 &", stdin=script)
+        if res.returncode != 0:
+            raise VashError(f"Could not start the installer on {ip}: {res.stderr.strip()[-200:]}",
+                            f"Check that ssh -i {key} {self.user}@{ip} works")
+        self.echo(f"Updating VASH on {ip} (a few minutes) ...")
+        self.echo(self.wait_ready(key, ip))
+        self.echo("VASH is updated. The health check and a first AvA task now run on the VM (5-30 minutes); "
+                  "see them with `vash onboard oci --status`")
+        return 0
+
+    def vault_for_keys(self) -> dict[str, str]:
+        """The vault and key that hold VASH's secrets: chosen at an earlier step-by-step run, or made by the stack."""
+        state = self._state()
+        if state.get("vault_id") and state.get("key_id"):
+            return {k: state[k] for k in ("vault_id", "key_id", "vault_compartment_id")}
+        out = state.get("stack", {}).get("outputs", {})
+        if out.get("vault_id") and out.get("key_id"):
+            return {"vault_id": out["vault_id"], "key_id": out["key_id"],
+                    "vault_compartment_id": (out.get("compartment_ids") or {}).get("security", "")}
+        return {}
+
+    def store_key(self, vault: dict[str, str], name: str, value: str) -> None:
+        """Create or update a vault secret; the value travels in a private temporary file, never on a command line."""
+        import base64
+        import tempfile
+        found = self.oci("vault", "secret", "list", "--compartment-id", vault["vault_compartment_id"],
+                         "--vault-id", vault["vault_id"], "--name", name, "--all").get("data", [])
+        active = [x for x in found or [] if x.get("lifecycle-state") == "ACTIVE"]
+        content = base64.b64encode(value.encode()).decode()
+        if active:
+            request, args = {"secretId": active[0]["id"], "secretContentContent": content}, ["update-base64"]
+        else:
+            request = {"compartmentId": vault["vault_compartment_id"], "vaultId": vault["vault_id"],
+                       "keyId": vault["key_id"], "secretName": name, "secretContentContent": content,
+                       "description": "A model provider key of the VASH model gateway"}
+            args = ["create-base64"]
+        fd, path = tempfile.mkstemp(prefix="vash-secret-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as handle:
+                json.dump(request, handle)
+            self.oci("vault", "secret", *args, "--from-json", f"file://{path}")
+        finally:
+            os.remove(path)
+
+    def keys(self) -> int:
+        """Model provider keys for the gateway, given once: kept in the vault and installed on the VM, where the
+        gateway's settings are written again and the gateway restarted. Enter skips a provider (keeps its key)."""
+        from vash.adapters.llm.litellm.gateway import catalog
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell", "Run `vash onboard oci` first")
+        providers = catalog()["providers"]
+        self.echo("Model provider keys for the gateway (free accounts; the key is not shown while you type).")
+        given: dict[str, str] = {}
+        for name, p in providers.items():
+            value = self.secret(f"{name} key ({p['signup']}), or Enter to skip: ").strip()
+            if not value:
+                continue
+            given[p["key_env"]] = value
+            for extra in p.get("extra", []):  # e.g. Cloudflare also needs the account id
+                ask = self.secret if extra.get("secret", True) else (lambda q: self.ask(q, ""))
+                more = ask(f"{name}: {extra['label']}: ").strip()
+                if more:
+                    given[extra["env"]] = more
+        gpu_tokens: dict[str, str] = {}
+        from vash.adapters.gpu import providers as gpu_providers
+        import importlib
+        for gpu_name in gpu_providers():  # free GPUs: a token file in the VASH user's home on the VM
+            token = getattr(importlib.import_module(f"vash.adapters.gpu.{gpu_name}.adapter"), "TOKEN", None)
+            if token:
+                value = self.secret(f"{token['label']} ({token['signup']}), or Enter to skip: ").strip()
+                if value:
+                    gpu_tokens[token["file"]] = value
+        for _ in range(20):  # any other provider the gateway supports (added with `vash gateway add`)
+            env_name = self.ask("Another provider's key variable (e.g. TOGETHER_API_KEY), or Enter to finish",
+                                "").strip()
+            if not env_name:
+                break
+            if not re.match(r"^[A-Z][A-Z0-9_]{1,63}$", env_name):
+                self.echo("Use capital letters, digits and '_', e.g. TOGETHER_API_KEY")
+                continue
+            value = self.secret(f"{env_name}: ").strip()
+            if value:
+                given[env_name] = value
+        if not given and not gpu_tokens:
+            self.echo("No key given; nothing changed")
+            return 0
+        vault = self.vault_for_keys()
+        if vault:
+            for env_name, value in given.items():
+                self.store_key(vault, f"vash-gateway-{env_name.lower().replace('_', '-')}", value)
+            for file, value in gpu_tokens.items():
+                self.store_key(vault, "vash-gpu-" + re.sub(r"[^a-z0-9]+", "-", file.lower()).strip("-"), value)
+            self.echo(f"{len(given) + len(gpu_tokens)} key(s) kept in the vault")
+        else:
+            self.echo("No vault is known to this shell: the keys are installed on the VM only")
+        key, ip = access
+        for file, value in gpu_tokens.items():  # into the VASH user's home, readable by that user only
+            res = self.ssh(key, ip, f"umask 077 && mkdir -p \"$(dirname ~/{file})\" && cat > ~/{file}", stdin=value)
+            if res.returncode != 0:
+                raise VashError(f"Could not install the GPU token on {ip}: {res.stderr.strip()[-200:]}",
+                                f"Check that ssh -i {key} {self.user}@{ip} works")
+        if gpu_tokens:
+            self.echo(f"GPU token(s) installed on {ip}; check with: vash gpu quota (on the VM)")
+        if not given:
+            return 0
+        import base64
+        merge = base64.b64encode(MERGE_KEYS.encode()).decode()
+        command = ("sudo install -d -m 0755 /etc/vash && "
+                   f"sudo python3 -c \"$(echo {merge} | base64 -d)\" /etc/vash/gateway.env && "
+                   "MODEL=$(sed -n 's/^model=//p' /var/lib/vash/ready | grep -v '^none' || true) && "
+                   "sudo vash gateway config --out /etc/vash/gateway.yaml --env /etc/vash/gateway.env "
+                   "--vm-model \"$MODEL\" && sudo systemctl enable vash-gateway >/dev/null 2>&1; "
+                   "sudo systemctl restart vash-gateway && sleep 5 && systemctl is-active vash-gateway")
+        res = self.ssh(key, ip, command, stdin="".join(f"{k}={v}\n" for k, v in given.items()))
+        if res.returncode != 0:
+            raise VashError(f"Could not install the keys on {ip}: {res.stderr.strip()[-300:]}",
+                            "Run `vash onboard oci --update` first, so the VM has the gateway")
+        self.echo(f"Keys installed on {ip}; the gateway was restarted ({res.stdout.strip().splitlines()[-1] if res.stdout.strip() else 'started'})")
+        return 0
+
+    def chat(self) -> int:
+        """Open the chat harness on the VM (OpenCode with VASH's tools), in this terminal, over SSH."""
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell", "Run `vash onboard oci` first")
+        key, ip = access
+        self.echo(f"Opening the VASH chat on {ip} (leave it with Ctrl+C) ...")
+        res = self._run(["ssh", "-t", "-i", str(key), "-o", "StrictHostKeyChecking=accept-new",
+                         f"{self.user}@{ip}", "vash-chat"], check=False)
+        return res.returncode
+
+    def earlier_instance_id(self) -> str:
+        state = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
+        try:
+            return json.loads(state.read_text()).get("outputs", {}).get("instance_id", {}).get("value") or ""
+        except (ValueError, OSError):
+            return ""
+
     def earlier_vm_exists(self) -> bool:
         """Whether the earlier onboarding's terraform state holds the VM (an attempt can stop before it is made,
         for example when Oracle had no A1 capacity; then the VM is chosen again)."""
@@ -599,6 +810,14 @@ class Onboarding:
         return o.engine == "stack" and not (o.vm_ip or o.guardrails_only or o.cleanup_only)
 
     def up(self, runner_token: Callable[[], str] | None = None) -> int:
+        if self.options.update:
+            return self.update()
+        if self.options.keys:
+            return self.keys()
+        if self.options.chat:
+            return self.chat()
+        if self.options.status and not self._state().get("stack", {}).get("id"):
+            return self.vm_report()
         if self.uses_stack() or self.options.status or self.options.resume:
             from .stack_setup import StackSetup
             setup = StackSetup(self)
@@ -664,11 +883,15 @@ class Onboarding:
             domains = [previous["availability_domain"]]
             image = previous["image_id"]
             self.options.shape = previous.get("shape", SHAPE)
+            cores, memory = previous.get("ocpus", self.options.ocpus), previous.get("memory_in_gbs",
+                                                                                   self.options.memory_in_gbs)
+            actual = self.actual_vm_size(self.earlier_instance_id())
+            if actual:
+                self.options.shape, cores, memory = actual
             if self.options.shape == MICRO:
                 self.use_micro()
             else:
-                self.use_a1(previous.get("ocpus", self.options.ocpus),
-                            previous.get("memory_in_gbs", self.options.memory_in_gbs))
+                self.use_a1(cores, memory)
         else:
             domains = self.domains_with_quota(tenancy)
             image = self.latest_image(compartment)
@@ -824,6 +1047,9 @@ def run_cli(args: Any) -> int:
         engine="shell" if getattr(args, "in_shell", False) else "stack",
         status=getattr(args, "status", False),
         resume=getattr(args, "resume", False),
+        update=getattr(args, "update", False),
+        keys=getattr(args, "keys", False),
+        chat=getattr(args, "chat", False),
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )
@@ -851,7 +1077,7 @@ def run_cli(args: Any) -> int:
     def token() -> str:
         return getpass.getpass(f"GitHub runner registration token for {args.runner_repo} (not stored): ").strip()
 
-    onboarding = Onboarding(options, confirm=ask, ask=ask_text)
+    onboarding = Onboarding(options, confirm=ask, ask=ask_text, secret=getpass.getpass)
     if args.down:
         return onboarding.down()
     return onboarding.up(runner_token=token if args.runner_repo else None)

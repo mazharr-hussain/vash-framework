@@ -647,3 +647,13 @@ def test_earlier_attempt_without_a_vm_chooses_the_vm_again(home, monkeypatch):
     created = json.loads((home / ".vash/oci/environments/foundation/terraform.tfvars.json").read_text())
     assert "network" in created["compartments"]
     assert any(a[0][1:3] == ["limits", "resource-availability"] for a in cloud.calls)  # quota checked again
+
+
+def test_vm_setup_waits_for_ubuntus_updates_and_never_asks():
+    """Seen live after a restart: apt's lock held by Ubuntu's own updates, then gpg asking to overwrite a file."""
+    from vash.core.paths import vash_root
+    script = (vash_root() / "iac" / "oci" / "cloud-init" / "vash-runner.sh").read_text()
+    assert "gpg --batch --yes --dearmor" in script
+    assert "fuser /var/lib/dpkg/lock-frontend" in script and "DPkg::Lock::Timeout" in script
+    assert "\napt-get update" not in script and "\n  apt-get" not in script  # every apt call goes through the wait
+    assert script.count("wait_for_apt") >= 4  # defined, then before each apt step

@@ -24,6 +24,39 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_ava.add_argument("--repo", type=Path, default=Path.cwd())
     p_cost = subparsers.add_parser("cost", help="Show cost meter status")
     p_cost.add_argument("--repo", type=Path, default=Path.cwd())
+    p_doctor = subparsers.add_parser("doctor", help="Check that everything VASH needs here works; says how to fix it")
+    p_doctor.add_argument("--repo", type=Path, default=Path.cwd())
+    p_gw = subparsers.add_parser("gateway", help="The model gateway on this machine")
+    gw_sub = p_gw.add_subparsers(dest="action", required=True)
+    p_gwc = gw_sub.add_parser("config", help="Write the gateway's settings: a model per kind of work, with fallbacks")
+    p_gwa = gw_sub.add_parser("add", help="Add any model the gateway supports to a kind of work (provider/model)")
+    p_gwa.add_argument("kind", help="coding, test, docs, prompt or review")
+    p_gwa.add_argument("model", help="provider/model as the gateway names it, e.g. together_ai/meta-llama/...")
+    p_gwa.add_argument("--maker", required=True, help="Who made the model (rule R4 compares makers), e.g. meta")
+    p_gwa.add_argument("--key-env", default="", help="Environment variable of the provider's key, if new")
+    p_gwa.add_argument("--paid", action="store_true", help="The provider is not in the free list: accept its cost")
+    p_gwa.add_argument("--first", action="store_true", help="Put it ahead of the catalog's models of that kind")
+    p_gwa.add_argument("--extra", default="/etc/vash/gateway-models.json")
+    p_gwc.add_argument("--out", default="/etc/vash/gateway.yaml")
+    p_gwc.add_argument("--env", default="/etc/vash/gateway.env", help="File with the provider keys (KEY=value)")
+    p_gwc.add_argument("--vm-model", default="", help="The model on this machine, the last fallback")
+    p_gwc.add_argument("--extra", default="/etc/vash/gateway-models.json", help="The owner's added models")
+    subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
+    p_gpu = subparsers.add_parser("gpu", help="Batch jobs on free GPUs, within their free quota")
+    gpu_sub = p_gpu.add_subparsers(dest="action", required=True)
+    p_gq = gpu_sub.add_parser("quota", help="This week's free GPU hours")
+    p_gq.add_argument("--provider")
+    p_gr = gpu_sub.add_parser("run", help="Run a model over a file of prompts on a free GPU")
+    p_gr.add_argument("name", help="A short name for the job")
+    p_gr.add_argument("--model", required=True, help="Model to run, e.g. qwen2.5-coder:32b")
+    p_gr.add_argument("--prompts", type=Path, required=True, help="One prompt per line, or JSON lines with 'prompt'")
+    p_gr.add_argument("--no-client-data", action="store_true", help="Confirm the prompts hold no client data")
+    p_gr.add_argument("--provider")
+    p_gs = gpu_sub.add_parser("status", help="State of the GPU jobs")
+    p_gs.add_argument("name", nargs="?")
+    p_gres = gpu_sub.add_parser("result", help="Download a job's answers")
+    p_gres.add_argument("name")
+    p_gres.add_argument("--dest", type=Path, default=Path.home() / ".vash" / "gpu" / "results")
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
     for kind in ("skill", "agent"):
@@ -51,6 +84,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                            help="Show the setup running in the cloud's job service: its state, last log lines, the VM")
     p_onboard.add_argument("--resume", action="store_true",
                            help="Run the setup again (no capacity: next availability domain, then a smaller VM)")
+    p_onboard.add_argument("--update", action="store_true",
+                           help="Install this VASH on the VM again over SSH, then run the health check and a first task")
+    p_onboard.add_argument("--keys", action="store_true",
+                           help="Give the model provider keys once: kept in the vault, installed in the VM's gateway")
+    p_onboard.add_argument("--chat", action="store_true",
+                           help="Open the chat on the VM: a harness that talks to VASH and uses its models")
     p_onboard.add_argument("--in-shell", action="store_true",
                            help="Run terraform in this shell step by step instead of in the cloud's job service")
     p_onboard.add_argument("--yes", action="store_true", help="Do not ask before creating or removing")
@@ -112,6 +151,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "status":
             from vash.cli.status import run
             return run(args.repo)
+        elif args.command == "gateway":
+            from vash.adapters.llm import gateway_add, gateway_command
+            if args.action == "add":
+                return gateway_add(args.kind, args.model, args.maker, args.key_env, args.paid, args.first,
+                                   args.extra)
+            return gateway_command(args.out, args.env, args.vm_model, args.extra)
+        elif args.command == "mcp":
+            from vash.mcp.server import run as serve
+            return serve()
+        elif args.command == "gpu":
+            from vash.tools import gpu
+            if args.action == "quota":
+                return gpu.quota(args.provider)
+            if args.action == "run":
+                return gpu.run(args.name, args.model, args.prompts, args.no_client_data, args.provider)
+            if args.action == "status":
+                return gpu.status(args.name)
+            return gpu.result(args.name, args.dest)
+        elif args.command == "doctor":
+            from vash.tools.doctor import run as doctor
+            return doctor(args.repo)
         elif args.command in ("skill", "agent"):
             from vash.cli import skill as skill_cli
             if args.action == "new":

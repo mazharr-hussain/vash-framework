@@ -149,3 +149,34 @@ DECISION:
   random provider and kept with the OCI provider's oci_vault_secret (CD3 has no secrets module), so no person
   and no file sees it; HashiCorp's time provider waits out IAM's delay and a new vault's DNS.
 - KEPT the step-by-step path as `--in-shell` (and for work on an existing VM).
+
+## 22 Nov 2026: the model gateway (owner requirement: one gateway, a model per kind of work, keys given once)
+- SEARCHED: LiteLLM (BerriAI, MIT outside `enterprise/`, PyPI 1.110.2 latest, daily releases), freellmpool (MIT,
+  0.13.0, 22 free providers built in, young), OpenRouter (hosted, one key; free models about 50 requests a day
+  without paid credits).
+- USED LiteLLM 1.108.3 (7 Nov 2026, pinned at least two weeks old): model aliases per kind of work, fallback chains,
+  retries, cooldown on rate limits, one OpenAI-compatible address and its own key. Tried here with its real proxy
+  and the settings VASH writes: every kind answered, a failing provider fell back to the VM's model, a wrong key
+  was refused.
+- KEPT freellmpool and OpenRouter as possible providers behind the gateway (activity 3.3).
+
+## 22 Nov 2026: a chat harness on the VM (owner request: talk to VASH on OCI, with the VM's Ollama model)
+- SEARCHED: OpenCode (MIT, npm @opencode/cli, V2 line), Codex CLI (Apache-2.0, built-in Ollama option), Gemini CLI
+  (Apache-2.0, free with a Google login, Gemini models only without a bridge), Claude Code (proprietary, paid
+  models), Antigravity (proprietary IDE).
+- USED OpenCode 2.2.6 (6 Nov 2026, at least two weeks old) through npm, which pins the version and checks the
+  package's checksum (the release page publishes no checksums for V2). Tried here: its machine-wide settings with
+  VASH's gateway as provider listed the models, answered through the gateway from the stand-in VM model, and
+  connected to `vash mcp` ("vash connected").
+- USED the official MCP Python SDK 2.3.0 (MIT) for `vash mcp`; tried with the SDK's own client: project, task, AvA
+  run, status and result, and a refused name returned as a tool error.
+- Any other harness can use the same gateway and `vash mcp` (owner decision D10, any coding tool).
+
+## 22 Nov 2026: free GPUs (owner request: use every free GPU, through LiteLLM where possible)
+- SEARCHED: Kaggle (about 30 GPU h a week, official client with an API for notebooks and for the weekly quota),
+  Google Colab (free tier does not allow remote or unattended use), Lightning AI (monthly credits, SDK), Amazon
+  SageMaker Studio Lab (about 4 GPU h a day, no API), and hosted GPU model APIs (NVIDIA NIM, Hugging Face,
+  Cloudflare Workers AI, SambaNova).
+- USED the hosted GPU model APIs as providers of the LiteLLM gateway. GPU notebooks cannot sit behind LiteLLM
+  (they accept no incoming connections, and serving from them is against their terms), so they run batch jobs.
+- USED Kaggle's official client 2.2.5 (Apache-2.0, 22 Oct 2026) for the first GPU adapter.
