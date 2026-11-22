@@ -276,9 +276,15 @@ module "notification" {
 
 # ---- wave 3: the database password (vault secret) and the Always Free database --------------------------------
 # The password is made here and kept only in the vault secret and in Resource Manager's encrypted state: no person
-# and no file sees it. It starts with a letter, as the database's rules expect.
+# and no file sees it. It starts with a letter, as the database's rules expect. A secret that already exists (an
+# earlier run, seen live) is passed by its OCID and its password is read from the vault instead.
+locals {
+  new_secret  = var.create_database && var.db_secret_id == ""
+  db_password = !var.create_database ? "" : (local.new_secret ? "V${random_password.db[0].result}" : try(base64decode(data.oci_secrets_secretbundle.db[0].secret_bundle_content[0].content), ""))
+}
+
 resource "random_password" "db" {
-  count            = var.create_database ? 1 : 0
+  count            = local.new_secret ? 1 : 0
   length           = 23
   min_upper        = 2
   min_lower        = 2
@@ -287,16 +293,17 @@ resource "random_password" "db" {
   override_special = "#_-"
 }
 
-locals {
-  db_password = var.create_database ? "V${random_password.db[0].result}" : ""
+data "oci_secrets_secretbundle" "db" {
+  count     = var.create_database && var.db_secret_id != "" ? 1 : 0
+  secret_id = var.db_secret_id
 }
 
 resource "oci_vault_secret" "db_admin" {
-  count          = var.create_database ? 1 : 0
+  count          = local.new_secret ? 1 : 0
   compartment_id = local.compartment_id["security"]
   vault_id       = local.vault_id
   key_id         = local.key_id
-  secret_name    = "${var.name_prefix}-db-admin-password"
+  secret_name    = var.db_secret_name != "" ? var.db_secret_name : "${var.name_prefix}-db-admin-password"
   description    = "Admin password of ${var.name_prefix}-db (made by the VASH stack)"
   secret_content {
     content_type = "BASE64"

@@ -21,8 +21,10 @@ def home(tmp_path, monkeypatch):
 class StackCloud(FakeCloud):
     """FakeCloud plus vault listing and Resource Manager."""
 
-    def __init__(self, jobs=("SUCCEEDED",), logs=("Apply complete!",), vaults=(), **kw):
+    def __init__(self, jobs=("SUCCEEDED",), logs=("Apply complete!",), vaults=(), secrets=(), dbs=(), **kw):
         super().__init__(**kw)
+        self.secrets = list(secrets)
+        self.dbs = list(dbs)
         self.jobs = list(jobs)
         self.logs = list(logs)
         self.vaults = list(vaults)
@@ -44,6 +46,11 @@ class StackCloud(FakeCloud):
             return {"data": self.vaults}
         if args[:3] == ["kms", "management", "key"]:
             return {"data": []}
+        if args[:3] == ["vault", "secret", "list"]:
+            name = args[args.index("--name") + 1]
+            return {"data": [x for x in self.secrets if x["secret-name"] == name]}
+        if args[:3] == ["db", "autonomous-database", "list"]:
+            return {"data": self.dbs}
         if args[:2] == ["resource-manager", "stack"] and args[2] in ("create", "update"):
             variables = args[args.index("--variables") + 1].removeprefix("file://")
             source = args[args.index("--config-source") + 1]
@@ -176,3 +183,37 @@ def test_resume_sets_tenancy_and_region_on_a_stack_saved_without_them(home, monk
     stack_make(cloud, home, resume=True).up()
     _, v = cloud.stacks[-1]
     assert v["tenancy_ocid"] == "ocid1.tenancy.oc1..t" and v["region"] == "eu-frankfurt-1"
+
+
+VAULT = [{"lifecycle-state": "ACTIVE", "display-name": "security-vault", "vault-type": "DEFAULT", "id": "ocid1.vault..v",
+          "management-endpoint": "https://v"}]
+
+
+def _existing(cloud, home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    ob = stack_make(cloud, home, database=True)
+    ob.ask = lambda q, d: "1" if "S.No" in q else d
+    ob.up()
+    return cloud.stacks[-1][1]
+
+
+def test_existing_password_secret_is_reused(home, monkeypatch):
+    """Seen live in Frankfurt: '400-InvalidParameter, name already exists' for vash-db-admin-password."""
+    cloud = StackCloud(compartments=["ocid1.compartment..found"], vaults=VAULT, secrets=[
+        {"secret-name": "north-db-admin-password", "lifecycle-state": "ACTIVE", "id": "ocid1.vaultsecret..s"}])
+    v = _existing(cloud, home, monkeypatch)
+    assert v["db_secret_id"] == "ocid1.vaultsecret..s" and v["create_database"] == "true"
+
+
+def test_a_secret_waiting_for_deletion_gets_a_new_name(home, monkeypatch):
+    cloud = StackCloud(compartments=["ocid1.compartment..found"], vaults=VAULT, secrets=[
+        {"secret-name": "north-db-admin-password", "lifecycle-state": "PENDING_DELETION", "id": "x"}])
+    v = _existing(cloud, home, monkeypatch)
+    assert v["db_secret_id"] == "" and v["db_secret_name"] == "north-db-admin-password-2"
+
+
+def test_an_existing_database_is_kept(home, monkeypatch):
+    cloud = StackCloud(compartments=["ocid1.compartment..found"], vaults=VAULT,
+                       dbs=[{"lifecycle-state": "AVAILABLE", "display-name": "north-db"}])
+    v = _existing(cloud, home, monkeypatch)
+    assert v["create_database"] == "false"

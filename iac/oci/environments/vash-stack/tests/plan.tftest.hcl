@@ -75,3 +75,17 @@ run "basic_amd_micro" {
     memory_in_gbs = 1
   }
 }
+
+run "existing_password_secret_is_read_not_made" {
+  command = plan
+  variables {
+    create_vm       = false
+    create_database = true
+    db_secret_id    = "ocid1.vaultsecret..s"
+  }
+  assert {
+    condition = (length(oci_vault_secret.db_admin) == 0 && length(random_password.db) == 0
+    && length(data.oci_secrets_secretbundle.db) == 1 && length(module.database) == 1)
+    error_message = "An existing password secret must be reused (seen live: 'name already exists')."
+  }
+}
