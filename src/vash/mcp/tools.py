@@ -151,3 +151,39 @@ def list_tasks(project: str) -> str:
 def doctor(project: str = "") -> str:
     """VASH's health check here: engine, models (the gateway and the VM's model) and the runner."""
     return _vash(["doctor", "--repo", str(_project(project) if project else root())])
+
+
+def gpu_quota() -> str:
+    """This week's free GPU hours (used, total, when they reset)."""
+    return _vash(["gpu", "quota"])
+
+
+def gpu_run(name: str, model: str, prompts: list[str], no_client_data: bool) -> str:
+    """Run a model (e.g. qwen2.5-coder:32b) over prompts on a free GPU, as a batch job. The prompts leave the VM:
+    set no_client_data only when they hold no client data."""
+    _name(name, "job name")
+    if not prompts:
+        raise ToolError("No prompts: give at least one")
+    folder = root() / ".gpu"
+    folder.mkdir(exist_ok=True)
+    path = folder / f"{name}.jsonl"
+    import json
+    path.write_text("".join(json.dumps({"prompt": p}) + "\n" for p in prompts))
+    return _vash(["gpu", "run", name, "--model", model, "--prompts", str(path)]
+                 + (["--no-client-data"] if no_client_data else []))
+
+
+def gpu_status(name: str = "") -> str:
+    """State of the free GPU jobs (or of one)."""
+    if name:
+        _name(name, "job name")
+    return _vash(["gpu", "status"] + ([name] if name else []))
+
+
+def gpu_result(name: str) -> str:
+    """The answers of a finished GPU job."""
+    _name(name, "job name")
+    dest = root() / ".gpu" / "results"
+    out = _vash(["gpu", "result", name, "--dest", str(dest)])
+    found = dest / name / "results.jsonl"
+    return found.read_text(errors="replace")[:20000] if found.exists() else out

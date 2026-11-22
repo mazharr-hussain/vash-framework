@@ -615,6 +615,15 @@ class Onboarding:
                 more = ask(f"{name}: {extra['label']}: ").strip()
                 if more:
                     given[extra["env"]] = more
+        gpu_tokens: dict[str, str] = {}
+        from vash.adapters.gpu import providers as gpu_providers
+        import importlib
+        for gpu_name in gpu_providers():  # free GPUs: a token file in the VASH user's home on the VM
+            token = getattr(importlib.import_module(f"vash.adapters.gpu.{gpu_name}.adapter"), "TOKEN", None)
+            if token:
+                value = self.secret(f"{token['label']} ({token['signup']}), or Enter to skip: ").strip()
+                if value:
+                    gpu_tokens[token["file"]] = value
         for _ in range(20):  # any other provider the gateway supports (added with `vash gateway add`)
             env_name = self.ask("Another provider's key variable (e.g. TOGETHER_API_KEY), or Enter to finish",
                                 "").strip()
@@ -626,17 +635,28 @@ class Onboarding:
             value = self.secret(f"{env_name}: ").strip()
             if value:
                 given[env_name] = value
-        if not given:
+        if not given and not gpu_tokens:
             self.echo("No key given; nothing changed")
             return 0
         vault = self.vault_for_keys()
         if vault:
             for env_name, value in given.items():
                 self.store_key(vault, f"vash-gateway-{env_name.lower().replace('_', '-')}", value)
-            self.echo(f"{len(given)} key(s) kept in the vault")
+            for file, value in gpu_tokens.items():
+                self.store_key(vault, "vash-gpu-" + re.sub(r"[^a-z0-9]+", "-", file.lower()).strip("-"), value)
+            self.echo(f"{len(given) + len(gpu_tokens)} key(s) kept in the vault")
         else:
             self.echo("No vault is known to this shell: the keys are installed on the VM only")
         key, ip = access
+        for file, value in gpu_tokens.items():  # into the VASH user's home, readable by that user only
+            res = self.ssh(key, ip, f"umask 077 && mkdir -p \"$(dirname ~/{file})\" && cat > ~/{file}", stdin=value)
+            if res.returncode != 0:
+                raise VashError(f"Could not install the GPU token on {ip}: {res.stderr.strip()[-200:]}",
+                                f"Check that ssh -i {key} {self.user}@{ip} works")
+        if gpu_tokens:
+            self.echo(f"GPU token(s) installed on {ip}; check with: vash gpu quota (on the VM)")
+        if not given:
+            return 0
         import base64
         merge = base64.b64encode(MERGE_KEYS.encode()).decode()
         command = ("sudo install -d -m 0755 /etc/vash && "

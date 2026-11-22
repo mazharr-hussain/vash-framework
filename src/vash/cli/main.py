@@ -42,6 +42,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_gwc.add_argument("--vm-model", default="", help="The model on this machine, the last fallback")
     p_gwc.add_argument("--extra", default="/etc/vash/gateway-models.json", help="The owner's added models")
     subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
+    p_gpu = subparsers.add_parser("gpu", help="Batch jobs on free GPUs, within their free quota")
+    gpu_sub = p_gpu.add_subparsers(dest="action", required=True)
+    p_gq = gpu_sub.add_parser("quota", help="This week's free GPU hours")
+    p_gq.add_argument("--provider")
+    p_gr = gpu_sub.add_parser("run", help="Run a model over a file of prompts on a free GPU")
+    p_gr.add_argument("name", help="A short name for the job")
+    p_gr.add_argument("--model", required=True, help="Model to run, e.g. qwen2.5-coder:32b")
+    p_gr.add_argument("--prompts", type=Path, required=True, help="One prompt per line, or JSON lines with 'prompt'")
+    p_gr.add_argument("--no-client-data", action="store_true", help="Confirm the prompts hold no client data")
+    p_gr.add_argument("--provider")
+    p_gs = gpu_sub.add_parser("status", help="State of the GPU jobs")
+    p_gs.add_argument("name", nargs="?")
+    p_gres = gpu_sub.add_parser("result", help="Download a job's answers")
+    p_gres.add_argument("name")
+    p_gres.add_argument("--dest", type=Path, default=Path.home() / ".vash" / "gpu" / "results")
     p_status = subparsers.add_parser("status", help="Show freeze and audit status")
     p_status.add_argument("--repo", type=Path, default=Path.cwd())
     for kind in ("skill", "agent"):
@@ -145,6 +160,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "mcp":
             from vash.mcp.server import run as serve
             return serve()
+        elif args.command == "gpu":
+            from vash.tools import gpu
+            if args.action == "quota":
+                return gpu.quota(args.provider)
+            if args.action == "run":
+                return gpu.run(args.name, args.model, args.prompts, args.no_client_data, args.provider)
+            if args.action == "status":
+                return gpu.status(args.name)
+            return gpu.result(args.name, args.dest)
         elif args.command == "doctor":
             from vash.tools.doctor import run as doctor
             return doctor(args.repo)

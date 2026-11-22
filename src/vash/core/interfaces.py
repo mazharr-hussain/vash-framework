@@ -161,9 +161,33 @@ class StackPack(ABC):
     def outputs_layout(self) -> list[str]: pass
 
 
+class GPUAdapter(ABC):
+    """A free GPU that runs batch jobs (no server is exposed): a model over a list of prompts, answers saved."""
+
+    def __init__(self, settings: Mapping[str, Any]):
+        self.settings = settings
+
+    @abstractmethod
+    def quota(self) -> dict[str, Any]:
+        """{used_hours, total_hours, resets} of this week's free GPU time."""
+
+    @abstractmethod
+    def submit(self, name: str, model: str, prompts: list[str]) -> str:
+        """Start a job that runs the model over the prompts; returns its reference."""
+
+    @abstractmethod
+    def status(self, ref: str) -> str:
+        """The job's state as the provider reports it (queued, running, complete, error ...)."""
+
+    @abstractmethod
+    def fetch(self, ref: str, dest: Path) -> Path:
+        """Download the answers (results.jsonl) into dest; returns the file."""
+
+
 CATEGORY_INTERFACES = {
     "forge": ForgeAdapter,
     "ci": CIAdapter,
     "cloud": CloudAdapter,
     "llm": LLMAdapter,
+    "gpu": GPUAdapter,
 }

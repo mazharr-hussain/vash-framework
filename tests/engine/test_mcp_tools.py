@@ -77,7 +77,7 @@ def test_the_mcp_server_offers_the_tools():
     from vash.mcp.server import build
     names = [t.name for t in asyncio.run(build().list_tools())]
     assert names == ["list_projects", "new_project", "new_task", "run_task", "task_status", "read_result",
-                     "list_tasks", "doctor"]
+                     "list_tasks", "doctor", "gpu_quota", "gpu_run", "gpu_status", "gpu_result"]
 
 
 def test_vm_setup_installs_the_chat_harness_wired_to_the_gateway_and_vash():

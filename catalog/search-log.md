@@ -171,3 +171,12 @@ DECISION:
 - USED the official MCP Python SDK 2.3.0 (MIT) for `vash mcp`; tried with the SDK's own client: project, task, AvA
   run, status and result, and a refused name returned as a tool error.
 - Any other harness can use the same gateway and `vash mcp` (owner decision D10, any coding tool).
+
+## 22 Nov 2026: free GPUs (owner request: use every free GPU, through LiteLLM where possible)
+- SEARCHED: Kaggle (about 30 GPU h a week, official client with an API for notebooks and for the weekly quota),
+  Google Colab (free tier does not allow remote or unattended use), Lightning AI (monthly credits, SDK), Amazon
+  SageMaker Studio Lab (about 4 GPU h a day, no API), and hosted GPU model APIs (NVIDIA NIM, Hugging Face,
+  Cloudflare Workers AI, SambaNova).
+- USED the hosted GPU model APIs as providers of the LiteLLM gateway. GPU notebooks cannot sit behind LiteLLM
+  (they accept no incoming connections, and serving from them is against their terms), so they run batch jobs.
+- USED Kaggle's official client 2.2.5 (Apache-2.0, 22 Oct 2026) for the first GPU adapter.

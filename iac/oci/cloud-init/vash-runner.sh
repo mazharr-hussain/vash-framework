@@ -14,6 +14,7 @@ OLLAMA_VERSION="0.40.16"
 GATEWAY_VERSION="1.108.3"  # LiteLLM, the model gateway (catalog/llm/litellm.md)
 HARNESS_VERSION="2.2.6"  # OpenCode, the chat harness (npm checks the package's checksum)
 MCP_VERSION="2.3.0"  # the official MCP Python SDK, for `vash mcp`
+KAGGLE_VERSION="2.2.5"  # Kaggle's official client, for free GPU jobs (`vash gpu`)
 RUNNER_VERSION="2.338.2"
 RUNNER_SHA256_ARM64="670adb2f268fe21dcbb58b3db0e0aa9d5b3bddfe2c651481336e561ff86de945"  # pragma: allowlist secret (published checksum)
 RUNNER_SHA256_X64="baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40"  # pragma: allowlist secret (published checksum)
@@ -132,7 +133,7 @@ fi
 # The chat harness (OpenCode) and VASH's tools for it (`vash mcp`). OpenCode's settings are machine-wide
 # (/etc/opencode, written by VASH, above any user setting): it thinks with the model gateway (the VM's model until
 # provider keys are added) and drives VASH through MCP. `vash-chat` starts it in ~/projects.
-/opt/vash/bin/pip install "mcp==$MCP_VERSION"
+/opt/vash/bin/pip install "mcp==$MCP_VERSION" "kaggle==$KAGGLE_VERSION" six
 wait_for_apt
 "${APT[@]}" install nodejs npm
 npm install -g "@opencode/cli@$HARNESS_VERSION"

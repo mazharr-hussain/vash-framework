@@ -327,3 +327,23 @@ def test_chat_opens_the_harness_on_the_vm_in_this_terminal(home, monkeypatch):
     stack_make(cloud, home, chat=True).up()
     chat = cloud.calls[-1]
     assert chat[0][:2] == ["ssh", "-t"] and chat[0][-1] == "vash-chat" and "capture_output" not in chat[1]
+
+
+def test_gpu_token_is_given_once_kept_in_the_vault_and_put_in_the_vm_users_home(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    state["stack"]["outputs"].update(vault_id="ocid1.vault..v", key_id="ocid1.key..k",
+                                     compartment_ids={"security": "ocid1.compartment..sec"})
+    path.write_text(json.dumps(state))
+    ob = stack_make(cloud, home, keys=True)
+    ob.secret = lambda q: "KGAT_TOKEN123" if q.startswith("Kaggle") else ""
+    assert ob.up() == 0
+    assert [x["secretName"] for x in cloud.saved_secrets] == ["vash-gpu-kaggle-access-token"]
+    pushes = [c for c in cloud.calls if c[0][0] == "ssh" and "access_token" in c[0][-1]]
+    assert len(pushes) == 1 and pushes[0][1]["input"] == "KGAT_TOKEN123" and "umask 077" in pushes[0][0][-1]
+    assert all("KGAT_TOKEN123" not in " ".join(c[0]) for c in cloud.calls)
+    assert not [c for c in cloud.calls if c[0][0] == "ssh" and "gateway.env" in c[0][-1]]  # no model key given
