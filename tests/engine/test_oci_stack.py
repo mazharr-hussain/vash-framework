@@ -25,6 +25,7 @@ class StackCloud(FakeCloud):
         super().__init__(**kw)
         self.secrets = list(secrets)
         self.vm = None  # the VM as OCI reports it (compute instance get)
+        self.saved_secrets = []
         self.dbs = list(dbs)
         self.jobs = list(jobs)
         self.logs = list(logs)
@@ -50,6 +51,9 @@ class StackCloud(FakeCloud):
             return {"data": []}
         if args[:3] == ["compute", "instance", "get"]:
             return {"data": self.vm} if self.vm else {"data": {}}
+        if args[:3] == ["vault", "secret", "create-base64"] or args[:3] == ["vault", "secret", "update-base64"]:
+            self.saved_secrets.append(json.loads(Path(args[args.index("--from-json") + 1][7:]).read_text()))
+            return {"data": {}}
         if args[:3] == ["vault", "secret", "list"]:
             name = args[args.index("--name") + 1]
             return {"data": [x for x in self.secrets if x["secret-name"] == name]}
@@ -273,3 +277,40 @@ def test_the_vm_checks_itself_after_the_install():
     assert "vash doctor --repo" in script and "/var/lib/vash/doctor.txt" in script
     assert "vash init vash-smoke" in script and "vash ava T1" in script and "/var/lib/vash/smoke.txt" in script
     assert script.index("== vash onboard done") < script.index("vash ava T1")  # ready first, checks after
+
+
+def test_keys_are_given_once_kept_in_the_vault_and_installed_on_the_vm(home, monkeypatch):
+    import base64
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    state["stack"]["outputs"].update(vault_id="ocid1.vault..v", key_id="ocid1.key..k",
+                                     compartment_ids={"security": "ocid1.compartment..sec"})
+    path.write_text(json.dumps(state))
+    ob = stack_make(cloud, home, keys=True)
+    ob.secret = lambda q: "gsk_SECRET1" if q.startswith("groq") else ("csk_SECRET2" if q.startswith("cerebras") else "")
+    assert ob.up() == 0
+    names = sorted(x["secretName"] for x in cloud.saved_secrets)
+    assert names == ["vash-gateway-cerebras-api-key", "vash-gateway-groq-api-key"]
+    assert base64.b64decode(cloud.saved_secrets[0]["secretContentContent"]).decode().endswith("SECRET1") or \
+        base64.b64decode(cloud.saved_secrets[0]["secretContentContent"]).decode().endswith("SECRET2")
+    pushes = [c for c in cloud.calls if c[0][0] == "ssh" and "gateway.env" in c[0][-1]]
+    assert len(pushes) == 1 and "GROQ_API_KEY=gsk_SECRET1" in pushes[0][1]["input"]
+    assert all("SECRET" not in " ".join(c[0]) for c in cloud.calls)  # never on a command line
+    assert "systemctl restart vash-gateway" in pushes[0][0][-1]
+
+
+def test_no_key_given_changes_nothing(home, monkeypatch):
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    path.write_text(json.dumps(state))
+    before = len(cloud.calls)
+    assert stack_make(cloud, home, keys=True).up() == 0
+    assert len(cloud.calls) == before

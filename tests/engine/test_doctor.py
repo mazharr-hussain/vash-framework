@@ -95,8 +95,10 @@ def test_doctor_outside_a_project_checks_what_init_would_use(tmp_path, monkeypat
     finally:
         srv.close()
     out = capsys.readouterr().out
-    assert "not in a project" in out and "Model route local (intake, coder, fallback)" in out
+    assert "not in a project" in out and "Model route local (intake, fallback)" in out
     assert "qwen2.5-coder:7b ready" in out
+    assert "Model route coding (coder, coder for code)" in out and "model gateway (vash-coding)" in out
+    assert "Model route docs (coder for artifact" in out  # used by a kind of work, not "unused"
     assert code in (0, 1)  # 1 only when git is missing here
 
 

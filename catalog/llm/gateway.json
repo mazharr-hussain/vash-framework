@@ -1,0 +1,36 @@
+{
+  "note": "Models per kind of work for the model gateway. Free line-ups change: each entry is checked in activity 3.3, and changing one is one line here. maker is who made the model (rule R4 compares makers, not hosts).",
+  "providers": {
+    "groq": {"key_env": "GROQ_API_KEY", "signup": "https://console.groq.com/keys"},
+    "cerebras": {"key_env": "CEREBRAS_API_KEY", "signup": "https://cloud.cerebras.ai"},
+    "gemini": {"key_env": "GEMINI_API_KEY", "signup": "https://aistudio.google.com/apikey"},
+    "mistral": {"key_env": "MISTRAL_API_KEY", "signup": "https://console.mistral.ai/api-keys"}
+  },
+  "kinds": {
+    "coding": [
+      {"provider": "cerebras", "model": "cerebras/qwen-3-coder-480b", "maker": "alibaba"},
+      {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"},
+      {"provider": "mistral", "model": "mistral/devstral-small-latest", "maker": "mistral"}
+    ],
+    "test": [
+      {"provider": "cerebras", "model": "cerebras/qwen-3-coder-480b", "maker": "alibaba"},
+      {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"}
+    ],
+    "docs": [
+      {"provider": "groq", "model": "groq/llama-3.3-70b-versatile", "maker": "meta"},
+      {"provider": "cerebras", "model": "cerebras/llama-3.3-70b", "maker": "meta"},
+      {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"}
+    ],
+    "prompt": [
+      {"provider": "cerebras", "model": "cerebras/llama-3.3-70b", "maker": "meta"},
+      {"provider": "groq", "model": "groq/llama-3.3-70b-versatile", "maker": "meta"},
+      {"provider": "mistral", "model": "mistral/mistral-small-latest", "maker": "mistral"}
+    ],
+    "review": [
+      {"provider": "groq", "model": "groq/openai/gpt-oss-120b", "maker": "openai"},
+      {"provider": "cerebras", "model": "cerebras/gpt-oss-120b", "maker": "openai"},
+      {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"}
+    ]
+  },
+  "reviewed_by": {"coding": "review", "test": "review", "docs": "review", "prompt": "review"}
+}

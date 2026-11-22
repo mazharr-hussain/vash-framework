@@ -11,6 +11,7 @@ rm -f /var/lib/vash/ready /var/lib/vash/doctor.txt /var/lib/vash/smoke.txt
 VASH_SOURCE="@@VASH_SOURCE@@"
 # Fixed versions: a new release of a tool never changes this VM by surprise. Update them here, in a PR.
 OLLAMA_VERSION="0.40.16"
+GATEWAY_VERSION="1.108.3"  # LiteLLM, the model gateway (catalog/llm/litellm.md)
 RUNNER_VERSION="2.338.2"
 RUNNER_SHA256_ARM64="670adb2f268fe21dcbb58b3db0e0aa9d5b3bddfe2c651481336e561ff86de945"  # pragma: allowlist secret (published checksum)
 RUNNER_SHA256_X64="baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40"  # pragma: allowlist secret (published checksum)
@@ -86,10 +87,51 @@ if [ ! -x "$RUNNER_DIR/config.sh" ]; then
   chown -R "$RUN_USER:$RUN_USER" "$RUNNER_DIR"
 fi
 
+# The model gateway (LiteLLM) on 127.0.0.1:4000: one address, a model per kind of work, fallbacks to the next model
+# and finally to this VM's model. Its own key is made here once; provider keys come later with
+# `vash onboard oci --keys` (kept in the vault and in /etc/vash/gateway.env, readable by root only).
+if [ ! -x /opt/vash-gateway/bin/litellm ]; then
+  python3 -m venv /opt/vash-gateway
+fi
+/opt/vash-gateway/bin/pip install --upgrade pip
+/opt/vash-gateway/bin/pip install "litellm[proxy]==$GATEWAY_VERSION"
+install -d -m 0755 /etc/vash
+[ -f /etc/vash/gateway.env ] || install -m 0600 /dev/null /etc/vash/gateway.env
+if [ ! -s /etc/vash/gateway-key ]; then
+  echo "sk-vash-$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)" > /etc/vash/gateway-key
+fi
+chown "root:$RUN_USER" /etc/vash/gateway-key && chmod 0640 /etc/vash/gateway-key
+# No model yet (an AMD Micro before any provider key): the gateway starts once keys are added.
+GATEWAY_READY=1
+vash gateway config --out /etc/vash/gateway.yaml --env /etc/vash/gateway.env --vm-model "$MODEL" || GATEWAY_READY=0
+cat > /etc/systemd/system/vash-gateway.service <<UNIT
+[Unit]
+Description=VASH model gateway (LiteLLM)
+After=network-online.target ollama.service
+[Service]
+User=$RUN_USER
+EnvironmentFile=/etc/vash/gateway.env
+ExecStart=/bin/bash -c 'VASH_GATEWAY_KEY=\$\$(cat /etc/vash/gateway-key) exec /opt/vash-gateway/bin/litellm --config /etc/vash/gateway.yaml --host 127.0.0.1 --port 4000'
+Restart=on-failure
+RestartSec=10
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+if [ "$GATEWAY_READY" = 1 ]; then
+  systemctl enable vash-gateway
+  systemctl restart vash-gateway
+  for _ in $(seq 1 60); do
+    curl -fsS -o /dev/null http://127.0.0.1:4000/health/liveliness && break
+    sleep 3
+  done
+fi
+
 mkdir -p /var/lib/vash
 {
   echo "vash=$(vash --version) from $VASH_SOURCE"
   echo "terraform=$(terraform version | head -1)"
+  echo "gateway=litellm $GATEWAY_VERSION $(systemctl is-active vash-gateway)"
   if [ -n "$MODEL" ]; then
     echo "ollama=$(ollama --version 2>&1 | tail -1)"
     echo "model=$MODEL"

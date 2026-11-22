@@ -68,10 +68,13 @@ def project(repo: Path) -> tuple[list[Check], object | None, bool]:
 
 
 def models(freeze) -> list[Check]:
-    used = {role: name for role, name in freeze.data.get("models", {}).items() if isinstance(name, str)}
+    models = freeze.data.get("models", {})
+    used = [(role, name) for role, name in models.items() if isinstance(name, str)]
+    used += [(f"{role} for {kind}", name) for kind, pair in models.get("by_type", {}).items()
+             for role, name in pair.items()]
     checks = []
     for name, route in freeze.routes.items():
-        roles = ", ".join(r for r, n in used.items() if n == name) or "unused"
+        roles = ", ".join(r for r, n in used if n == name) or "unused"
         try:
             adapter = load_adapter("llm", route.adapter, {"route": name, "model": route.model,
                                                           "base_url": route.base_url, "key_env": route.key_env})

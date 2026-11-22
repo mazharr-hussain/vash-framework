@@ -129,13 +129,22 @@ def load_freeze(repo_root: Path) -> Freeze:
                     "Add the route to models.routes or fix the name"
                 )
 
-    coder = routes.get(models.get("coder", ""), {})
-    critic = routes.get(models.get("critic", ""), {})
     owner_exc = data.get("owner_exception")
-    if coder and critic and owner_exc != "OD-1":
-        if coder.get("vendor") == critic.get("vendor"):
+    pairs = [("", models.get("coder", ""), models.get("critic", ""))]
+    for kind, pair in models.get("by_type", {}).items():
+        for role, name in pair.items():
+            if name not in routes:
+                raise FreezeInvalid(
+                    f"models.by_type.{kind}.{role} names an undefined route '{name}'",
+                    "Add the route to models.routes or fix the name"
+                )
+        pairs.append((kind, pair.get("coder", models.get("coder", "")), pair.get("critic", models.get("critic", ""))))
+    for kind, coder_name, critic_name in pairs:
+        coder, critic = routes.get(coder_name, {}), routes.get(critic_name, {})
+        if coder and critic and owner_exc != "OD-1" and coder.get("vendor") == critic.get("vendor"):
+            where = f" for {kind}" if kind else ""
             raise FreezeInvalid(
-                "Critic vendor must differ from Coder vendor (unless owner_exception=OD-1)",
+                f"Critic vendor must differ from Coder vendor{where} (unless owner_exception=OD-1)",
                 "Change critic route or set owner_exception"
             )
 

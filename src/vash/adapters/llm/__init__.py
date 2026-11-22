@@ -9,10 +9,10 @@ from vash.core.exceptions import RouteUnavailable
 from vash.core.interfaces import LLMAdapter, LLMReply, RouteSettings
 from vash.core.registry import load_adapter
 
-def route_for(freeze: Any, role: str) -> RouteSettings:
-    """Return the RouteSettings for a role."""
+def route_for(freeze: Any, role: str, kind: str | None = None) -> RouteSettings:
+    """Return the RouteSettings for a role; for a kind of work (an artifact type) models.by_type wins."""
     models = freeze.data.get("models", {})
-    name = models.get(role)
+    name = models.get("by_type", {}).get(kind or "", {}).get(role) or models.get(role)
     if not name:
         raise RouteUnavailable(
             f"No route defined for role '{role}'",
@@ -30,10 +30,11 @@ def reply(
     freeze: Any,
     role: str,
     prompt: str,
-    adapters: Mapping[str, LLMAdapter] | None = None
+    adapters: Mapping[str, LLMAdapter] | None = None,
+    kind: str | None = None,
 ) -> LLMReply:
-    """Generate a reply for a prompt on the route for the role."""
-    route = route_for(freeze, role)
+    """Generate a reply for a prompt on the route for the role (and the kind of work, when given)."""
+    route = route_for(freeze, role, kind)
 
     def _get_adapter(r: RouteSettings) -> LLMAdapter:
         if adapters and r.name in adapters:
@@ -71,3 +72,13 @@ def reply(
             )
         except RouteUnavailable:
             raise e
+
+
+def gateway_command(out: str, env_file: str, local_model: str) -> int:
+    """`vash gateway config`: write the model gateway's settings (kinds of work, fallbacks) from the key file."""
+    from pathlib import Path
+    from vash.adapters.llm.litellm.gateway import write
+    data = write(Path(out), Path(env_file), local_model)
+    kinds = sorted({m["model_name"] for m in data["model_list"] if not m["model_name"][-1].isdigit()})
+    print(f"Gateway settings written to {out}: {', '.join(kinds)}")
+    return 0

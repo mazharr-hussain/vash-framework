@@ -48,17 +48,67 @@
         "vendor": "local",
         "timeout_s": 600
       },
+      "coding": {
+        "adapter": "litellm",
+        "model": "vash-coding",
+        "vendor": "gateway-coding",
+        "timeout_s": 600
+      },
       "review": {
-        "adapter": "ollama",
-        "model": "qwen2.5-coder:7b",
-        "vendor": "local-b",
+        "adapter": "litellm",
+        "model": "vash-review",
+        "vendor": "gateway-review",
+        "timeout_s": 600
+      },
+      "docs": {
+        "adapter": "litellm",
+        "model": "vash-docs",
+        "vendor": "gateway-docs",
+        "timeout_s": 600
+      },
+      "prompt": {
+        "adapter": "litellm",
+        "model": "vash-prompt",
+        "vendor": "gateway-prompt",
+        "timeout_s": 600
+      },
+      "test": {
+        "adapter": "litellm",
+        "model": "vash-test",
+        "vendor": "gateway-test",
         "timeout_s": 600
       }
     },
     "intake": "local",
-    "coder": "local",
+    "coder": "coding",
     "critic": "review",
-    "fallback": "local"
+    "fallback": "local",
+    "by_type": {
+      "code": {
+        "coder": "coding",
+        "critic": "review"
+      },
+      "test": {
+        "coder": "test",
+        "critic": "review"
+      },
+      "artifact": {
+        "coder": "docs",
+        "critic": "review"
+      },
+      "feature": {
+        "coder": "docs",
+        "critic": "review"
+      },
+      "manual_step": {
+        "coder": "docs",
+        "critic": "review"
+      },
+      "prompt": {
+        "coder": "prompt",
+        "critic": "review"
+      }
+    }
   },
   "thresholds": {
     "code": 90,

@@ -313,6 +313,24 @@
         "fallback": {
           "type": "string",
           "description": "Route for fallback (local)."
+        },
+        "by_type": {
+          "type": "object",
+          "description": "A writer (coder) and reviewer (critic) route per kind of work (artifact type: code, artifact, prompt, feature, test ...); a missing one uses models.coder or models.critic.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "coder": {
+                "type": "string",
+                "description": "Route that writes this kind of work."
+              },
+              "critic": {
+                "type": "string",
+                "description": "Route that reviews it (a different vendor unless owner_exception=OD-1)."
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "required": [

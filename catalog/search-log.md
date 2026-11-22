@@ -149,3 +149,13 @@ DECISION:
   random provider and kept with the OCI provider's oci_vault_secret (CD3 has no secrets module), so no person
   and no file sees it; HashiCorp's time provider waits out IAM's delay and a new vault's DNS.
 - KEPT the step-by-step path as `--in-shell` (and for work on an existing VM).
+
+## 22 Nov 2026: the model gateway (owner requirement: one gateway, a model per kind of work, keys given once)
+- SEARCHED: LiteLLM (BerriAI, MIT outside `enterprise/`, PyPI 1.110.2 latest, daily releases), freellmpool (MIT,
+  0.13.0, 22 free providers built in, young), OpenRouter (hosted, one key; free models about 50 requests a day
+  without paid credits).
+- USED LiteLLM 1.108.3 (7 Nov 2026, pinned at least two weeks old): model aliases per kind of work, fallback chains,
+  retries, cooldown on rate limits, one OpenAI-compatible address and its own key. Tried here with its real proxy
+  and the settings VASH writes: every kind answered, a failing provider fell back to the VM's model, a wrong key
+  was refused.
+- KEPT freellmpool and OpenRouter as possible providers behind the gateway (activity 3.3).
