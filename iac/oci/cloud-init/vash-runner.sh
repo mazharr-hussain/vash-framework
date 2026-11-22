@@ -17,16 +17,30 @@ MODEL="@@MODEL@@"
 RUN_USER="@@RUN_USER@@"
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get update -y
-apt-get install -y python3 python3-venv python3-pip git curl unzip jq gnupg ca-certificates
+# A fresh VM runs Ubuntu's own updates at first boot and after a restart; they hold apt's locks (seen live:
+# "Could not get lock /var/lib/apt/lists/lock"). Wait for the lock files themselves (not process names: Ubuntu's
+# unattended-upgrade-shutdown helper runs all the time), and let apt wait too.
+wait_for_apt() {
+  for _ in $(seq 1 120); do
+    fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 || return 0
+    sleep 10
+  done
+  echo "apt is still locked after 20 minutes; trying anyway"
+}
+APT=(apt-get -o DPkg::Lock::Timeout=1200 -y)
+wait_for_apt
+"${APT[@]}" update
+"${APT[@]}" install python3 python3-venv python3-pip git curl unzip jq gnupg ca-certificates
 
 # Terraform (HashiCorp apt repository).
 if ! command -v terraform >/dev/null; then
-  curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+  # --batch --yes: a rerun overwrites the key file instead of asking (seen live: "gpg: cannot open '/dev/tty'").
+  curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/hashicorp.gpg
   echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" \
     > /etc/apt/sources.list.d/hashicorp.list
-  apt-get update -y
-  apt-get install -y terraform
+  wait_for_apt
+  "${APT[@]}" update
+  "${APT[@]}" install terraform
 fi
 
 # VASH in its own venv, on PATH for every user.
@@ -65,6 +79,7 @@ if [ ! -x "$RUNNER_DIR/config.sh" ]; then
   echo "$RUNNER_SHA256  /tmp/actions-runner.tar.gz" | sha256sum -c -
   tar -xzf /tmp/actions-runner.tar.gz -C "$RUNNER_DIR"
   rm -f /tmp/actions-runner.tar.gz
+  wait_for_apt
   "$RUNNER_DIR/bin/installdependencies.sh"
   chown -R "$RUN_USER:$RUN_USER" "$RUNNER_DIR"
 fi

@@ -24,6 +24,7 @@ class StackCloud(FakeCloud):
     def __init__(self, jobs=("SUCCEEDED",), logs=("Apply complete!",), vaults=(), secrets=(), dbs=(), **kw):
         super().__init__(**kw)
         self.secrets = list(secrets)
+        self.vm = None  # the VM as OCI reports it (compute instance get)
         self.dbs = list(dbs)
         self.jobs = list(jobs)
         self.logs = list(logs)
@@ -34,7 +35,8 @@ class StackCloud(FakeCloud):
     def __call__(self, args, **kwargs):
         if args[:3] == ["oci", "resource-manager", "job"] and args[3] == "get-job-tf-state":
             Path(args[args.index("--file") + 1]).write_text(json.dumps({"outputs": {
-                "runner_ip": {"value": "203.0.113.9"}, "db_password_secret": {"value": "vash-db-admin-password"}}}))
+                "runner_ip": {"value": "203.0.113.9"}, "instance_id": {"value": "ocid1.instance..i"},
+                "db_password_secret": {"value": "vash-db-admin-password"}}}))
             self.calls.append((args, kwargs))
             return done("")
         return super().__call__(args, **kwargs)
@@ -46,6 +48,8 @@ class StackCloud(FakeCloud):
             return {"data": self.vaults}
         if args[:3] == ["kms", "management", "key"]:
             return {"data": []}
+        if args[:3] == ["compute", "instance", "get"]:
+            return {"data": self.vm} if self.vm else {"data": {}}
         if args[:3] == ["vault", "secret", "list"]:
             name = args[args.index("--name") + 1]
             return {"data": [x for x in self.secrets if x["secret-name"] == name]}
@@ -217,3 +221,16 @@ def test_an_existing_database_is_kept(home, monkeypatch):
                        dbs=[{"lifecycle-state": "AVAILABLE", "display-name": "north-db"}])
     v = _existing(cloud, home, monkeypatch)
     assert v["create_database"] == "false"
+
+
+def test_a_vm_resized_in_the_console_is_not_shrunk_by_a_later_run(home, monkeypatch):
+    """Seen live: the owner resized the VM from 2/12 to 4/24 in the Console; --resume must send 4/24."""
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    assert cloud.stacks[0][1]["ocpus"] == "2"
+    cloud.vm = {"lifecycle-state": "RUNNING", "shape": "VM.Standard.A1.Flex",
+                "shape-config": {"ocpus": 4.0, "memory-in-gbs": 24.0}}
+    stack_make(cloud, home, resume=True).up()
+    v = cloud.stacks[-1][1]
+    assert (v["ocpus"], v["memory_in_gbs"]) == ("4", "24")

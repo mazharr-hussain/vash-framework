@@ -479,6 +479,27 @@ class Onboarding:
     def tfvars_path(self, workdir: Path) -> Path:
         return workdir / "environments" / ENVIRONMENT / "terraform.tfvars.json"
 
+    def actual_vm_size(self, instance_id: str) -> tuple[str, int, int] | None:
+        """The VM's shape, cores and memory as OCI has them now (the owner may have resized it in the Console, seen
+        live): a later apply sends these, so it never shrinks the VM back. None when it cannot be read."""
+        if not instance_id:
+            return None
+        try:
+            vm = self.oci("compute", "instance", "get", "--instance-id", instance_id).get("data", {})
+        except VashError:
+            return None
+        cfg = vm.get("shape-config") or {}
+        if vm.get("lifecycle-state") in ("TERMINATED", "TERMINATING") or not cfg.get("ocpus"):
+            return None
+        return vm.get("shape", SHAPE), int(cfg["ocpus"]), int(cfg.get("memory-in-gbs", 0))
+
+    def earlier_instance_id(self) -> str:
+        state = self.tfvars_path(self.options.workdir).with_name("terraform.tfstate")
+        try:
+            return json.loads(state.read_text()).get("outputs", {}).get("instance_id", {}).get("value") or ""
+        except (ValueError, OSError):
+            return ""
+
     def earlier_vm_exists(self) -> bool:
         """Whether the earlier onboarding's terraform state holds the VM (an attempt can stop before it is made,
         for example when Oracle had no A1 capacity; then the VM is chosen again)."""
@@ -664,11 +685,15 @@ class Onboarding:
             domains = [previous["availability_domain"]]
             image = previous["image_id"]
             self.options.shape = previous.get("shape", SHAPE)
+            cores, memory = previous.get("ocpus", self.options.ocpus), previous.get("memory_in_gbs",
+                                                                                   self.options.memory_in_gbs)
+            actual = self.actual_vm_size(self.earlier_instance_id())
+            if actual:
+                self.options.shape, cores, memory = actual
             if self.options.shape == MICRO:
                 self.use_micro()
             else:
-                self.use_a1(previous.get("ocpus", self.options.ocpus),
-                            previous.get("memory_in_gbs", self.options.memory_in_gbs))
+                self.use_a1(cores, memory)
         else:
             domains = self.domains_with_quota(tenancy)
             image = self.latest_image(compartment)

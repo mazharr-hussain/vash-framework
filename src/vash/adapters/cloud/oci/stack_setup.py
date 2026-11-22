@@ -179,6 +179,12 @@ class StackSetup:
         # variable tenancy_ocid"); they are set on every save, also for a stack saved by an earlier version.
         _, region = self.ob.tenancy_and_region()
         values = {**values, "tenancy_ocid": tenancy, "region": region}
+        actual = self.ob.actual_vm_size(self.state.get("outputs", {}).get("instance_id") or "")
+        if values.get("create_vm") and actual:
+            shape, cores, memory = actual
+            if (shape, cores, memory) != (values.get("shape"), values.get("ocpus"), values.get("memory_in_gbs")):
+                self.echo(f"The VM is now {shape}, {cores} cores and {memory} GB (changed outside VASH): kept")
+            values.update(shape=shape, ocpus=cores, memory_in_gbs=memory)
         workdir = self.ob.prepare_workdir()
         zip_path = package(workdir, self.ob.user_data(workdir), self.ob.options.workdir / "vash-stack.zip")
         stack_id = self.rm.save_stack(self.state.get("id", ""), tenancy, f"vash-{values['name_prefix']}", zip_path,
@@ -231,8 +237,9 @@ class StackSetup:
             out = self.rm.outputs(job_id)
             self.save(outputs={k: v for k, v in out.items() if k != "db_password"})
             self.echo("Setup finished in OCI.")
-            if out.get("db_password_secret"):
-                self.echo(f"Database password: vault secret '{out['db_password_secret']}'")
+            secret = self.state.get("values", {}).get("db_secret_name") or out.get("db_password_secret")
+            if secret:
+                self.echo(f"Database password: vault secret '{secret}'")
             ip = out.get("runner_ip")
             if ip:
                 key = self.ob._state().get("ssh_key", "~/.ssh/<key>")
