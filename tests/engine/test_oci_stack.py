@@ -1,5 +1,6 @@
 """`vash onboard oci` through OCI Resource Manager: every question first, then one job that runs in OCI."""
 import json
+import time
 import zipfile
 from pathlib import Path
 
@@ -347,3 +348,28 @@ def test_gpu_token_is_given_once_kept_in_the_vault_and_put_in_the_vm_users_home(
     assert len(pushes) == 1 and pushes[0][1]["input"] == "KGAT_TOKEN123" and "umask 077" in pushes[0][0][-1]
     assert all("KGAT_TOKEN123" not in " ".join(c[0]) for c in cloud.calls)
     assert not [c for c in cloud.calls if c[0][0] == "ssh" and "gateway.env" in c[0][-1]]  # no model key given
+
+
+def test_update_sends_the_whole_script_to_the_vm_seen_live(home, monkeypatch, tmp_path):
+    """Seen live: `a && cat > f && sudo nohup bash f &` ran the whole list in the background with its input from
+    /dev/null, so the script arrived empty. The command VASH sends is run here through a real shell."""
+    import subprocess as sp
+    real_run = sp.run
+    monkeypatch.setattr(tf_module.subprocess, "run", no_local_terraform)
+    cloud = StackCloud()
+    stack_make(cloud, home).up()
+    path = home / ".vash/oci/onboard.json"
+    state = json.loads(path.read_text())
+    state["ssh_key"] = str(home / "k")
+    path.write_text(json.dumps(state))
+    stack_make(cloud, home, update=True).up()
+    install = next(c for c in cloud.calls if c[0][0] == "ssh" and "vash-install.sh" in c[0][-1])
+    remote = (install[0][-1].replace("sudo ", "").replace("/tmp/vash-install.sh", str(tmp_path / "install.sh"))
+              .replace("/var/lib/vash/ready", str(tmp_path / "ready")))
+    marker = tmp_path / "ran"
+    real_run(["bash", "-c", remote], input=f"echo ok > {marker}\n", text=True, check=True)
+    for _ in range(50):
+        if marker.exists():
+            break
+        time.sleep(0.1)
+    assert (tmp_path / "install.sh").read_text().strip() == f"echo ok > {marker}" and marker.exists()
