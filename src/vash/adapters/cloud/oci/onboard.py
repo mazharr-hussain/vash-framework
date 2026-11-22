@@ -550,8 +550,10 @@ class Onboarding:
             self.echo("Stopped; nothing was changed")
             return 1
         script = self.user_data(self.prepare_workdir())
+        # Only the installer goes to the background (in braces): a whole `a && b &` list would run in the
+        # background with its input from /dev/null, and the script would arrive empty (seen live).
         res = self.ssh(key, ip, "sudo rm -f /var/lib/vash/ready && cat > /tmp/vash-install.sh && "
-                       "sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 &", stdin=script)
+                       "{ sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 & }", stdin=script)
         if res.returncode != 0:
             raise VashError(f"Could not start the installer on {ip}: {res.stderr.strip()[-200:]}",
                             f"Check that ssh -i {key} {self.user}@{ip} works")
@@ -985,7 +987,7 @@ class Onboarding:
             self.echo("Stopped; nothing was changed")
             return 1
         script = self.user_data(self.prepare_workdir())
-        res = self.ssh(key, ip, "cat > /tmp/vash-install.sh && sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 &",
+        res = self.ssh(key, ip, "cat > /tmp/vash-install.sh && { sudo nohup bash /tmp/vash-install.sh >/dev/null 2>&1 & }",
                        stdin=script)
         if res.returncode != 0:
             raise VashError(f"Could not start the installer on {name}: {res.stderr.strip()[-200:]}",
