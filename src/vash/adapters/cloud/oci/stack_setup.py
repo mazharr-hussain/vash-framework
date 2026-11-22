@@ -137,6 +137,10 @@ class StackSetup:
 
     # ---- running --------------------------------------------------------
     def submit(self, tenancy: str, values: dict[str, Any]) -> str:
+        # Resource Manager does not fill these for a stack made from the CLI (seen live: "No value for required
+        # variable tenancy_ocid"); they are set on every save, also for a stack saved by an earlier version.
+        _, region = self.ob.tenancy_and_region()
+        values = {**values, "tenancy_ocid": tenancy, "region": region}
         workdir = self.ob.prepare_workdir()
         zip_path = package(workdir, self.ob.user_data(workdir), self.ob.options.workdir / "vash-stack.zip")
         stack_id = self.rm.save_stack(self.state.get("id", ""), tenancy, f"vash-{values['name_prefix']}", zip_path,
