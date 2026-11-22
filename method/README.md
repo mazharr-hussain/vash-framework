@@ -4,6 +4,9 @@ The VASH method is how every activity in this repository is done and judged.
 
 ## Files
 
+**Requirement**
+- `requirements.md` — the owner's basic requirement for VASH; every activity is checked against it.
+
 **Laws and rules**
 - `laws.md` — three laws and platform rules R1-R15; single source of truth.
 
