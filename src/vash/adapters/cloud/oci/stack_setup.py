@@ -94,6 +94,7 @@ class StackSetup:
             "key_name": vault["key_name"], "quota_statements": quota, "budget_email": budget_email,
             "notify_email": email, "create_database": create_database, "create_vm": not o.database_only,
         }
+        self.reuse_database(tenancy, values)
         domains: list[str] = []
         if o.database_only:
             compartments["network"] = {"name": compartments["app"]["name"], "id": compartments["app"]["id"],
@@ -111,6 +112,43 @@ class StackSetup:
                           ocpus=o.ocpus, memory_in_gbs=o.memory_in_gbs, image_id=ob.latest_image(tenancy),
                           ssh_public_key=public_key, admin_cidr=ob.admin_cidr(), cloud_init_script="vash-runner.sh")
         return values, domains
+
+    def reuse_database(self, tenancy: str, values: dict[str, Any]) -> None:
+        """An earlier run may have left the database or its password secret (seen live: 'name already exists').
+        An existing <prefix>-db is kept as it is (the stack makes none); an existing ACTIVE password secret is
+        read by the stack instead of made; a secret waiting for deletion keeps its name, so a new name is used."""
+        if not values.get("create_database"):
+            return
+        from .security import VaultSetup
+        prefix = values["name_prefix"]
+        comps = values["compartments"]
+        app_id = comps["app"]["id"] or VaultSetup(self.ob.oci, self.echo, self.ob.confirm, self.ob.ask,
+                                                  None).find_compartment(tenancy, comps["app"]["name"])
+        if app_id:
+            dbs = self.ob.oci("db", "autonomous-database", "list", "--compartment-id", app_id,
+                              "--display-name", f"{prefix}-db", "--all").get("data", [])
+            alive = [d for d in dbs or [] if d.get("lifecycle-state") not in ("TERMINATED", "TERMINATING")]
+            if alive:
+                self.echo(f"Database {prefix}-db already exists ({alive[0].get('lifecycle-state')}): it is kept as "
+                          "it is")
+                values["create_database"] = False
+                return
+        if not (values.get("vault_id") and comps["security"]["id"]):
+            return  # a vault the stack makes has no secrets yet
+        name = f"{prefix}-db-admin-password"
+        for n in range(1, 6):
+            found = self.ob.oci("vault", "secret", "list", "--compartment-id", comps["security"]["id"],
+                                "--vault-id", values["vault_id"], "--name", name, "--all").get("data", [])
+            if not found:
+                values.update(db_secret_id="", db_secret_name=name)
+                return
+            if found[0].get("lifecycle-state") == "ACTIVE":
+                self.echo(f"Vault secret '{name}' exists (an earlier run): the database uses its password")
+                values.update(db_secret_id=found[0]["id"], db_secret_name=name)
+                return
+            name = f"{prefix}-db-admin-password-{n + 1}"  # the old one waits for deletion and keeps its name
+        raise VashError("Five password secrets of this database wait for deletion",
+                        "Wait for OCI to delete them, or cancel a deletion in the Console (Vault, Secrets)")
 
     def summary(self, values: dict[str, Any]) -> str:
         c = values["compartments"]
@@ -241,6 +279,7 @@ class StackSetup:
             self.echo("No VASH setup has been started from this shell: run `vash onboard oci` first")
             return 1
         values = dict(st["values"])
+        self.reuse_database(tenancy, values)
         job_id = st.get("job", "")
         lines = self.rm.logs(job_id) if job_id else []
         from .onboard import CAPACITY_ERRORS, MICRO

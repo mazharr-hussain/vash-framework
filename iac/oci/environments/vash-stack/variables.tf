@@ -86,3 +86,13 @@ variable "create_database" {
   type    = bool
   default = false
 }
+variable "db_secret_id" {
+  type        = string
+  default     = ""
+  description = "An existing vault secret with the database password (it is read, not changed); empty makes one."
+}
+variable "db_secret_name" {
+  type        = string
+  default     = ""
+  description = "Name of a new password secret; empty is <prefix>-db-admin-password."
+}
