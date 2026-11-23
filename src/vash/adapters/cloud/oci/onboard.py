@@ -510,10 +510,19 @@ class Onboarding:
             return None
         return vm.get("shape", SHAPE), int(cfg["ocpus"]), int(cfg.get("memory-in-gbs", 0))
 
-    VM_REPORT = ("echo '--- install'; cat /var/lib/vash/ready 2>/dev/null || tail -n 5 /var/log/vash-onboard.log; "
-                 "echo '--- health check (vash doctor)'; cat /var/lib/vash/doctor.txt 2>/dev/null || echo 'not run yet'; "
-                 "echo '--- first AvA task (test project)'; tail -n 12 /var/lib/vash/smoke.txt 2>/dev/null "
-                 "|| echo 'not run yet'")
+    VM_REPORT = (
+        "echo '--- install'; cat /var/lib/vash/ready 2>/dev/null || tail -n 5 /var/log/vash-onboard.log; "
+        "echo '--- model gateway'; systemctl is-active vash-gateway 2>&1; "
+        "curl -fsS -o /dev/null -w 'http %{http_code}\\n' http://127.0.0.1:4000/health/liveliness 2>&1 | tail -1; "
+        "systemctl is-active --quiet vash-gateway || sudo journalctl -u vash-gateway -n 15 --no-pager 2>&1 | tail -15; "
+        "echo '--- VASH tools for the chat (vash mcp)'; "
+        "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":"
+        "{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"status\",\"version\":\"1\"}}}' "
+        "| timeout 20 vash mcp 2>&1 | head -c 300; echo; "
+        "echo '--- health check (vash doctor)'; cat /var/lib/vash/doctor.txt 2>/dev/null || echo 'not run yet'; "
+        "echo '--- first AvA task (test project)'; tail -n 12 /var/lib/vash/smoke.txt 2>/dev/null || echo 'not run yet'; "
+        "echo '--- errors in the install log'; grep -nE 'ERROR|Error:|error:|failed|Traceback' /var/log/vash-onboard.log "
+        "| tail -n 12")
 
     def vm_access(self) -> tuple[Path, str] | None:
         """The SSH key and public address of the VASH VM this shell set up (stack, step by step, or --vm-ip)."""
