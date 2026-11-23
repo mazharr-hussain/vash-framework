@@ -657,3 +657,13 @@ def test_vm_setup_waits_for_ubuntus_updates_and_never_asks():
     assert "fuser /var/lib/dpkg/lock-frontend" in script and "DPkg::Lock::Timeout" in script
     assert "\napt-get update" not in script and "\n  apt-get" not in script  # every apt call goes through the wait
     assert script.count("wait_for_apt") >= 4  # defined, then before each apt step
+
+
+def test_vm_setup_always_installs_the_given_vash_and_repairs_the_signing_key():
+    """Seen live: pip kept the old VASH (same version number), so `vash mcp`, `doctor` and `gateway` were missing;
+    and a removed HashiCorp key file was never fetched again (NO_PUBKEY)."""
+    from vash.core.paths import vash_root
+    script = (vash_root() / "iac" / "oci" / "cloud-init" / "vash-runner.sh").read_text()
+    assert '/opt/vash/bin/pip install --force-reinstall --no-deps "$VASH_SOURCE"' in script
+    key = script.index("apt.releases.hashicorp.com/gpg")
+    assert key < script.index("if ! command -v terraform")  # fetched on every run, not only on the first

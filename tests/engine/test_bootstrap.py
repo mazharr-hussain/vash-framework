@@ -84,3 +84,15 @@ def test_an_unknown_channel_stops(tmp_path):
     out = subprocess.run(["bash", str(SCRIPT), "--channel", "beta"], env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
                          capture_output=True, text=True, check=False)
     assert out.returncode == 2 and "use live, test or dev" in out.stderr
+
+
+def test_vash_is_put_on_the_path_once(tmp_path):
+    """Seen live: after the setup, `vash` was not found in Cloud Shell. The path line goes to ~/.bashrc once."""
+    line = 'export PATH="$HOME/.vash/venv/bin:$PATH"  # added by the VASH setup'
+    out, _, _ = run(tmp_path / "a")
+    assert (tmp_path / "a/home/.bashrc").read_text().count(line) == 1 and "Added VASH to your path" in out
+    home = tmp_path / "b" / "home"
+    home.mkdir(parents=True)
+    (home / ".bashrc").write_text(f"alias ll='ls -l'\n{line}\n")
+    out, _, _ = run(tmp_path / "b")
+    assert (home / ".bashrc").read_text().count(line) == 1 and "Added VASH" not in out

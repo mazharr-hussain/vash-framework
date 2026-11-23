@@ -48,3 +48,7 @@ Every prompt: audit/prompts/[task_id]_prompt.md
 Every AvA log: audit/ava_logs/[task_id]_round[n].md
 Every validation: audit/validation/[task_id]_summary.md
 Never skip saving. Never summarise. Full content always.
+
+## Answering the owner
+When the owner asks what to do: give numbered steps and the exact commands only. No background, no
+explanation, no story, unless the owner asks why.
