@@ -5,6 +5,7 @@ This is a hand-written seed for bootstrap stage A; it will be engine-generated i
 
 ## [Unreleased]
 ### Added
+- Added `vash onboard oci --web`: the VASH chat as a web page at the owner's own address (Open WebUI on the VM, a Cloudflare Tunnel, an e-mail login with Cloudflare Access), made through the provider's API with one token kept in the vault; `vash mcp --http` serves VASH's tools to it.
 - Initial repository scaffolding, governance, security policies, and the build system.
 - Added the VASH method and AvA protocol (Step 2).
 - Added the core engine, interfaces, registry and freeze loading (Step 3).

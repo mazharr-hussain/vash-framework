@@ -96,6 +96,9 @@ class Options:
     update: bool = False  # install this VASH on the VM again and run the checks
     keys: bool = False  # model provider keys for the gateway: into the vault and onto the VM
     chat: bool = False  # open the chat harness on the VM (OpenCode with VASH's tools)
+    web: bool = False  # the chat as a web page at the owner's address, behind an e-mail login
+    web_address: str | None = None  # e.g. vash.example.org (asked once, then remembered)
+    web_emails: list[str] | None = None  # who may log in (asked once, then remembered)
 
 
 def _allows_ssh(rule: dict) -> bool:
@@ -522,7 +525,11 @@ class Onboarding:
         "echo '--- health check (vash doctor)'; cat /var/lib/vash/doctor.txt 2>/dev/null || echo 'not run yet'; "
         "echo '--- first AvA task (test project)'; tail -n 12 /var/lib/vash/smoke.txt 2>/dev/null || echo 'not run yet'; "
         "echo '--- errors in the install log'; grep -nE 'ERROR|Error:|error:|failed|Traceback' /var/log/vash-onboard.log "
-        "| tail -n 12")
+        "| tail -n 12; "
+        "if [ -f /var/log/vash-web.log ]; then echo '--- web chat (vash onboard oci --web)'; "
+        "cat /var/lib/vash/web-ready 2>/dev/null || tail -n 5 /var/log/vash-web.log; "
+        "for u in vash-mcp vash-web vash-tunnel; do echo \"$u $(systemctl is-active $u 2>&1)\"; done; "
+        "grep -nE 'ERROR|Error:|error:|FAILED|Traceback' /var/log/vash-web.log | tail -n 8; fi")
 
     def vm_access(self) -> tuple[Path, str] | None:
         """The SSH key and public address of the VASH VM this shell set up (stack, step by step, or --vm-ip)."""
@@ -683,6 +690,83 @@ class Onboarding:
         self.echo(f"Keys installed on {ip}; the gateway was restarted ({res.stdout.strip().splitlines()[-1] if res.stdout.strip() else 'started'})")
         return 0
 
+    WEB_TOKEN_SECRET = "vash-web-api-token"  # pragma: allowlist secret (the vault secret's name, not a value)
+    WEB_SERVICE = "http://127.0.0.1:8080"  # the web chat on the VM (vash-web.sh); not "localhost", which can be ::1
+
+    def read_key(self, vault: dict[str, str], name: str) -> str:
+        """A secret kept in the vault earlier, or "" when there is none."""
+        import base64
+        res = self._cmd(["oci", "secrets", "secret-bundle", "get-secret-bundle-by-name", "--vault-id",
+                         vault["vault_id"], "--secret-name", name, "--output", "json"])
+        if res.returncode != 0:
+            return ""
+        try:
+            content = json.loads(res.stdout)["data"]["secret-bundle-content"]["content"]
+            return base64.b64decode(content).decode().strip()
+        except (ValueError, KeyError, TypeError):
+            return ""
+
+    def web(self) -> int:
+        """The chat as a web page at the owner's own address: the login, the address and the tunnel are made with
+        the provider's API, then the page and the tunnel's connector are installed on the VM. No port is opened."""
+        from vash.adapters.web.cloudflare.adapter import TOKEN, Adapter
+        access = self.vm_access()
+        if access is None:
+            raise VashError("No VASH VM is known to this shell", "Run `vash onboard oci` first")
+        key, ip = access
+        state = self._state()
+        web = dict(state.get("web") or {})
+        address = (self.options.web_address or web.get("address") or "").strip().lower()
+        if not address:
+            address = self.ask("The page's address (a domain on Cloudflare, e.g. vash.example.org)", "").strip().lower()
+        if not re.match(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", address):
+            raise VashError(f"'{address}' is not a web address", "Give one like vash.example.org (--web-address)")
+        emails = [e.strip().lower() for e in (self.options.web_emails or web.get("emails") or []) if e.strip()]
+        if not emails:
+            emails = [e.strip().lower() for e in
+                      self.ask("E-mail address(es) allowed to log in, separated by commas", "").split(",") if e.strip()]
+        bad = [e for e in emails if not EMAIL_RE.match(e)]
+        if not emails or bad:
+            raise VashError(f"Not an e-mail address: {', '.join(bad) or '(none given)'}",
+                            "Give each address with --web-email you@example.org")
+        vault = self.vault_for_keys()
+        token = self.read_key(vault, self.WEB_TOKEN_SECRET) if vault else ""
+        if not token:
+            self.echo(f"{TOKEN['label']}: make it at {TOKEN['signup']} with: " + "; ".join(TOKEN["permissions"]))
+            token = self.secret(f"{TOKEN['label']} (not shown while you type): ").strip()
+            if not token:
+                self.echo("No token given; nothing changed")
+                return 1
+        account = web.get("account_id") or self.ask(
+            "Cloudflare Account ID (dashboard, the domain's Overview page), or Enter to read it from the domain",
+            "").strip()
+        if not self.confirm(f"Publish the VASH chat at https://{address} for {', '.join(emails)} only (a one-time "
+                            f"code is e-mailed at login), and install the page and the tunnel on the VM {ip}?"):
+            self.echo("Stopped; nothing was changed")
+            return 1
+        made = Adapter({"api_token": token, "account_id": account}).publish(address, self.WEB_SERVICE, emails)
+        self.echo("Cloudflare: " + (", ".join(made["created"]) + " made" if made["created"] else "already set up; updated"))
+        if vault:
+            self.store_key(vault, self.WEB_TOKEN_SECRET, token)
+        web.update({"address": address, "emails": emails, "account_id": account, "tunnel_id": made["tunnel_id"]})
+        self._save_state(web=web)
+        res = self.ssh(key, ip, "sudo install -d -m 0755 /etc/vash && "
+                       "sudo sh -c 'umask 077 && cat > /etc/vash/tunnel-token'", stdin=made["connector_token"])
+        if res.returncode != 0:
+            raise VashError(f"Could not install the tunnel's token on {ip}: {res.stderr.strip()[-200:]}",
+                            f"Check that ssh -i {key} {self.user}@{ip} works")
+        script = (self.prepare_workdir() / "cloud-init" / "vash-web.sh").read_text()
+        script = script.replace("@@RUN_USER@@", self.user).replace("@@WEB_URL@@", made["url"])
+        res = self.ssh(key, ip, "sudo rm -f /var/lib/vash/web-ready && cat > /tmp/vash-web.sh && "
+                       "{ sudo nohup bash /tmp/vash-web.sh >/dev/null 2>&1 & }", stdin=script)
+        if res.returncode != 0:
+            raise VashError(f"Could not start the web install on {ip}: {res.stderr.strip()[-200:]}",
+                            f"Check that ssh -i {key} {self.user}@{ip} works")
+        self.echo(f"Installing the web chat on {ip} (10-20 minutes the first time) ...")
+        self.echo(self.wait_ready(key, ip, "/var/lib/vash/web-ready", "/var/log/vash-web.log"))
+        self.echo(f"Open {made['url']} and log in with {emails[0]} (a code is e-mailed to you)")
+        return 0
+
     def chat(self) -> int:
         """Open the chat harness on the VM (OpenCode with VASH's tools), in this terminal, over SSH."""
         access = self.vm_access()
@@ -788,17 +872,18 @@ class Onboarding:
         return self._cmd(["ssh", "-i", str(key), "-o", "StrictHostKeyChecking=accept-new",
                           "-o", "ConnectTimeout=10", "-o", "BatchMode=yes", f"{self.user}@{ip}", command], stdin=stdin)
 
-    def wait_ready(self, key: Path, ip: str) -> str:
+    def wait_ready(self, key: Path, ip: str, ready: str = "/var/lib/vash/ready",
+                   log: str = "/var/log/vash-onboard.log") -> str:
         deadline = self.options.wait_minutes * 60
         waited = 0
         while waited <= deadline:
-            res = self.ssh(key, ip, "cat /var/lib/vash/ready")
+            res = self.ssh(key, ip, f"cat {ready}")
             if res.returncode == 0 and res.stdout.strip():
                 return res.stdout.strip()
             self.sleep(30)
             waited += 30
         raise VashError(f"The VM did not finish installing in {self.options.wait_minutes} minutes",
-                        f"ssh {self.user}@{ip} and read /var/log/vash-onboard.log")
+                        f"ssh {self.user}@{ip} and read {log}")
 
     def register_runner(self, key: Path, ip: str, token: str) -> None:
         repo = self.options.runner_repo
@@ -827,6 +912,8 @@ class Onboarding:
             return self.keys()
         if self.options.chat:
             return self.chat()
+        if self.options.web:
+            return self.web()
         if self.options.status and not self._state().get("stack", {}).get("id"):
             return self.vm_report()
         if self.uses_stack() or self.options.status or self.options.resume:
@@ -1061,6 +1148,9 @@ def run_cli(args: Any) -> int:
         update=getattr(args, "update", False),
         keys=getattr(args, "keys", False),
         chat=getattr(args, "chat", False),
+        web=getattr(args, "web", False),
+        web_address=getattr(args, "web_address", None),
+        web_emails=getattr(args, "web_email", None),
         # The VM gets the same VASH as this shell: the bootstrap exports the release it installed.
         vash_source=os.environ.get("VASH_SOURCE") or DEFAULT_SOURCE,
     )

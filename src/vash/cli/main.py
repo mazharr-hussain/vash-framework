@@ -41,7 +41,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_gwc.add_argument("--env", default="/etc/vash/gateway.env", help="File with the provider keys (KEY=value)")
     p_gwc.add_argument("--vm-model", default="", help="The model on this machine, the last fallback")
     p_gwc.add_argument("--extra", default="/etc/vash/gateway-models.json", help="The owner's added models")
-    subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
+    p_mcp = subparsers.add_parser("mcp", help="Serve VASH's tools to a chat harness over MCP (stdio)")
+    p_mcp.add_argument("--http", action="store_true",
+                       help="Serve them over HTTP on 127.0.0.1 instead (for the web chat on the same VM)")
+    p_mcp.add_argument("--port", type=int, default=8765, help="The HTTP port (default 8765)")
     p_gpu = subparsers.add_parser("gpu", help="Batch jobs on free GPUs, within their free quota")
     gpu_sub = p_gpu.add_subparsers(dest="action", required=True)
     p_gq = gpu_sub.add_parser("quota", help="This week's free GPU hours")
@@ -88,6 +91,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                            help="Install this VASH on the VM again over SSH, then run the health check and a first task")
     p_onboard.add_argument("--keys", action="store_true",
                            help="Give the model provider keys once: kept in the vault, installed in the VM's gateway")
+    p_onboard.add_argument("--web", action="store_true",
+                           help="Open the chat as a web page at your own address, behind an e-mail login "
+                                "(no port opened on the VM)")
+    p_onboard.add_argument("--web-address", default=None, help="The page's address, e.g. vash.example.org")
+    p_onboard.add_argument("--web-email", action="append", default=None,
+                           help="An e-mail address allowed to log in (repeat for more)")
     p_onboard.add_argument("--chat", action="store_true",
                            help="Open the chat on the VM: a harness that talks to VASH and uses its models")
     p_onboard.add_argument("--in-shell", action="store_true",
@@ -159,7 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return gateway_command(args.out, args.env, args.vm_model, args.extra)
         elif args.command == "mcp":
             from vash.mcp.server import run as serve
-            return serve()
+            return serve(args.http, args.port)
         elif args.command == "gpu":
             from vash.tools import gpu
             if args.action == "quota":

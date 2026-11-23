@@ -184,10 +184,28 @@ class GPUAdapter(ABC):
         """Download the answers (results.jsonl) into dest; returns the file."""
 
 
+class WebAccessAdapter(ABC):
+    """A public address for a page that runs only on the VM's own interface: the VM connects out to the provider
+    (no port is opened), and the provider lets in only the owner's e-mail addresses."""
+
+    def __init__(self, settings: Mapping[str, Any]):
+        self.settings = settings
+
+    @abstractmethod
+    def publish(self, hostname: str, service: str, emails: list[str]) -> dict[str, Any]:
+        """Make or update the address `hostname` for the `service` on the VM (e.g. http://127.0.0.1:8080), open to
+        `emails` only. Idempotent. Returns {connector_token, url, created: [what was made]}."""
+
+    @abstractmethod
+    def unpublish(self, hostname: str) -> list[str]:
+        """Remove what publish made for `hostname`; returns what was removed."""
+
+
 CATEGORY_INTERFACES = {
     "forge": ForgeAdapter,
     "ci": CIAdapter,
     "cloud": CloudAdapter,
     "llm": LLMAdapter,
     "gpu": GPUAdapter,
+    "web": WebAccessAdapter,
 }

@@ -54,4 +54,4 @@ owner only briefs, decides, approves and merges (LAW 2).
 | 2 $0 | free-tier guardrails in OCI; Always Free VM and database | usage tracking against free API limits (`vash cost`) |
 | 3 Free resources | VM with a local model; model gateway (LiteLLM) with a model per kind of work, fallbacks to the VM's model, keys given once (`--keys`) | gatekeeper (understand, split, mask, route, unmask); parallel tasks; free GPUs |
 | 4 Reuse | catalog, search log, CD3 and vendor modules | the automatic skill and tool search of point 1 |
-| 5 Many ways in | command line; GitHub pull request checks; chat on the VM (OpenCode with `vash mcp`, `vash-chat` or `vash onboard oci --chat`) | starting work from Git issues or comments; other channels |
+| 5 Many ways in | command line; GitHub pull request checks; chat on the VM (OpenCode with `vash mcp`, `vash-chat` or `vash onboard oci --chat`); the chat as a web page at the owner's address behind an e-mail login (`vash onboard oci --web`) | starting work from Git issues or comments; other channels |

@@ -180,3 +180,16 @@ DECISION:
 - USED the hosted GPU model APIs as providers of the LiteLLM gateway. GPU notebooks cannot sit behind LiteLLM
   (they accept no incoming connections, and serving from them is against their terms), so they run batch jobs.
 - USED Kaggle's official client 2.2.5 (Apache-2.0, 22 Oct 2026) for the first GPU adapter.
+
+## 23 Nov 2026: the chat as a web page on OCI (owner choice B: tunnel and own domain; 3: Zero Trust login)
+- SEARCHED: Cloudflare Tunnel with Access (Zero Trust Free, up to 50 users; cloudflared Apache-2.0), OCI Load
+  Balancer with a public port (opens the VM to the internet), Tailscale Funnel (no login in front), ngrok free
+  (random address, interstitial page); web chats Open WebUI (Open WebUI License, MCP tool servers built in),
+  LibreChat (MIT, needs MongoDB), LobeChat (Apache-2.0 with extra terms).
+- USED Cloudflare Tunnel and Access through Cloudflare's API (checked against its published OpenAPI schema):
+  remotely managed tunnel, ingress with a 404 catch-all, proxied CNAME, a reusable allow policy for the owner's
+  e-mail addresses and a self-hosted Access application. cloudflared 2026.11.0 (12 Nov 2026) from the GitHub
+  release with its checksum: Cloudflare's apt repository keeps only the newest version.
+- USED Open WebUI 0.13.3 (8 Nov 2026) from PyPI, the wheel's checksum checked; its MCP tool server connection
+  (TOOL_SERVER_CONNECTIONS, type mcp) reaches `vash mcp --http` (MCP SDK 2.3.0 streamable HTTP, tried here: the
+  12 VASH tools listed).

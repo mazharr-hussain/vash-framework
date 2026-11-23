@@ -1,4 +1,4 @@
-"""`vash mcp`: VASH's tools for a chat harness, over MCP (stdio). Uses the official MCP Python SDK (MIT)."""
+"""`vash mcp`: VASH's tools for a chat harness, over MCP (stdio, or HTTP on 127.0.0.1 for the web chat). Uses the official MCP Python SDK (MIT)."""
 from __future__ import annotations
 
 import functools
@@ -42,6 +42,13 @@ def build():
     return server
 
 
-def run() -> int:
-    build().run("stdio")
+HTTP_PORT = 8765  # `vash mcp --http`: for the web chat on the same VM (Open WebUI), on the VM's own interface only
+
+
+def run(http: bool = False, port: int = HTTP_PORT) -> int:
+    if http:
+        # Bound to 127.0.0.1 only: the web page reaches it on the VM; nothing outside the VM can.
+        build().run("streamable-http", host="127.0.0.1", port=port, stateless_http=True)
+    else:
+        build().run("stdio")
     return 0
