@@ -39,9 +39,10 @@ wait_for_apt
 "${APT[@]}" install python3 python3-venv python3-pip git curl unzip jq gnupg ca-certificates
 
 # Terraform (HashiCorp apt repository).
+# The signing key is fetched on every run, so a removed or outdated key file is repaired (seen live: NO_PUBKEY).
+# --batch --yes: a rerun overwrites the key file instead of asking (seen live: "gpg: cannot open '/dev/tty'").
+curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/hashicorp.gpg
 if ! command -v terraform >/dev/null; then
-  # --batch --yes: a rerun overwrites the key file instead of asking (seen live: "gpg: cannot open '/dev/tty'").
-  curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/hashicorp.gpg
   echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" \
     > /etc/apt/sources.list.d/hashicorp.list
   wait_for_apt
@@ -55,6 +56,9 @@ if [ ! -x /opt/vash/bin/vash ]; then
 fi
 /opt/vash/bin/pip install --upgrade pip
 /opt/vash/bin/pip install --upgrade "$VASH_SOURCE"
+# The version number stays the same between changes, so pip would keep the old code (seen live: the VM kept a VASH
+# without `vash mcp`, `doctor` and `gateway`): reinstall VASH itself every time, its dependencies only when needed.
+/opt/vash/bin/pip install --force-reinstall --no-deps "$VASH_SOURCE"
 ln -sf /opt/vash/bin/vash /usr/local/bin/vash
 
 # Ollama (local $0 model) and the default model, when the VM has room for one.
