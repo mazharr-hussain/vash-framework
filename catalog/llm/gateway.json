@@ -10,7 +10,7 @@
     "sambanova": {"key_env": "SAMBANOVA_API_KEY", "signup": "https://cloud.sambanova.ai/apis"},
     "openrouter": {"key_env": "OPENROUTER_API_KEY", "signup": "https://openrouter.ai/keys"},
     "huggingface": {"key_env": "HF_TOKEN", "signup": "https://huggingface.co/settings/tokens"},
-    "cloudflare": {"key_env": "CLOUDFLARE_API_KEY", "signup": "https://dash.cloudflare.com/profile/api-tokens",
+    "cloudflare": {"key_env": "CLOUDFLARE_API_KEY", "api_base": "https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1", "signup": "https://dash.cloudflare.com/profile/api-tokens",
                    "extra": [{"env": "CLOUDFLARE_ACCOUNT_ID", "label": "Cloudflare account id", "secret": false}]},
     "cohere": {"key_env": "COHERE_API_KEY", "signup": "https://dashboard.cohere.com/api-keys"}
   },
@@ -22,7 +22,7 @@
       {"provider": "groq", "model": "groq/qwen/qwen3-32b", "maker": "alibaba"},
       {"provider": "codestral", "model": "codestral/codestral-latest", "maker": "mistral"},
       {"provider": "sambanova", "model": "sambanova/DeepSeek-V3-0324", "maker": "deepseek"},
-      {"provider": "cloudflare", "model": "cloudflare/@cf/qwen/qwen2.5-coder-32b-instruct", "maker": "alibaba"},
+      {"provider": "cloudflare", "model": "openai/@cf/qwen/qwen2.5-coder-32b-instruct", "maker": "alibaba"},
       {"provider": "huggingface", "model": "huggingface/Qwen/Qwen2.5-Coder-32B-Instruct", "maker": "alibaba"},
       {"provider": "mistral", "model": "mistral/devstral-small-latest", "maker": "mistral"}
     ],
@@ -39,7 +39,7 @@
       {"provider": "sambanova", "model": "sambanova/Meta-Llama-3.3-70B-Instruct", "maker": "meta"},
       {"provider": "nvidia_nim", "model": "nvidia_nim/meta/llama-3.3-70b-instruct", "maker": "meta"},
       {"provider": "openrouter", "model": "openrouter/meta-llama/llama-3.3-70b-instruct:free", "maker": "meta"},
-      {"provider": "cloudflare", "model": "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast", "maker": "meta"},
+      {"provider": "cloudflare", "model": "openai/@cf/meta/llama-3.3-70b-instruct-fp8-fast", "maker": "meta"},
       {"provider": "gemini", "model": "gemini/gemini-2.5-flash", "maker": "google"},
       {"provider": "cohere", "model": "cohere_chat/command-r-plus", "maker": "cohere"}
     ],

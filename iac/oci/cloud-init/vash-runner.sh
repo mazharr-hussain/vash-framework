@@ -11,6 +11,7 @@ rm -f /var/lib/vash/ready /var/lib/vash/doctor.txt /var/lib/vash/smoke.txt
 VASH_SOURCE="@@VASH_SOURCE@@"
 # Fixed versions: a new release of a tool never changes this VM by surprise. Update them here, in a PR.
 OLLAMA_VERSION="0.40.16"
+CONTEXT_LENGTH=16384  # tokens the VM's model reads at once (Ollama's CPU default is 4096)
 GATEWAY_VERSION="1.108.3"  # LiteLLM, the model gateway (catalog/llm/litellm.md)
 HARNESS_VERSION="2.2.6"  # OpenCode, the chat harness (npm checks the package's checksum)
 MCP_VERSION="2.3.0"  # the official MCP Python SDK, for `vash mcp`
@@ -66,7 +67,14 @@ if [ -n "$MODEL" ]; then
   if ! command -v ollama >/dev/null; then
     curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION="$OLLAMA_VERSION" sh
   fi
-  systemctl enable --now ollama
+  # A longer context than Ollama's 4k default on a CPU: the web chat sends its instructions and VASH's tool list
+  # with every question, and 4k cut them off (seen live: the model answered with a made-up tool call).
+  install -d -m 0755 /etc/systemd/system/ollama.service.d
+  printf '[Service]\nEnvironment=OLLAMA_CONTEXT_LENGTH=%s\n' "$CONTEXT_LENGTH" \
+    > /etc/systemd/system/ollama.service.d/vash.conf
+  systemctl daemon-reload
+  systemctl enable ollama
+  systemctl restart ollama
   for _ in $(seq 1 30); do
     ollama list >/dev/null 2>&1 && break
     sleep 2
@@ -200,6 +208,7 @@ mkdir -p /var/lib/vash
   if [ -n "$MODEL" ]; then
     echo "ollama=$(ollama --version 2>&1 | tail -1)"
     echo "model=$MODEL"
+    echo "context=$CONTEXT_LENGTH tokens"
   else
     echo "model=none (basic VM: VASH uses the free model APIs)"
   fi

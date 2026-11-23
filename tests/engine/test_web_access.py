@@ -215,3 +215,12 @@ def test_the_web_script_serves_only_the_vms_own_interface():
     assert "--token-file /etc/vash/tunnel-token" in script  # never on a command line
     assert "WEBUI_AUTH_TRUSTED_EMAIL_HEADER=Cf-Access-Authenticated-User-Email" in script  # pragma: allowlist secret (a header name)
     assert "ENABLE_SIGNUP=false" in script and "ENABLE_OLLAMA_API=false" in script
+
+
+def test_the_vms_model_reads_a_long_enough_context_for_the_web_chat():
+    """Seen live: with Ollama's 4k default the web chat's instructions and tool list were cut off."""
+    from vash.core.paths import vash_root
+    script = (vash_root() / "iac" / "oci" / "cloud-init" / "vash-runner.sh").read_text()
+    assert "CONTEXT_LENGTH=16384" in script and "OLLAMA_CONTEXT_LENGTH=%s" in script
+    assert script.index("ollama.service.d/vash.conf") < script.index('ollama pull "$MODEL"')
+    assert 'echo "model=$MODEL"' in script  # `--keys` reads the model from this line

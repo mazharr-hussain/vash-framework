@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from vash.core.exceptions import VashError
 from vash.core.paths import vash_root
@@ -72,11 +72,24 @@ def read_env(path: Path) -> dict[str, str]:
     return out
 
 
-def chains(cat: dict[str, Any], keys: set[str]) -> dict[str, list[dict[str, str]]]:
+def api_base(provider: dict[str, Any], values: Mapping[str, str]) -> str | None:
+    """A provider's address with its non-secret settings filled in (e.g. the Cloudflare account id); None when
+    one of them is missing. "" when the provider has no address of its own (LiteLLM knows it)."""
+    template = str(provider.get("api_base") or "")
+    try:
+        return template.format(**values) if template else ""
+    except KeyError:
+        return None
+
+
+def chains(cat: dict[str, Any], keys: set[str], values: Mapping[str, str] | None = None
+           ) -> dict[str, list[dict[str, str]]]:
     providers = cat["providers"]
 
     def usable(m: dict[str, str]) -> bool:
         p = providers.get(m["provider"])
+        if p is not None and values is not None and api_base(p, values) is None:
+            return False  # its address needs a setting that was not given
         return p is None or not p.get("key_env") or p["key_env"] in keys  # no key needed: keyless or on the VM
     return {kind: [m for m in models if usable(m)] for kind, models in cat["kinds"].items()}
 
@@ -93,9 +106,11 @@ def apply_makers(cat: dict[str, Any], available: dict[str, list[dict[str, str]]]
 
 
 def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0.1:11434",
-             extra: Path | None = None) -> dict[str, Any]:
+             extra: Path | None = None, values: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """values: the key file's settings, used only to fill a provider's address (never written for a key)."""
     cat = catalog(extra)
-    available = apply_makers(cat, chains(cat, keys))
+    values = {k: v for k, v in (values or {}).items() if k in keys}
+    available = apply_makers(cat, chains(cat, keys, values))
     model_list: list[dict[str, Any]] = []
     fallbacks: list[dict[str, list[str]]] = []
     if local_model:
@@ -104,8 +119,14 @@ def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0
     for kind, models in available.items():
         names = [f"vash-{kind}" if i == 0 else f"vash-{kind}-{i + 1}" for i in range(len(models))]
         for name, m in zip(names, models):
-            key_env = (cat["providers"].get(m["provider"]) or {}).get("key_env")
+            provider = cat["providers"].get(m["provider"]) or {}
+            key_env = provider.get("key_env")
             params = {"model": m["model"], **({"api_key": f"os.environ/{key_env}"} if key_env else {})}
+            # Cloudflare through its OpenAI-compatible address: LiteLLM 1.108.3's own Cloudflare provider fails
+            # while streaming (seen live: "can only concatenate str (not "bool") to str").
+            base = api_base(provider, values)
+            if base:
+                params["api_base"] = base
             model_list.append({"model_name": name, "model_info": {"maker": m["maker"]}, "litellm_params": params})
         chain = names[1:] + ([LOCAL] if local_model else [])
         if not names:  # no key for this kind: the VM's model does it
@@ -129,7 +150,8 @@ def settings(keys: set[str], local_model: str, ollama_url: str = "http://127.0.0
 
 
 def write(out: Path, env_file: Path, local_model: str, extra: Path | None = None) -> dict[str, Any]:
-    data = settings(set(read_env(env_file)), local_model, extra=extra)
+    found = read_env(env_file)
+    data = settings(set(found), local_model, extra=extra, values=found)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, indent=2) + "\n")
     return data
