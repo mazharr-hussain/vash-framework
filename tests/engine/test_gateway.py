@@ -80,3 +80,19 @@ def test_unknown_kind_or_model_name_is_refused(tmp_path):
         add(tmp_path / "x.json", "dance", "groq/x", "meta", "", False, False)
     with pytest.raises(VashError, match="not a LiteLLM model name"):
         add(tmp_path / "x.json", "coding", "justaname", "meta", "", False, False)
+
+
+def test_cloudflare_uses_its_openai_compatible_address_with_the_account_id():
+    """Seen live: LiteLLM 1.108.3's own Cloudflare provider failed while streaming; its OpenAI address works."""
+    values = {"CLOUDFLARE_API_KEY": "k", "CLOUDFLARE_ACCOUNT_ID": "acc123"}  # pragma: allowlist secret (a test value)
+    data = settings(set(values), "qwen2.5-coder:7b", values=values)
+    cf = [m for m in data["model_list"] if "@cf/" in m["litellm_params"]["model"]]
+    assert cf and all(m["litellm_params"]["model"].startswith("openai/@cf/") for m in cf)
+    assert all(m["litellm_params"]["api_base"] == "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1"
+               for m in cf)
+    assert all("k" != m["litellm_params"].get("api_key") for m in cf)  # the key stays an environment reference
+
+
+def test_cloudflare_without_its_account_id_is_left_out():
+    data = settings({"CLOUDFLARE_API_KEY"}, "qwen2.5-coder:7b", values={"CLOUDFLARE_API_KEY": "k"})
+    assert not [m for m in data["model_list"] if "@cf/" in m["litellm_params"]["model"]]
